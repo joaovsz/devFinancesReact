@@ -1,0 +1,7 @@
+header{
+  width:100vw;
+  padding: 2rem 0 10rem;
+  height:10rem;
+  background:var(--bg-black);
+  text-align:center;
+}

@@ -1,0 +1,17 @@
+.button{
+  width:60%;
+  margin:auto;
+  position: relative;
+  padding-top:.5rem;
+  top: -5rem;
+}
+
+#newTransaction{
+  padding:.5rem;
+  border:none;
+  border-radius:.5rem;
+  font-weight:bold;
+  font-size:1rem;
+  color:var(--white-bg);
+  background:var(--green);
+}

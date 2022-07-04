@@ -1,0 +1,51 @@
+.table-container{
+  width:60%;
+  margin:auto;
+  display: flex;
+  flex-direction: column;
+  gap:10px;
+  color:var(--black-text);
+  position:relative;
+  top:-3rem;
+}
+
+.table-container .tableHeader{
+  border-radius:.5rem;
+  background:white;
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+}
+
+.table-container .tableRow{
+  border-radius:.5rem;
+  background:white;
+  display:flex;
+  align-items: center;
+  justify-content: space-between;
+  opacity:0.8;
+}
+.table-container .tableRow .Value{
+  color:var(--green)
+}
+.tableRow button{
+  background:none;
+  border:none;
+  margin:0;
+  padding:0;
+}
+
+.table-container .tableRow:hover{
+  opacity:1;
+}
+
+.table-container .cell{
+  width:10rem;
+  height:100%;
+  padding:1.3rem;
+}
+
+.table-container .remove{
+  width:4rem;
+}

@@ -1,0 +1,57 @@
+.card-container{
+  display:flex;
+  margin:auto;
+  width:60%;
+  height:8rem;
+  justify-content:space-between;
+  position:relative;
+  top:-5.5rem;
+}
+
+.card-container .card{
+  width:33%;
+  height:100%;
+  border-radius:.5rem;
+  background-color:white;
+}
+
+.card-container .card:last-child{
+  background:var(--green);
+  color:white;
+}
+
+.card-container .card .card-type{
+  padding:1rem .5rem;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  width:80%;
+  margin:auto;
+}
+
+.card-container .card .value{
+  display:flex;
+  font-weight:400;
+  font-size:2.2rem;
+  width:80%;
+  margin:auto;
+  padding-left:.5rem;
+}
+
+.button{
+  width:60%;
+  margin:auto;
+  position: relative;
+  padding-top:.5rem;
+  top: -5rem;
+}
+
+#newTransaction{
+  padding:.5rem;
+  border:none;
+  border-radius:.5rem;
+  font-weight:bold;
+  font-size:1rem;
+  color:var(--white-bg);
+  background:var(--green);
+}
