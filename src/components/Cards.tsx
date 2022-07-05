@@ -2,6 +2,9 @@ import "../styles/cardStyle/card.css"
 import IncomeIcon from "../components/icons/IncomeIcon"
 import ExpensesIcon from "./icons/ExpensesIcon"
 import TotalIcon from "./icons/TotalIcon"
+import { useDispatch } from "react-redux"
+import { useState } from "react"
+import { openModal } from "./redux/transactionSlice"
 
 const cards = [
   {
@@ -19,7 +22,14 @@ const cards = [
 ]
 
 export const Cards = () => {
+  const [isOpen, setIsOpenModal] = useState<Boolean>(false)
+  const dispatch = useDispatch()
 
+
+  function setOpenModal(){
+       dispatch(openModal(isOpen))
+      console.log('teste')
+}
   return (
     <>
     <div className="card-container">
@@ -36,7 +46,7 @@ export const Cards = () => {
       </div>))}
     </div>
     <div className="button">
-      <button id="newTransaction">Nova transação</button>
+      <button id="newTransaction"  onClick={()=>setOpenModal()}>Nova transação</button>
     </div>
         </>
   )

@@ -1,5 +1,6 @@
 import "../styles/tableStyle/table.css"
-import MinusIcon from "./icons/MinusIcon"
+import Transactions from "./Transactions"
+
 export const Table = () => {
   return (
     <div className="table-container">
@@ -9,17 +10,9 @@ export const Table = () => {
         <div className="cell Data">Data</div>
         <div className="cell remove"></div>
       </div>
-      <div className="tableRow">
-        <div className="cell description">Salário</div>
-        <div className="cell Value">R$ 1398</div>
-        <div className="cell Data">01/07/2022</div>
-        <div className="cell remove">
-          <button>
-            <MinusIcon/>
-            </button>
-        </div>
-        </div>
+    <Transactions
       
+    />
     </div>
   )
 }
