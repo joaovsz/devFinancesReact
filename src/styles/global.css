@@ -13,6 +13,16 @@ body{
   background:var(--white-bg);
 }
 
+footer{
+  text-align: center;
+  padding:4rem 0 2rem;
+  opacity: 0.5;
+  font-weight: 300;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
 .sr-only {  /*Configuração para leitor de tela*/
   position: absolute;
   width:1px;
@@ -52,10 +62,6 @@ body{
   .table-container{
     width:80%;
   }
-  /* footer{
-    margin:auto;
-  
-    text-align:center;
-  } */
+
 }
 
