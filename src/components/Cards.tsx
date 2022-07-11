@@ -64,7 +64,7 @@ function handleDate(event: { target: { value: string } }) {
 function selectTransaction(event: { target: { value: SetStateAction<number> } }) {
   setOption(event.target.value)
 }
-function setData(e: MouseEvent<HTMLButtonElement, MouseEvent>) {
+function setData(e: MouseEvent<HTMLButtonElement, globalThis.MouseEvent>) {
   e.preventDefault()
   if (label === '' || value === '' || date === '') {
       alert('Preencha todos os campos corretamente')
