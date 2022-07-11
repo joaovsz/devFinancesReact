@@ -2,5 +2,6 @@ export type Transaction = {
   id: string,
   label: string,
   value: number,
-  date: string
+  date: string, 
+  type: number
 }
