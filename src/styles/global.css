@@ -2,7 +2,7 @@
   --bg-black: #1F1F1E;
   --black-text: #9E9EAE;
   --green:#12A454;
-  --white-bg:#EEEEEE;
+  --white-bg:#E7EEF3;
   font-family: Lato, 'sans-serif';
   margin:0;
   padding:0;
@@ -25,3 +25,32 @@ body{
   border-width: 0;
 
 }
+
+@media(max-width:768px){
+  html{
+    font-size:85.6%;
+  }
+  .card-container{
+    width:100%;
+    align-items: center;
+    justify-content: flex-start;
+    flex-direction:column;
+    height:auto;
+    gap:1rem;
+
+  }
+  .card-container .card{
+    width:80%;
+    padding-bottom:1rem
+  }
+
+  .inputs form{
+    width:80%;
+    margin:auto;
+    flex-direction:column;
+  }
+  .table-container{
+    width:80%;
+  }
+}
+

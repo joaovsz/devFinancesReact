@@ -1,7 +1,8 @@
 .card-container{
   display:flex;
+  flex-direction:row;
   margin:auto;
-  width:60%;
+  max-width:768px;
   height:8rem;
   justify-content:space-between;
   position:relative;
@@ -9,7 +10,7 @@
 }
 
 .card-container .card{
-  width:33%;
+  width:30%;
   height:100%;
   border-radius:.5rem;
   background-color:white;
@@ -38,20 +39,51 @@
   padding-left:.5rem;
 }
 
-.button{
-  width:60%;
-  margin:auto;
+.inputs{
+  max-width:768px;
+  margin: 1rem auto 0 auto;
   position: relative;
-  padding-top:.5rem;
   top: -5rem;
+  align-items: center;
+}
+
+.inputs form{
+  display:flex;
+  flex-direction: row;
+  gap:1rem;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.inputs form input{
+  width:14rem;
+  height:2rem;
+  padding:.2rem;
+}
+
+select{
+  border-radius:.2rem;
+  width:8rem;
+  height:2rem;
+}
+
+.inputs form .input-group{
+  width:100%;
+}
+.inputs form .input-group input{
+  width:100%;
 }
 
 #newTransaction{
-  padding:.5rem;
   border:none;
   border-radius:.5rem;
   font-weight:bold;
-  font-size:1rem;
+  height:2rem;
+  width:100%;
+  align-items:center;
   color:var(--white-bg);
   background:var(--green);
 }
+
+// =================Responsive=================
+

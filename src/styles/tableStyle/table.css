@@ -1,16 +1,17 @@
 .table-container{
-  width:60%;
+  max-width:768px;
   margin:auto;
   display: flex;
   flex-direction: column;
   gap:10px;
-  color:var(--black-text);
+  
   position:relative;
   top:-3rem;
 }
 
 .table-container .tableHeader{
   border-radius:.5rem;
+  color:var(--black-text);
   background:white;
   width:100%;
   display:flex;
@@ -19,15 +20,20 @@
 }
 
 .table-container .tableRow{
+  color:var(--black);
   border-radius:.5rem;
   background:white;
+
   display:flex;
   align-items: center;
   justify-content: space-between;
-  opacity:0.8;
+  opacity:.5;
 }
 .table-container .tableRow .Value{
   color:var(--green)
+}
+.table-container .tableRow .red{
+  color: red;
 }
 .tableRow button{
   background:none;
@@ -37,7 +43,7 @@
 }
 
 .table-container .tableRow:hover{
-  opacity:1;
+  background:#E6EDF2;
 }
 
 .table-container .cell{
@@ -45,6 +51,8 @@
   height:100%;
   padding:1.3rem;
 }
+
+
 
 .table-container .remove{
   width:4rem;
