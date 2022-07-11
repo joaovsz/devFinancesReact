@@ -61,8 +61,8 @@ function handleDate(event: { target: { value: string } }) {
   let valueDate = event.target.value
   setDate(valueDate)
 }
-function selectTransaction(event: { target: { value: SetStateAction<number> } }) {
-  setOption(event.target.value)
+function selectTransaction(event: { target: { value: SetStateAction<string> } }) {
+  setOption(Number(event.target.value))
 }
 function setData(e: MouseEvent<HTMLButtonElement, globalThis.MouseEvent>) {
   e.preventDefault()
@@ -108,7 +108,7 @@ function setData(e: MouseEvent<HTMLButtonElement, globalThis.MouseEvent>) {
       <form>
       <select 
       value={option}
-      onChange={selectTransaction}
+      onChange={(e)=>selectTransaction(e)}
       >
         <option value={1}>Ganhos</option>
         <option value={2}>Despesas</option>
