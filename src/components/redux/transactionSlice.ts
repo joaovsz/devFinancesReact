@@ -6,9 +6,9 @@ import { Transaction } from "../../types/transaction";
 const initialState={
   reloaded: false,
   transaction: [],
-  totalIncomes:0.00,
+  totalIncomes:0,
   totalExpenses:0.00,
-  totalAmount: 0.00,
+  totalAmount:0,
 }
 
 const stock = createSlice({
@@ -39,11 +39,11 @@ const stock = createSlice({
               totalIncomes: number, totalExpenses:number} , 
       action:{type:any, payload: any}
       )=>{
-
         const stateFiltered = state.transaction.findIndex(
-          (transaction: Transaction) => {transaction.id===action.payload})
+          (transaction: Transaction) => {
+            return transaction.id===action.payload})
           state.transaction.splice(stateFiltered, 1)
-
+         
         },
 
     calculateIncomes:(
