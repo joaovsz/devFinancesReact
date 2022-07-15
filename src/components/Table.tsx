@@ -10,7 +10,7 @@ export const Table = () => {
         <div className="cell Data">Data</div>
         <div className="cell remove"></div>
       </div>
-    <Transactions/>
+      <Transactions/>
     </div>
   )
 }

@@ -26,6 +26,7 @@ export const Cards = () => {
   const [option, setOption] = useState(initialState.option)
 
   const dispatch = useDispatch()
+
   const incomes = useSelector((store:any)=> store.transactions.totalIncomes)
   const expenses = useSelector((store:any)=> store.transactions.totalExpenses)
   const total = useSelector((store:any)=> store.transactions.totalAmount)
@@ -53,17 +54,28 @@ function handleLabel(event: { target: { value: string } }) {
   let labeltext = event.target.value
   setLabel(labeltext)
 }
+
 function handleValue(event: { target: { value: string } }) {
   let numberValue = event.target.value
   setValue(numberValue)
 }
+
 function handleDate(event: { target: { value: string } }) {
   let valueDate = event.target.value
   setDate(valueDate)
 }
+
 function selectTransaction(event: { target: { value: SetStateAction<string> } }) {
   setOption(Number(event.target.value))
 }
+
+function resetValues(){
+  setLabel(initialState.label)
+  setValue(initialState.value)
+  setDate(initialState.date)
+  setOption(initialState.option)
+}
+
 function setData(e: MouseEvent<HTMLButtonElement, globalThis.MouseEvent>) {
   e.preventDefault()
   if (label === '' || value === '' || date === '') {
@@ -77,13 +89,11 @@ function setData(e: MouseEvent<HTMLButtonElement, globalThis.MouseEvent>) {
           type: option
       }
       dispatch(addTransaction(transaction))
-      option===1?dispatch(calculateIncomes(transaction.value)):dispatch(calculateExpenses(transaction.value))
-      dispatch(reloadValues(isOpen))
+      transaction.type===1?dispatch(calculateIncomes(transaction.value))
+      :dispatch(calculateExpenses(transaction.value))
       dispatch(calculateTotal())
-      setLabel(initialState.label)
-      setValue(initialState.value)
-      setDate(initialState.date)
-      setOption(initialState.option)
+      dispatch(reloadValues(isOpen))
+      resetValues()
     }
 
 }
