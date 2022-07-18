@@ -1,6 +1,4 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { useEffect } from "react";
-import { useSelector } from "react-redux";
 import { Transaction } from "../../types/transaction";
 
 const initialState={
