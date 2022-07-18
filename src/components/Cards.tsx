@@ -7,6 +7,7 @@ import { MouseEvent, SetStateAction, useRef, useState } from "react"
 import { v4 as uuid } from 'uuid'
 import { addTransaction, calculateExpenses, calculateIncomes, calculateTotal, reloadValues } from "./redux/transactionSlice"
 import { Transaction } from "../types/transaction"
+import { formatCurrency } from "./Transactions"
 
 
 const initialState = {
@@ -35,15 +36,7 @@ export const Cards = () => {
   const expenses = useSelector((store: any) => store.transactions.totalExpenses)
   const total = useSelector((store: any) => store.transactions.totalAmount)
 
-  function formatCurrency(value: number | string) {
-    const signal = value < 0 ? "-" : ""
-    value = String(value).replace(/\D/g, "")
-    value = Number(value).toLocaleString("pt-br", {
-      style: "currency",
-      currency: "BRL"
-    })
-    return signal + value
-  }
+
   const cards = [
     {
       type: "Entradas",
