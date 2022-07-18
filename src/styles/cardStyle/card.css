@@ -46,6 +46,7 @@
   margin: 1rem auto 0 auto;
   position: relative;
   top: -5rem;
+  
   align-items: center;
 }
 
@@ -61,19 +62,23 @@
   width:14rem;
   height:2rem;
   padding:.2rem;
+  border:1px var(--green) solid;
 }
 
 select{
   border-radius:.2rem;
   width:8rem;
   height:2rem;
+  border-radius:.5rem;
 }
 
 .inputs form .input-group{
   width:100%;
+  
 }
 .inputs form .input-group input{
   width:100%;
+  border-radius:.3rem;
 }
 
 #newTransaction{
@@ -85,6 +90,13 @@ select{
   align-items:center;
   color:var(--white-bg);
   background:var(--green);
+}
+
+#new{
+  gap:.5rem;
+  display:flex;
+  justify-content: space-between;
+  width:100%;
 }
 
 // =================Responsive=================

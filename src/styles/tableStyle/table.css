@@ -7,7 +7,7 @@
   top:-3rem;
 }
 
-.table-container .tableHeader{
+/* .table-container .tableHeader{
   border-radius:.5rem;
   color:var(--black-text);
   background:white;
@@ -15,7 +15,7 @@
   display:flex;
   align-items:center;
   justify-content: space-between;
-}
+} */
 
 .table-container .tableRow{
   color:var(--black);
@@ -32,11 +32,15 @@
 .table-container .tableRow:last-child{
   border-top-left-radius:0px;
   border-top-right-radius:0px;
+  border-bottom-left-radius:8px;
+  border-bottom-right-radius:8px;
   border-bottom:1px solid var(--green);
   border-left:1px solid var(--green);
   border-right:1px solid var(--green);
 }
 .table-container .tableRow:first-child{
+  border-top-left-radius:8px;
+  border-top-right-radius:8px;
   border-bottom-left-radius:0px;
   border-bottom-right-radius:0px;
   border-top:1px solid var(--green);
@@ -72,5 +76,6 @@
 
 
 .table-container .remove{
+
   width:4rem;
 }

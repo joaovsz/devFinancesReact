@@ -10,7 +10,7 @@ import { Transaction } from "../types/transaction"
 import { formatCurrency } from "./Transactions"
 
 
-const initialState = {
+export const initialState = {
   isOpen: false,
   label: "",
   value: "",
@@ -122,16 +122,12 @@ export const Cards = () => {
             </span>
           </div>))}
       </div>
+
+      
       <div className="inputs">
         <form>
-          <select
-            value={option}
-            onChange={(e) => selectTransaction(e)}
-          >
-            <option value={1}>Ganhos</option>
-            <option value={2}>Despesas</option>
-          </select>
-          <div className="input-group">
+          
+          <div className="input-group"> 
             <label className="sr-only" htmlFor="description">Descrição</label>
             <input autoFocus ref={inputRef} type="text" name="description" id="description"
               placeholder="Descrição" value={label} onChange={handleLabel} />
@@ -152,9 +148,20 @@ export const Cards = () => {
               onChange={handleDate}
               placeholder="date"></input>
           </div>
+          <div id="new">
+
+          <select
+            value={option}
+            onChange={(e) => selectTransaction(e)}
+            >
+            <option value={1}>Ganhos</option>
+            <option value={2}>Despesas</option>
+          </select>
           <button id="newTransaction" onClick={(e) => { setData(e); clickFocus() }}>Nova transação</button>
+            </div>
         </form>
       </div>
+  
     </>
   )
 }

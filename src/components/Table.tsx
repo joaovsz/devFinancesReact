@@ -2,6 +2,7 @@ import "../styles/tableStyle/table.css"
 import Transactions from "./Transactions"
 
 export const Table = () => {
+  
   return (
     <div className="table-container">
       {/* <div className=" tableHeader">
@@ -11,6 +12,7 @@ export const Table = () => {
         <div className="cell remove"></div>
       </div> */}
       <Transactions/>
+     
     </div>
   )
 }
