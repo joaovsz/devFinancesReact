@@ -1,4 +1,4 @@
-import "../styles/tableStyle/table.css"
+import "../styles/table/table.css"
 import Transactions from "./Transactions"
 
 export const Table = () => {

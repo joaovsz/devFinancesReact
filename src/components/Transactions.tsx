@@ -1,8 +1,7 @@
-import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Transaction } from "../types/transaction"
 import MinusIcon from "./icons/MinusIcon"
-import { minusTransaction, removeTransaction } from './redux/transactionSlice'
+import { minusTransaction, removeTransaction } from './redux/transaction-slice'
 
 export const formatCurrency = (value:number|string)=>{
     const signal = value<0?"-":""

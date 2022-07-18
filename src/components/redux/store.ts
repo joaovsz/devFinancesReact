@@ -1,6 +1,6 @@
 import {configureStore} from '@reduxjs/toolkit'
 import {persistStore, persistReducer} from 'redux-persist'
-import stockReducer from './transactionSlice'
+import stockReducer from './transaction-slice'
 import storage from 'redux-persist/lib/storage'
 
 const persistConfig = {

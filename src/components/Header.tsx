@@ -1,5 +1,5 @@
 import Logo from "./icons/Logo"
-import "../styles/headerStyle/header.css"
+import "../styles/header/header.css"
 export const Header = () => {
   return (
     <header>

@@ -1,11 +1,11 @@
-import "../styles/cardStyle/card.css"
+import "../styles/card/card.css"
 import IncomeIcon from "../components/icons/IncomeIcon"
 import ExpensesIcon from "./icons/ExpensesIcon"
 import TotalIcon from "./icons/TotalIcon"
 import { useDispatch, useSelector } from "react-redux"
 import { MouseEvent, SetStateAction, useRef, useState } from "react"
 import { v4 as uuid } from 'uuid'
-import { addTransaction, calculateExpenses, calculateIncomes, calculateTotal, reloadValues } from "./redux/transactionSlice"
+import { addTransaction, calculateExpenses, calculateIncomes, calculateTotal, reloadValues } from "./redux/transaction-slice"
 import { Transaction } from "../types/transaction"
 import { formatCurrency } from "./Transactions"
 
