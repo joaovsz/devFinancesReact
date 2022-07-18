@@ -129,7 +129,7 @@ export const Cards = () => {
           
           <div className="input-group"> 
             <label className="sr-only" htmlFor="description">Descrição</label>
-            <input autoFocus ref={inputRef} type="text" name="description" id="description"
+            <input ref={inputRef} type="text" name="description" id="description"
               placeholder="Descrição" value={label} onChange={handleLabel} />
           </div>
           <div className="input-group">
