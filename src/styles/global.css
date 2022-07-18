@@ -1,8 +1,8 @@
 *,body{
-  --bg-black: #1F1F1E;
+  --bg-black: #000000;
   --black-text: #9E9EAE;
-  --green:#12A454;
-  --white-bg:#E7EEF3;
+  --green:#1A4D2E;
+  --white-bg:#F0EBE3;
   font-family: Lato, 'sans-serif';
   margin:0;
   padding:0;

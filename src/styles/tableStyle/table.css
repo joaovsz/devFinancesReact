@@ -2,9 +2,7 @@
   max-width:768px;
   margin:auto;
   display: flex;
-  flex-direction: column;
-  gap:10px;
-  
+  flex-direction: column; 
   position:relative;
   top:-3rem;
 }
@@ -21,19 +19,36 @@
 
 .table-container .tableRow{
   color:var(--black);
-  border-radius:.5rem;
+  border-radius:0;
   background:white;
-
   display:flex;
+  border-left:1px solid var(--green);
+  border-right:1px solid var(--green);
+  font-weight:bold;
   align-items: center;
   justify-content: space-between;
-  opacity:.5;
+}
+
+.table-container .tableRow:last-child{
+  border-top-left-radius:0px;
+  border-top-right-radius:0px;
+  border-bottom:1px solid var(--green);
+  border-left:1px solid var(--green);
+  border-right:1px solid var(--green);
+}
+.table-container .tableRow:first-child{
+  border-bottom-left-radius:0px;
+  border-bottom-right-radius:0px;
+  border-top:1px solid var(--green);
+  border-left:1px solid var(--green);
+  border-right:1px solid var(--green);
 }
 .table-container .tableRow .Value{
-  color:var(--green)
+  color:var(--green);
+  font-weight:700;
 }
-.table-container .tableRow .red{
-  color: red;
+.table-container .tableRow  .red {
+  color: #B8405E;
 }
 .tableRow button{
   background:none;
@@ -42,8 +57,10 @@
   padding:0;
 }
 
+
+
 .table-container .tableRow:hover{
-  background:#E6EDF2;
+  background:#CFD2CF;
 }
 
 .table-container .cell{
