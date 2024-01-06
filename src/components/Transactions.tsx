@@ -6,16 +6,17 @@ import { minusTransaction, removeTransaction } from './redux/transaction-slice'
 export const formatCurrency = (value: number | string) => {
   const signal = Number(value) < 0 ? "-" : "";
 
-  // Regex para remover strings não numericas
-  const numericValue = String(value).replace(/\D/g, "");
+  // Converte para número (considerando valores decimais)
+  const numericValue = Number(String(value).replace(/[^\d.-]/g, ''));
 
-  const formattedValue = (Number(numericValue) / 100).toLocaleString("pt-br", {
+  const formattedValue = numericValue.toLocaleString("pt-br", {
     style: "currency",
     currency: "BRL"
   });
 
   return signal + formattedValue;
 };
+
 
 
 
