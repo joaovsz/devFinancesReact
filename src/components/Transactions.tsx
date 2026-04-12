@@ -203,6 +203,11 @@ const Transactions = () => {
       return
     }
 
+    if (entry.plannedSourceType === "income") {
+      navigate("/planejamento?editIncome=1")
+      return
+    }
+
     navigate("/planejamento")
   }
 

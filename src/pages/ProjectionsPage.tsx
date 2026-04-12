@@ -4,6 +4,7 @@ import type { EChartsOption } from "echarts"
 import { echarts } from "../utils/echarts"
 import { NumberTicker } from "../components/magic/NumberTicker"
 import { formatCurrency } from "../components/Transactions"
+import { DismissibleInfoCard } from "../components/ui/DismissibleInfoCard"
 import { useTransactionStore } from "../store/useTransactionStore"
 import { fetchBrazilHolidaysByYear } from "../services/calendar"
 import { getWorkingMonthMetrics } from "../utils/business-days"
@@ -232,6 +233,16 @@ export const ProjectionsPage = () => {
 
   return (
     <section className="flex flex-col gap-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+      <DismissibleInfoCard
+        storageKey="info-card-projections"
+        title="Como usar Projeções"
+        description="Projeções simulam os próximos meses com base no histórico e no planejamento."
+        items={[
+          "Selecione o mês inicial para recalcular a janela de 12 meses.",
+          "Veja compromissos, receita projetada e saldo acumulado no gráfico.",
+          "Funciona para PJ e CLT, respeitando o modo de renda configurado no planejamento."
+        ]}
+      />
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-zinc-100">Projeções</h1>

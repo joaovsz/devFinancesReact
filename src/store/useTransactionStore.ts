@@ -24,6 +24,7 @@ type TransactionStore = {
   totalAmount: number
   addCard: (card: CreditCard) => void
   updateCard: (card: CreditCard) => void
+  removeCard: (id: string) => void
   addTransaction: (transaction: Transaction) => void
   updateTransaction: (transaction: Transaction) => void
   removeTransaction: (id: string) => void
@@ -137,6 +138,25 @@ export const useTransactionStore = create<TransactionStore>()(
               : currentCard
           )
         })),
+      removeCard: (id) =>
+        set((state) => ({
+          cards: state.cards.filter((card) => card.id !== id),
+          transactions: state.transactions.map((transaction) =>
+            transaction.paymentMethod === "credit" && transaction.cardId === id
+              ? { ...transaction, cardId: undefined }
+              : transaction
+          ),
+          fixedCosts: state.fixedCosts.map((cost) =>
+            cost.paymentMethod === "credit" && cost.cardId === id
+              ? { ...cost, paymentMethod: "cash", cardId: undefined }
+              : cost
+          ),
+          installmentPlans: state.installmentPlans.map((plan) =>
+            plan.paymentMethod === "credit" && plan.cardId === id
+              ? { ...plan, paymentMethod: "cash", cardId: undefined }
+              : plan
+          )
+        })),
       addTransaction: (transaction) =>
         set((state) => {
           const transactions = [...state.transactions, transaction]
@@ -195,7 +215,7 @@ export const useTransactionStore = create<TransactionStore>()(
     }),
     {
       name: "devfinances-storage",
-      version: 17,
+      version: 18,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState, version) => {
         if (!persistedState || typeof persistedState !== "object") {
@@ -432,6 +452,20 @@ export const useTransactionStore = create<TransactionStore>()(
               brandColor: normalizeCardBrandColor(card),
               logoUrl: normalizeCardLogoUrl(card)
             }))
+          }
+        }
+
+        if (version < 18) {
+          const state = persistedState as TransactionStore
+          const hardcodedCardIds = new Set([
+            "nubank",
+            "ourocard",
+            "credicard",
+            "mercado-pago"
+          ])
+          return {
+            ...state,
+            cards: (state.cards || []).filter((card) => !hardcodedCardIds.has(card.id))
           }
         }
 

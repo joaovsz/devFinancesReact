@@ -8,9 +8,14 @@ import { useTransactionStore } from "../store/useTransactionStore"
 import { NumberTicker } from "./magic/NumberTicker"
 import { formatCurrency } from "./Transactions"
 import { bankPresets, BankPreset } from "../data/banks"
-import { formatCurrencyInput, parseCurrencyInput } from "../utils/currency-input"
+import {
+  formatCurrencyFromNumber,
+  formatCurrencyInput,
+  parseCurrencyInput
+} from "../utils/currency-input"
 import { fetchBankInstitutions } from "../services/banks"
 import { CreditCard as CardType } from "../types/card"
+import { DismissibleInfoCard } from "./ui/DismissibleInfoCard"
 
 export const Cards = () => {
   const cards = useTransactionStore((state) => state.cards)
@@ -22,6 +27,7 @@ export const Cards = () => {
   const totalExpenses = useTransactionStore((state) => state.totalExpenses)
   const addCard = useTransactionStore((state) => state.addCard)
   const updateCard = useTransactionStore((state) => state.updateCard)
+  const removeCard = useTransactionStore((state) => state.removeCard)
 
   const currentMonth = getCurrentMonthKey()
   const [holidays, setHolidays] = useState<Holiday[]>([])
@@ -210,6 +216,11 @@ export const Cards = () => {
     setShowAddCardForm(false)
   }
 
+  function handleRemoveCard(cardId: string) {
+    removeCard(cardId)
+    setExpandedCardId((current) => (current === cardId ? null : current))
+  }
+
   return (
     <section className="grid gap-4 lg:grid-cols-12">
       <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-6">
@@ -265,6 +276,16 @@ export const Cards = () => {
       </article>
 
       <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-8">
+        <DismissibleInfoCard
+          storageKey="info-card-credit-cards"
+          title="Como usar Meus Cartões"
+          description="Aqui você acompanha limite usado/disponível e gerencia cada cartão."
+          items={[
+            "Dê duplo clique no cartão para abrir edição.",
+            "No modo edição você pode alterar limite, fechamento e vencimento.",
+            "Também é possível remover o cartão."
+          ]}
+        />
         <div className="mb-4">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">Meus cartões</h2>
         </div>
@@ -321,7 +342,7 @@ export const Cards = () => {
                       type="text"
                       inputMode="decimal"
                       placeholder="Limite"
-                      value={formatCurrencyInput(String(card.limitTotal))}
+                      value={formatCurrencyFromNumber(card.limitTotal)}
                       onChange={(event) =>
                         updateCardField(
                           card,
@@ -356,6 +377,17 @@ export const Cards = () => {
                         ))}
                       </select>
                     </div>
+                    <button
+                      className="rounded-xl border border-red-500/60 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/25"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        handleRemoveCard(card.id)
+                      }}
+                      type="button"
+                    >
+                      Remover cartão
+                    </button>
                   </div>
                 ) : (
                   <div>

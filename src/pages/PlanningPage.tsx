@@ -1,4 +1,4 @@
-import { SelectHTMLAttributes, useEffect, useMemo, useState } from "react"
+import { SelectHTMLAttributes, useEffect, useMemo, useRef, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { useSearchParams } from "react-router-dom"
 import { v4 as uuid } from "uuid"
@@ -81,6 +81,9 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   )
 
   const [wizardStep, setWizardStep] = useState<0 | 1>(0)
+  const [highlightedSection, setHighlightedSection] = useState<"income" | "fixed" | null>(null)
+  const incomeSectionRef = useRef<HTMLDivElement | null>(null)
+  const fixedSectionRef = useRef<HTMLDivElement | null>(null)
 
   const selectedFixedCategory = useMemo(
     () =>
@@ -110,6 +113,42 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setFixedPaymentMethod(cost.paymentMethod)
     setFixedCardId(cost.cardId || firstCardId)
   }, [searchParams, fixedCosts, firstCardId])
+
+  useEffect(() => {
+    const editIncome = searchParams.get("editIncome")
+    if (editIncome !== "1") {
+      return
+    }
+
+    setHighlightedSection("income")
+    requestAnimationFrame(() => {
+      incomeSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+    })
+
+    const timer = window.setTimeout(() => {
+      setHighlightedSection((current) => (current === "income" ? null : current))
+    }, 2200)
+
+    return () => window.clearTimeout(timer)
+  }, [searchParams])
+
+  useEffect(() => {
+    const editingId = searchParams.get("editFixedCostId")
+    if (!editingId || wizardStep !== 0) {
+      return
+    }
+
+    setHighlightedSection("fixed")
+    requestAnimationFrame(() => {
+      fixedSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+    })
+
+    const timer = window.setTimeout(() => {
+      setHighlightedSection((current) => (current === "fixed" ? null : current))
+    }, 2200)
+
+    return () => window.clearTimeout(timer)
+  }, [searchParams, wizardStep])
 
   function getPaymentLabel(paymentMethod: "cash" | "credit", cardId?: string) {
     if (paymentMethod !== "credit") {
@@ -231,8 +270,13 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         Cadastre faturamento, gastos fixos e parcelamentos para alimentar projeções e limite de cartão.
       </p>
 
-      <div className="grid gap-4 xl:grid-cols-[340px_1fr]">
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+      <div className="grid gap-4 md:grid-cols-[340px_1fr]">
+        <div
+          ref={incomeSectionRef}
+          className={`rounded-xl border border-zinc-800 bg-zinc-950 p-4 transition ${
+            highlightedSection === "income" ? "ring-2 ring-emerald-500 animate-pulse" : ""
+          }`}
+        >
           <h2 className="mb-3 text-sm font-semibold text-zinc-100">Faturamento mensal</h2>
           <div className="mb-3 grid gap-2">
             <label className="text-xs uppercase tracking-wide text-zinc-400">Regime</label>
@@ -368,7 +412,12 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
           </div>
 
           {wizardStep === 0 && (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+            <div
+              ref={fixedSectionRef}
+              className={`rounded-xl border border-zinc-800 bg-zinc-950 p-4 transition ${
+                highlightedSection === "fixed" ? "ring-2 ring-emerald-500 animate-pulse" : ""
+              }`}
+            >
               <h2 className="mb-3 text-sm font-semibold text-zinc-100">Gastos fixos</h2>
               <div className="grid gap-2">
                 <div className="grid gap-2 md:grid-cols-2">
