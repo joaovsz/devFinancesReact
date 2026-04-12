@@ -1,7 +1,6 @@
-import { useDispatch, useSelector } from 'react-redux'
 import { Transaction } from "../types/transaction"
 import MinusIcon from "./icons/MinusIcon"
-import { minusTransaction, removeTransaction } from './redux/transaction-slice'
+import { useTransactionStore } from '../store/useTransactionStore'
 
 export const formatCurrency = (value: number | string) => {
   const signal = Number(value) < 0 ? "-" : "";
@@ -21,37 +20,51 @@ export const formatCurrency = (value: number | string) => {
 
 
 const Transactions = () => {
-  const transactions = useSelector((store:any)=>store.transactions.transaction)
-  const dispatch = useDispatch()
+  const transactions = useTransactionStore((state) => state.transactions)
+  const removeTransaction = useTransactionStore((state) => state.removeTransaction)
 
-  function removeTransactions(id:string, type:number, amount:number){
-    dispatch(removeTransaction(id))
-    const forRemove = {
-      type: type,
-      amount: amount
-    }
-    dispatch(minusTransaction(forRemove))
+  function removeTransactions(id:string){
+    removeTransaction(id)
   }
 
-  return (<>
-    {transactions.map((transaction: Transaction) =>{
-      const splittedDate = transaction.date.split('-')
-      return (
-    <div key={transaction.id} className="tableRow">
-    <div className="cell description">{transaction.label}</div>
-    <div className={transaction.type===1?"cell Value":"cell Value red"}>{formatCurrency(transaction.value)}</div>
-    <div className="cell Data">{splittedDate[2]}/{splittedDate[1]}/{splittedDate[0]}</div>
-    <div className="cell remove">
-      <button onClick={()=>{removeTransactions(transaction.id, transaction.type, transaction.value)}}>
-        <MinusIcon/>
-        </button>
-    </div>
-    </div>
-  )
-})}
-</>
+  if (transactions.length === 0) {
+    return (
+      <div className="px-5 py-12 text-center text-sm text-zinc-500">
+        Nenhuma transação cadastrada.
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {transactions.map((transaction: Transaction) => {
+        const splittedDate = transaction.date.split('-')
+        return (
+          <div
+            key={transaction.id}
+            className="grid grid-cols-[1.8fr_1fr_1fr_56px] items-center border-b border-zinc-800/70 px-5 py-4 text-sm text-zinc-200 last:border-b-0"
+          >
+            <div className="truncate">{transaction.label}</div>
+            <div className={transaction.type === 1 ? "text-emerald-500" : "text-rose-500"}>
+              {formatCurrency(transaction.value)}
+            </div>
+            <div className="text-zinc-400">
+              {splittedDate[2]}/{splittedDate[1]}/{splittedDate[0]}
+            </div>
+            <div className="flex justify-end">
+              <button
+                aria-label="Remover transação"
+                className="rounded-lg p-1 transition hover:bg-zinc-800"
+                onClick={() => { removeTransactions(transaction.id) }}
+              >
+                <MinusIcon />
+              </button>
+            </div>
+          </div>
+        )
+      })}
+    </>
   )
 }
 
 export default Transactions
-
