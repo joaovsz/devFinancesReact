@@ -2,6 +2,8 @@ export type FixedCost = {
   id: string
   name: string
   amount: number
+  categoryId: string
+  subcategoryId: string
   paymentMethod: "cash" | "credit"
   cardId?: string
 }

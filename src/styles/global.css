@@ -5,6 +5,10 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --card-gradient-end: rgba(9, 9, 11, 0.92);
+  }
+
   * {
     user-select: none;
     -webkit-user-select: none;
@@ -22,6 +26,10 @@
 }
 
 @layer base {
+  .theme-light {
+    --card-gradient-end: rgba(255, 255, 255, 0.9);
+  }
+
   .theme-light body {
     background: #f4f6fb;
     color: #111827;
@@ -78,6 +86,34 @@
 }
 
 @layer utilities {
+  #root .rounded-sm {
+    border-radius: 0.625rem;
+  }
+
+  #root .rounded {
+    border-radius: 0.75rem;
+  }
+
+  #root .rounded-md {
+    border-radius: 0.9rem;
+  }
+
+  #root .rounded-lg {
+    border-radius: 1rem;
+  }
+
+  #root .rounded-xl {
+    border-radius: 1.2rem;
+  }
+
+  #root .rounded-2xl {
+    border-radius: 1.5rem;
+  }
+
+  #root .rounded-3xl {
+    border-radius: 1.85rem;
+  }
+
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;

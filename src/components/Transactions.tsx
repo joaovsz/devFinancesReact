@@ -7,6 +7,7 @@ import { defaultCategories } from "../data/categories"
 import { getCurrentMonthKey } from "../utils/projections"
 import { buildPlannedEntriesForMonth, PlannedEntry } from "../utils/planningEntries"
 import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
+import { formatCurrencyFromNumber, formatCurrencyInput, parseCurrencyInput } from "../utils/currency-input"
 
 export const formatCurrency = (value: number | string) => {
   const signal = Number(value) < 0 ? "-" : "";
@@ -96,7 +97,7 @@ const Transactions = () => {
     setEditingId(transaction.id)
     setDraft({
       label: transaction.label,
-      value: String(transaction.value),
+      value: formatCurrencyFromNumber(transaction.value),
       date: transaction.date
     })
   }
@@ -108,8 +109,8 @@ const Transactions = () => {
       return
     }
 
-    const parsedValue = Number(draft.value.replace(",", "."))
-    const nextValue = Number.isFinite(parsedValue) ? parsedValue : transaction.value
+    const parsedValue = parseCurrencyInput(draft.value)
+    const nextValue = parsedValue > 0 ? parsedValue : transaction.value
 
     updateTransaction({
       ...transaction,
@@ -167,6 +168,35 @@ const Transactions = () => {
     return card ? `Crédito - ${card.name}` : "Crédito"
   }
 
+  function getTypeLabel(row: Transaction | PlannedEntry) {
+    const isPlanned = "isPlanned" in row && row.isPlanned
+    if (isPlanned) {
+      if (row.plannedSourceType === "fixed") {
+        return "Gasto fixo"
+      }
+      if (row.plannedSourceType === "installment") {
+        return "Parcelamento"
+      }
+      return "Faturamento"
+    }
+
+    return row.type === 1 ? "Entrada" : "Saída"
+  }
+
+  function getTypeBadgeClass(row: Transaction | PlannedEntry) {
+    const label = getTypeLabel(row)
+    if (label === "Entrada" || label === "Faturamento") {
+      return "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+    }
+    if (label === "Gasto fixo") {
+      return "border-sky-500/40 bg-sky-500/15 text-sky-300"
+    }
+    if (label === "Parcelamento") {
+      return "border-violet-500/40 bg-violet-500/15 text-violet-300"
+    }
+    return "border-amber-500/40 bg-amber-500/15 text-amber-300"
+  }
+
   function openPlanningForEntry(entry: PlannedEntry) {
     if (entry.plannedSourceType === "fixed" && entry.sourceId) {
       navigate(`/planejamento?editFixedCostId=${entry.sourceId}`)
@@ -194,7 +224,7 @@ const Transactions = () => {
         return (
           <div
             key={transaction.id}
-            className={`grid grid-cols-[1.8fr_1fr_1fr_56px] items-center border-b border-zinc-800/70 px-5 py-4 text-sm text-zinc-200 last:border-b-0 ${
+            className={`grid grid-cols-[1.8fr_1fr_1fr_1fr_56px] items-center border-b border-zinc-800/70 px-5 py-4 text-sm text-zinc-200 last:border-b-0 ${
               isEditing ? "bg-zinc-900/70" : ""
             }`}
             onDoubleClick={(event) => {
@@ -247,15 +277,25 @@ const Transactions = () => {
                 </>
               )}
             </div>
-            <div className={transaction.type === 1 ? "text-emerald-500" : "text-amber-500"}>
+            <div>
+              <span
+                className={`inline-flex rounded-lg border px-2 py-1 text-xs font-medium ${getTypeBadgeClass(transaction)}`}
+              >
+                {getTypeLabel(transaction)}
+              </span>
+            </div>
+            <div className={`font-black ${transaction.type === 1 ? "text-emerald-500" : "text-amber-500"}`}>
               {isEditing && !isPlanned ? (
                 <input
                   className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
-                  type="number"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   value={draft.value}
                   onChange={(event) =>
-                    setDraft((currentDraft) => ({ ...currentDraft, value: event.target.value }))
+                    setDraft((currentDraft) => ({
+                      ...currentDraft,
+                      value: formatCurrencyInput(event.target.value)
+                    }))
                   }
                 />
               ) : (

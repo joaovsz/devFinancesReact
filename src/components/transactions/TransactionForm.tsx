@@ -5,6 +5,7 @@ import { CalendarDays, ChevronDown } from "lucide-react"
 import { Category } from "../../types/finance"
 import { CreditCard } from "../../types/card"
 import { Transaction } from "../../types/transaction"
+import { parseCurrencyInput } from "../../utils/currency-input"
 
 type TransactionFormProps = {
   categories: Category[]
@@ -197,6 +198,16 @@ export const TransactionForm = ({
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="mb-3 text-sm text-zinc-400">Valor</div>
           <div className="mb-3 text-3xl font-semibold text-zinc-100">{formatCents(amountCents)}</div>
+          <input
+            className="mb-3 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+            type="text"
+            inputMode="decimal"
+            placeholder="R$ 0,00"
+            value={amountCents > 0 ? formatCents(amountCents) : ""}
+            onChange={(event) =>
+              setAmountCents(Math.round(parseCurrencyInput(event.target.value) * 100))
+            }
+          />
           <div className="mb-3 flex flex-wrap gap-2">
             {quickValueChips.map((chipValue) => (
               <button

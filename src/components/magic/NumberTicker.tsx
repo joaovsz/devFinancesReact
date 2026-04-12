@@ -34,5 +34,5 @@ export const NumberTicker = ({ value, className, format }: NumberTickerProps) =>
     return Math.round(currentValue).toString()
   }, [displayValue, format])
 
-  return <span className={className}>{formattedValue}</span>
+  return <span className={`font-black ${className || ""}`.trim()}>{formattedValue}</span>
 }

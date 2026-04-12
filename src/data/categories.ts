@@ -33,7 +33,6 @@ export const defaultCategories: Category[] = [
     name: "Saúde e Bem-Estar",
     subcategories: [
       { id: "plano-saude", name: "Plano de Saúde" },
-      { id: "terapias", name: "Terapias Nicolas" },
       { id: "academia", name: "Academia" }
     ]
   },

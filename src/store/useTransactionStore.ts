@@ -65,6 +65,32 @@ function getFallbackCategoryIds() {
   }
 }
 
+function normalizeLegacyLogoUrl(logoUrl?: string) {
+  if (!logoUrl) {
+    return logoUrl
+  }
+
+  const clearbitMatch = logoUrl.match(/logo\.clearbit\.com\/([^/?#]+)/i)
+  if (clearbitMatch?.[1]) {
+    return `https://www.google.com/s2/favicons?domain=${clearbitMatch[1]}&sz=128`
+  }
+
+  return logoUrl
+}
+
+function normalizeCardBrandColor(card: CreditCard) {
+  const cardName = card.name.toLowerCase()
+  if (cardName.includes("ourocard")) {
+    return "#FFCD00"
+  }
+
+  return card.brandColor
+}
+
+function normalizeCardLogoUrl(card: CreditCard) {
+  return normalizeLegacyLogoUrl(card.logoUrl)
+}
+
 export const useTransactionStore = create<TransactionStore>()(
   persist(
     (set) => ({
@@ -90,12 +116,25 @@ export const useTransactionStore = create<TransactionStore>()(
       totalAmount: 0,
       addCard: (card) =>
         set((state) => ({
-          cards: [...state.cards, card]
+          cards: [
+            ...state.cards,
+            {
+              ...card,
+              brandColor: normalizeCardBrandColor(card),
+              logoUrl: normalizeCardLogoUrl(card)
+            }
+          ]
         })),
       updateCard: (card) =>
         set((state) => ({
           cards: state.cards.map((currentCard) =>
-            currentCard.id === card.id ? card : currentCard
+            currentCard.id === card.id
+              ? {
+                  ...card,
+                  brandColor: normalizeCardBrandColor(card),
+                  logoUrl: normalizeCardLogoUrl(card)
+                }
+              : currentCard
           )
         })),
       addTransaction: (transaction) =>
@@ -156,7 +195,7 @@ export const useTransactionStore = create<TransactionStore>()(
     }),
     {
       name: "devfinances-storage",
-      version: 11,
+      version: 17,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState, version) => {
         if (!persistedState || typeof persistedState !== "object") {
@@ -317,6 +356,82 @@ export const useTransactionStore = create<TransactionStore>()(
               incomeMode:
                 state.contractConfig?.incomeMode === "clt" ? "clt" : "pj"
             }
+          }
+        }
+
+        if (version < 12) {
+          const state = persistedState as TransactionStore
+          const { categoryId, subcategoryId } = getFallbackCategoryIds()
+          return {
+            ...state,
+            fixedCosts: (state.fixedCosts || []).map((cost) => ({
+              ...cost,
+              categoryId: cost.categoryId || categoryId,
+              subcategoryId: cost.subcategoryId || subcategoryId
+            }))
+          }
+        }
+
+        if (version < 13) {
+          const state = persistedState as TransactionStore
+          return {
+            ...state,
+            cards: (state.cards || []).map((card) => {
+              const preset = bankPresets.find(
+                (bank) => bank.name.toLowerCase() === card.name.toLowerCase()
+              )
+              return {
+                ...card,
+                bankId: card.bankId || preset?.id,
+                logoUrl: card.logoUrl || preset?.logoUrl
+              }
+            })
+          }
+        }
+
+        if (version < 14) {
+          const state = persistedState as TransactionStore
+          return {
+            ...state,
+            cards: (state.cards || []).map((card) => ({
+              ...card,
+              logoUrl: normalizeLegacyLogoUrl(card.logoUrl)
+            }))
+          }
+        }
+
+        if (version < 15) {
+          const state = persistedState as TransactionStore
+          return {
+            ...state,
+            cards: (state.cards || []).map((card) => ({
+              ...card,
+              brandColor: normalizeCardBrandColor(card)
+            }))
+          }
+        }
+
+        if (version < 16) {
+          const state = persistedState as TransactionStore
+          return {
+            ...state,
+            cards: (state.cards || []).map((card) => ({
+              ...card,
+              brandColor: normalizeCardBrandColor(card),
+              logoUrl: normalizeCardLogoUrl(card)
+            }))
+          }
+        }
+
+        if (version < 17) {
+          const state = persistedState as TransactionStore
+          return {
+            ...state,
+            cards: (state.cards || []).map((card) => ({
+              ...card,
+              brandColor: normalizeCardBrandColor(card),
+              logoUrl: normalizeCardLogoUrl(card)
+            }))
           }
         }
 

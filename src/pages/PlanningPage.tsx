@@ -3,12 +3,15 @@ import { ChevronDown } from "lucide-react"
 import { useSearchParams } from "react-router-dom"
 import { v4 as uuid } from "uuid"
 import { stateCityOptions, stateOptions } from "../data/localities"
+import { defaultCategories } from "../data/categories"
 import { useTransactionStore } from "../store/useTransactionStore"
 import { formatCurrency } from "../components/Transactions"
+import { getCurrentMonthKey, getInstallmentProgress } from "../utils/projections"
 import {
-  getCurrentMonthKey,
-  getInstallmentProgress
-} from "../utils/projections"
+  formatCurrencyFromNumber,
+  formatCurrencyInput,
+  parseCurrencyInput
+} from "../utils/currency-input"
 
 const selectClassName =
   "w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 pr-9 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
@@ -17,33 +20,6 @@ const inputClassName =
 
 type PlanningPageProps = {
   embedded?: boolean
-}
-
-function formatMoneyInput(value: number) {
-  return value.toLocaleString("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
-}
-
-function parseMoneyInput(value: string) {
-  const normalized = value
-    .replace(/\./g, "")
-    .replace(",", ".")
-    .replace(/[^\d.-]/g, "")
-
-  const parsed = Number(normalized)
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-function normalizeMoneyInput(value: string) {
-  const cleaned = value.replace(/[^\d,]/g, "")
-  if (!cleaned.includes(",")) {
-    return cleaned
-  }
-
-  const [intPart, ...decimalParts] = cleaned.split(",")
-  return `${intPart},${decimalParts.join("").slice(0, 2)}`
 }
 
 function SelectField(props: SelectHTMLAttributes<HTMLSelectElement>) {
@@ -80,22 +56,37 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
 
   const [fixedName, setFixedName] = useState("")
   const [fixedAmount, setFixedAmount] = useState("")
+  const [fixedCategoryId, setFixedCategoryId] = useState(defaultCategories[0].id)
+  const [fixedSubcategoryId, setFixedSubcategoryId] = useState(
+    defaultCategories[0].subcategories[0].id
+  )
   const [fixedPaymentMethod, setFixedPaymentMethod] = useState<"cash" | "credit">("cash")
   const [fixedCardId, setFixedCardId] = useState(firstCardId)
   const [editingFixedCostId, setEditingFixedCostId] = useState("")
+
   const [installmentName, setInstallmentName] = useState("")
   const [installmentValue, setInstallmentValue] = useState("")
   const [installmentTotal, setInstallmentTotal] = useState("")
-  const [installmentPaymentMethod, setInstallmentPaymentMethod] = useState<"cash" | "credit">(
-    "cash"
-  )
+  const [installmentPaymentMethod, setInstallmentPaymentMethod] = useState<
+    "cash" | "credit"
+  >("cash")
   const [installmentCardId, setInstallmentCardId] = useState(firstCardId)
   const [installmentStartMonth, setInstallmentStartMonth] = useState(currentMonth)
+
   const [hourlyRateInput, setHourlyRateInput] = useState(
-    formatMoneyInput(contractConfig.hourlyRate)
+    formatCurrencyFromNumber(contractConfig.hourlyRate)
   )
   const [cltNetSalaryInput, setCltNetSalaryInput] = useState(
-    formatMoneyInput(contractConfig.cltNetSalary)
+    formatCurrencyFromNumber(contractConfig.cltNetSalary)
+  )
+
+  const [wizardStep, setWizardStep] = useState<0 | 1>(0)
+
+  const selectedFixedCategory = useMemo(
+    () =>
+      defaultCategories.find((category) => category.id === fixedCategoryId) ||
+      defaultCategories[0],
+    [fixedCategoryId]
   )
 
   useEffect(() => {
@@ -104,6 +95,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
       return
     }
 
+    setWizardStep(0)
+
     const cost = fixedCosts.find((item) => item.id === editingId)
     if (!cost) {
       return
@@ -111,7 +104,9 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
 
     setEditingFixedCostId(cost.id)
     setFixedName(cost.name)
-    setFixedAmount(formatMoneyInput(cost.amount))
+    setFixedAmount(formatCurrencyFromNumber(cost.amount))
+    setFixedCategoryId(cost.categoryId)
+    setFixedSubcategoryId(cost.subcategoryId)
     setFixedPaymentMethod(cost.paymentMethod)
     setFixedCardId(cost.cardId || firstCardId)
   }, [searchParams, fixedCosts, firstCardId])
@@ -134,19 +129,24 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
       alert("Selecione um cartão para gasto fixo no crédito.")
       return
     }
+
     if (editingFixedCostId) {
       const target = fixedCosts.find((item) => item.id === editingFixedCostId)
       if (!target) {
         setEditingFixedCostId("")
         return
       }
+
       updateFixedCost({
         ...target,
         name: fixedName,
-        amount: parseMoneyInput(fixedAmount),
+        amount: parseCurrencyInput(fixedAmount),
+        categoryId: fixedCategoryId,
+        subcategoryId: fixedSubcategoryId,
         paymentMethod: fixedPaymentMethod,
         cardId: fixedPaymentMethod === "credit" ? fixedCardId : undefined
       })
+
       setEditingFixedCostId("")
       setSearchParams((currentParams) => {
         const nextParams = new URLSearchParams(currentParams)
@@ -157,7 +157,9 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
       addFixedCost({
         id: uuid(),
         name: fixedName,
-        amount: parseMoneyInput(fixedAmount),
+        amount: parseCurrencyInput(fixedAmount),
+        categoryId: fixedCategoryId,
+        subcategoryId: fixedSubcategoryId,
         paymentMethod: fixedPaymentMethod,
         cardId: fixedPaymentMethod === "credit" ? fixedCardId : undefined
       })
@@ -165,6 +167,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
 
     setFixedName("")
     setFixedAmount("")
+    setFixedCategoryId(defaultCategories[0].id)
+    setFixedSubcategoryId(defaultCategories[0].subcategories[0].id)
   }
 
   function startEditingFixed(costId: string) {
@@ -175,7 +179,9 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
 
     setEditingFixedCostId(cost.id)
     setFixedName(cost.name)
-    setFixedAmount(formatMoneyInput(cost.amount))
+    setFixedAmount(formatCurrencyFromNumber(cost.amount))
+    setFixedCategoryId(cost.categoryId)
+    setFixedSubcategoryId(cost.subcategoryId)
     setFixedPaymentMethod(cost.paymentMethod)
     setFixedCardId(cost.cardId || firstCardId)
   }
@@ -184,6 +190,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setEditingFixedCostId("")
     setFixedName("")
     setFixedAmount("")
+    setFixedCategoryId(defaultCategories[0].id)
+    setFixedSubcategoryId(defaultCategories[0].subcategories[0].id)
     setSearchParams((currentParams) => {
       const nextParams = new URLSearchParams(currentParams)
       nextParams.delete("editFixedCostId")
@@ -204,7 +212,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     addInstallmentPlan({
       id: uuid(),
       name: installmentName,
-      installmentValue: parseMoneyInput(installmentValue),
+      installmentValue: parseCurrencyInput(installmentValue),
       totalInstallments: Number(installmentTotal),
       startMonth: installmentStartMonth,
       paymentMethod: installmentPaymentMethod,
@@ -220,299 +228,368 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     <section className="flex flex-col gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
       {!embedded && <h1 className="text-xl font-semibold text-zinc-100">Planejamento</h1>}
       <p className="text-sm text-zinc-400">
-        Cadastre gastos fixos, parcelamentos e faturamento para alimentar projeções e limite de cartão.
+        Cadastre faturamento, gastos fixos e parcelamentos para alimentar projeções e limite de cartão.
       </p>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-[340px_1fr]">
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-          <h2 className="mb-3 text-sm font-semibold text-zinc-100">Gastos fixos</h2>
-          <div className="grid gap-2">
-            <input
-              className={inputClassName}
-              placeholder="Nome"
-              value={fixedName}
-              onChange={(event) => setFixedName(event.target.value)}
-            />
-            <input
-              className={inputClassName}
-              type="text"
-              inputMode="decimal"
-              placeholder="Valor"
-              value={fixedAmount}
-              onChange={(event) => setFixedAmount(normalizeMoneyInput(event.target.value))}
-              onBlur={() => setFixedAmount(formatMoneyInput(parseMoneyInput(fixedAmount)))}
-            />
+          <h2 className="mb-3 text-sm font-semibold text-zinc-100">Faturamento mensal</h2>
+          <div className="mb-3 grid gap-2">
+            <label className="text-xs uppercase tracking-wide text-zinc-400">Regime</label>
             <SelectField
-              value={fixedPaymentMethod}
-              onChange={(event) => setFixedPaymentMethod(event.target.value as "cash" | "credit")}
-            >
-              <option value="cash">Conta/Débito</option>
-              <option value="credit">Cartão de crédito</option>
-            </SelectField>
-            {fixedPaymentMethod === "credit" && (
-              <SelectField value={fixedCardId} onChange={(event) => setFixedCardId(event.target.value)}>
-                <option value="">Selecionar cartão</option>
-                {cards.map((card) => (
-                  <option key={card.id} value={card.id}>
-                    {card.name}
-                  </option>
-                ))}
-              </SelectField>
-            )}
-            <button
-              className="rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
-              onClick={addFixed}
-            >
-              {editingFixedCostId ? "Salvar edição" : "Adicionar"}
-            </button>
-            {editingFixedCostId && (
-              <button
-                className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
-                onClick={cancelEditingFixed}
-              >
-                Cancelar edição
-              </button>
-            )}
-          </div>
-          <div className="mt-3 space-y-2">
-            {fixedCosts.map((cost) => (
-              <div
-                key={cost.id}
-                className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs text-zinc-300 ${
-                  editingFixedCostId === cost.id ? "border-emerald-500/60 bg-emerald-500/10" : "border-zinc-800"
-                }`}
-              >
-                <span>
-                  {cost.name} · {formatCurrency(cost.amount)}
-                  <span className="ml-2 text-zinc-500">
-                    {getPaymentLabel(cost.paymentMethod, cost.cardId)}
-                  </span>
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    className="text-zinc-500 hover:text-zinc-200"
-                    onClick={() => startEditingFixed(cost.id)}
-                  >
-                    editar
-                  </button>
-                  <button
-                    className="text-zinc-500 hover:text-zinc-200"
-                    onClick={() => removeFixedCost(cost.id)}
-                  >
-                    remover
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-          <h2 className="mb-3 text-sm font-semibold text-zinc-100">Parcelamentos</h2>
-          <div className="grid gap-2">
-            <input
-              className={inputClassName}
-              placeholder="Nome"
-              value={installmentName}
-              onChange={(event) => setInstallmentName(event.target.value)}
-            />
-            <input
-              className={inputClassName}
-              type="text"
-              inputMode="decimal"
-              placeholder="Valor da parcela"
-              value={installmentValue}
+              value={contractConfig.incomeMode}
               onChange={(event) =>
-                setInstallmentValue(normalizeMoneyInput(event.target.value))
-              }
-              onBlur={() =>
-                setInstallmentValue(formatMoneyInput(parseMoneyInput(installmentValue)))
-              }
-            />
-            <input
-              className={inputClassName}
-              type="number"
-              min="1"
-              placeholder="Total parcelas"
-              value={installmentTotal}
-              onChange={(event) => setInstallmentTotal(event.target.value)}
-            />
-            <SelectField
-              value={installmentPaymentMethod}
-              onChange={(event) =>
-                setInstallmentPaymentMethod(event.target.value as "cash" | "credit")
+                updateContractConfig({ incomeMode: event.target.value as "pj" | "clt" })
               }
             >
-              <option value="cash">Conta/Débito</option>
-              <option value="credit">Cartão de crédito</option>
+              <option value="pj">PJ</option>
+              <option value="clt">CLT</option>
             </SelectField>
-            {installmentPaymentMethod === "credit" && (
-              <SelectField
-                value={installmentCardId}
-                onChange={(event) => setInstallmentCardId(event.target.value)}
-              >
-                <option value="">Selecionar cartão</option>
-                {cards.map((card) => (
-                  <option key={card.id} value={card.id}>
-                    {card.name}
-                  </option>
-                ))}
-              </SelectField>
-            )}
-            <input
-              className={inputClassName}
-              type="month"
-              value={installmentStartMonth}
-              onChange={(event) => setInstallmentStartMonth(event.target.value)}
-            />
-            <button
-              className="rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
-              onClick={addInstallment}
-            >
-              Adicionar
-            </button>
           </div>
-          <div className="mt-3 space-y-2">
-            {installmentPlans.map((plan) => {
-              const progress = getInstallmentProgress(plan, currentMonth)
-              return (
-                <div
-                  key={plan.id}
-                  className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 text-xs text-zinc-300"
-                >
-                  <span>
-                    {plan.name} · {formatCurrency(plan.installmentValue)} ·{" "}
-                    {progress.isActive ? `${progress.currentInstallment}/${plan.totalInstallments}` : "encerrado"}
-                    <span className="ml-2 text-zinc-500">
-                      {getPaymentLabel(plan.paymentMethod, plan.cardId)}
-                    </span>
-                  </span>
-                  <button
-                    className="text-zinc-500 hover:text-zinc-200"
-                    onClick={() => removeInstallmentPlan(plan.id)}
-                  >
-                    remover
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-100">Faturamento mensal</h2>
-        <div className="mb-3 grid gap-2 md:max-w-xs">
-          <label className="text-xs uppercase tracking-wide text-zinc-400">Regime</label>
-          <SelectField
-            value={contractConfig.incomeMode}
-            onChange={(event) =>
-              updateContractConfig({ incomeMode: event.target.value as "pj" | "clt" })
-            }
-          >
-            <option value="pj">PJ</option>
-            <option value="clt">CLT</option>
-          </SelectField>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-5">
-          {contractConfig.incomeMode === "pj" ? (
-            <>
+          <div className="grid gap-3">
+            {contractConfig.incomeMode === "pj" ? (
+              <>
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
+                  Valor/Hora PJ
+                  <input
+                    className={inputClassName}
+                    type="text"
+                    inputMode="decimal"
+                    value={hourlyRateInput}
+                    onChange={(event) => setHourlyRateInput(formatCurrencyInput(event.target.value))}
+                    onBlur={() => {
+                      const parsed = parseCurrencyInput(hourlyRateInput)
+                      setHourlyRateInput(formatCurrencyFromNumber(parsed))
+                      updateContractConfig({ hourlyRate: parsed })
+                    }}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
+                  Horas por dia
+                  <input
+                    className={inputClassName}
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={contractConfig.hoursPerWorkday}
+                    onChange={(event) =>
+                      updateContractConfig({ hoursPerWorkday: Number(event.target.value || 0) })
+                    }
+                  />
+                </label>
+              </>
+            ) : (
               <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
-                Valor/Hora PJ
+                Salário líquido CLT
                 <input
                   className={inputClassName}
                   type="text"
                   inputMode="decimal"
-                  value={hourlyRateInput}
-                  onChange={(event) => setHourlyRateInput(normalizeMoneyInput(event.target.value))}
+                  value={cltNetSalaryInput}
+                  onChange={(event) => setCltNetSalaryInput(formatCurrencyInput(event.target.value))}
                   onBlur={() => {
-                    const parsed = parseMoneyInput(hourlyRateInput)
-                    setHourlyRateInput(formatMoneyInput(parsed))
-                    updateContractConfig({ hourlyRate: parsed })
+                    const parsed = parseCurrencyInput(cltNetSalaryInput)
+                    setCltNetSalaryInput(formatCurrencyFromNumber(parsed))
+                    updateContractConfig({ cltNetSalary: parsed })
                   }}
                 />
               </label>
-              <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
-                Horas por dia
+            )}
+
+            <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
+              UF
+              <SelectField
+                value={contractConfig.localityState}
+                onChange={(event) => {
+                  const nextState = event.target.value
+                  const fallbackCity = stateCityOptions[nextState]?.[0] || ""
+                  updateContractConfig({
+                    localityState: nextState,
+                    localityCity: fallbackCity
+                  })
+                }}
+              >
+                {stateOptions.map((stateCode) => (
+                  <option key={stateCode} value={stateCode}>
+                    {stateCode}
+                  </option>
+                ))}
+              </SelectField>
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
+              Cidade
+              <SelectField
+                value={contractConfig.localityCity}
+                onChange={(event) => updateContractConfig({ localityCity: event.target.value })}
+              >
+                {stateCityList.length === 0 && <option value="">Selecione</option>}
+                {stateCityList.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </SelectField>
+            </label>
+          </div>
+
+          {contractConfig.incomeMode === "pj" && (
+            <label className="mt-3 flex items-center gap-2 text-sm text-zinc-300">
+              <input
+                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900"
+                type="checkbox"
+                checked={contractConfig.useHolidayApi}
+                onChange={(event) => updateContractConfig({ useHolidayApi: event.target.checked })}
+              />
+              Usar API de feriados nacionais (BrasilAPI)
+            </label>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <div className="grid gap-2 md:grid-cols-2">
+            {[
+              { id: 0 as const, label: "1. Gastos fixos" },
+              { id: 1 as const, label: "2. Parcelamentos" }
+            ].map((step) => (
+              <button
+                key={step.id}
+                className={`rounded-xl border px-3 py-2 text-sm transition ${
+                  wizardStep === step.id
+                    ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
+                    : "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+                }`}
+                onClick={() => setWizardStep(step.id)}
+              >
+                {step.label}
+              </button>
+            ))}
+          </div>
+
+          {wizardStep === 0 && (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+              <h2 className="mb-3 text-sm font-semibold text-zinc-100">Gastos fixos</h2>
+              <div className="grid gap-2">
+                <div className="grid gap-2 md:grid-cols-2">
+                  <input
+                    className={inputClassName}
+                    placeholder="Nome"
+                    value={fixedName}
+                    onChange={(event) => setFixedName(event.target.value)}
+                  />
+                  <input
+                    className={inputClassName}
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Valor"
+                    value={fixedAmount}
+                    onChange={(event) => setFixedAmount(formatCurrencyInput(event.target.value))}
+                  />
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <SelectField
+                    value={fixedCategoryId}
+                    onChange={(event) => {
+                      const nextCategory =
+                        defaultCategories.find((category) => category.id === event.target.value) ||
+                        defaultCategories[0]
+                      setFixedCategoryId(nextCategory.id)
+                      setFixedSubcategoryId(nextCategory.subcategories[0].id)
+                    }}
+                  >
+                    {defaultCategories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                  <SelectField
+                    value={fixedSubcategoryId}
+                    onChange={(event) => setFixedSubcategoryId(event.target.value)}
+                  >
+                    {selectedFixedCategory.subcategories.map((subcategory) => (
+                      <option key={subcategory.id} value={subcategory.id}>
+                        {subcategory.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                </div>
+                <SelectField
+                  value={fixedPaymentMethod}
+                  onChange={(event) => setFixedPaymentMethod(event.target.value as "cash" | "credit")}
+                >
+                  <option value="cash">Conta/Débito</option>
+                  <option value="credit">Cartão de crédito</option>
+                </SelectField>
+                {fixedPaymentMethod === "credit" && (
+                  <SelectField value={fixedCardId} onChange={(event) => setFixedCardId(event.target.value)}>
+                    <option value="">Selecionar cartão</option>
+                    {cards.map((card) => (
+                      <option key={card.id} value={card.id}>
+                        {card.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                )}
+                <button
+                  className="rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
+                  onClick={addFixed}
+                >
+                  {editingFixedCostId ? "Salvar edição" : "Adicionar"}
+                </button>
+                {editingFixedCostId && (
+                  <button
+                    className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+                    onClick={cancelEditingFixed}
+                  >
+                    Cancelar edição
+                  </button>
+                )}
+              </div>
+              <div className="mt-3 space-y-2">
+                {fixedCosts.map((cost) => (
+                  <div
+                    key={cost.id}
+                    className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs text-zinc-300 ${
+                      editingFixedCostId === cost.id
+                        ? "border-emerald-500/60 bg-emerald-500/10"
+                        : "border-zinc-800"
+                    }`}
+                  >
+                    <span>
+                      {cost.name} · {formatCurrency(cost.amount)}
+                      <span className="ml-2 text-zinc-500">
+                        {(() => {
+                          const category = defaultCategories.find(
+                            (item) => item.id === cost.categoryId
+                          )
+                          if (!category) {
+                            return "Categoria não definida"
+                          }
+                          const subcategory = category.subcategories.find(
+                            (item) => item.id === cost.subcategoryId
+                          )
+                          return subcategory ? `${category.name} / ${subcategory.name}` : category.name
+                        })()}
+                      </span>
+                      <span className="ml-2 text-zinc-500">
+                        {getPaymentLabel(cost.paymentMethod, cost.cardId)}
+                      </span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="text-zinc-500 hover:text-zinc-200"
+                        onClick={() => startEditingFixed(cost.id)}
+                      >
+                        editar
+                      </button>
+                      <button
+                        className="text-zinc-500 hover:text-zinc-200"
+                        onClick={() => removeFixedCost(cost.id)}
+                      >
+                        remover
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {wizardStep === 1 && (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+              <h2 className="mb-3 text-sm font-semibold text-zinc-100">Parcelamentos</h2>
+              <div className="grid gap-2">
+                <div className="grid gap-2 md:grid-cols-2">
+                  <input
+                    className={inputClassName}
+                    placeholder="Nome"
+                    value={installmentName}
+                    onChange={(event) => setInstallmentName(event.target.value)}
+                  />
+                  <input
+                    className={inputClassName}
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Valor da parcela"
+                    value={installmentValue}
+                    onChange={(event) => setInstallmentValue(formatCurrencyInput(event.target.value))}
+                  />
+                </div>
                 <input
                   className={inputClassName}
                   type="number"
-                  step="0.5"
-                  min="0"
-                  value={contractConfig.hoursPerWorkday}
-                  onChange={(event) =>
-                    updateContractConfig({ hoursPerWorkday: Number(event.target.value || 0) })
-                  }
+                  min="1"
+                  placeholder="Total parcelas"
+                  value={installmentTotal}
+                  onChange={(event) => setInstallmentTotal(event.target.value)}
                 />
-              </label>
-            </>
-          ) : (
-            <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
-              Salário líquido CLT
-              <input
-                className={inputClassName}
-                type="text"
-                inputMode="decimal"
-                value={cltNetSalaryInput}
-                onChange={(event) =>
-                  setCltNetSalaryInput(normalizeMoneyInput(event.target.value))
-                }
-                onBlur={() => {
-                  const parsed = parseMoneyInput(cltNetSalaryInput)
-                  setCltNetSalaryInput(formatMoneyInput(parsed))
-                  updateContractConfig({ cltNetSalary: parsed })
-                }}
-              />
-            </label>
+                <SelectField
+                  value={installmentPaymentMethod}
+                  onChange={(event) =>
+                    setInstallmentPaymentMethod(event.target.value as "cash" | "credit")
+                  }
+                >
+                  <option value="cash">Conta/Débito</option>
+                  <option value="credit">Cartão de crédito</option>
+                </SelectField>
+                {installmentPaymentMethod === "credit" && (
+                  <SelectField
+                    value={installmentCardId}
+                    onChange={(event) => setInstallmentCardId(event.target.value)}
+                  >
+                    <option value="">Selecionar cartão</option>
+                    {cards.map((card) => (
+                      <option key={card.id} value={card.id}>
+                        {card.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                )}
+                <input
+                  className={inputClassName}
+                  type="month"
+                  value={installmentStartMonth}
+                  onChange={(event) => setInstallmentStartMonth(event.target.value)}
+                />
+                <button
+                  className="rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
+                  onClick={addInstallment}
+                >
+                  Adicionar
+                </button>
+              </div>
+              <div className="mt-3 space-y-2">
+                {installmentPlans.map((plan) => {
+                  const progress = getInstallmentProgress(plan, currentMonth)
+                  return (
+                    <div
+                      key={plan.id}
+                      className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 text-xs text-zinc-300"
+                    >
+                      <span>
+                        {plan.name} · {formatCurrency(plan.installmentValue)} ·{" "}
+                        {progress.isActive
+                          ? `${progress.currentInstallment}/${plan.totalInstallments}`
+                          : "encerrado"}
+                        <span className="ml-2 text-zinc-500">
+                          {getPaymentLabel(plan.paymentMethod, plan.cardId)}
+                        </span>
+                      </span>
+                      <button
+                        className="text-zinc-500 hover:text-zinc-200"
+                        onClick={() => removeInstallmentPlan(plan.id)}
+                      >
+                        remover
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           )}
-          <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
-            UF
-            <SelectField
-              value={contractConfig.localityState}
-              onChange={(event) => {
-                const nextState = event.target.value
-                const fallbackCity = stateCityOptions[nextState]?.[0] || ""
-                updateContractConfig({
-                  localityState: nextState,
-                  localityCity: fallbackCity
-                })
-              }}
-            >
-              {stateOptions.map((stateCode) => (
-                <option key={stateCode} value={stateCode}>
-                  {stateCode}
-                </option>
-              ))}
-            </SelectField>
-          </label>
-          <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
-            Cidade
-            <SelectField
-              value={contractConfig.localityCity}
-              onChange={(event) => updateContractConfig({ localityCity: event.target.value })}
-            >
-              {stateCityList.length === 0 && <option value="">Selecione</option>}
-              {stateCityList.map((city) => (
-                <option key={city} value={city}>
-                  {city}
-                </option>
-              ))}
-            </SelectField>
-          </label>
         </div>
-
-        {contractConfig.incomeMode === "pj" && (
-          <label className="mt-3 flex items-center gap-2 text-sm text-zinc-300">
-            <input
-              className="h-4 w-4 rounded border-zinc-700 bg-zinc-900"
-              type="checkbox"
-              checked={contractConfig.useHolidayApi}
-              onChange={(event) => updateContractConfig({ useHolidayApi: event.target.checked })}
-            />
-            Usar API de feriados nacionais (BrasilAPI)
-          </label>
-        )}
       </div>
     </section>
   )

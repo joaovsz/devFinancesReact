@@ -10,7 +10,7 @@ type HeaderProps = {
 export const Header = ({ theme, onToggleTheme }: HeaderProps) => {
   return (
     <header className="bg-zinc-950">
-      <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-6 md:px-8">
+      <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-4 md:px-8 xl:max-w-7xl xl:px-10 2xl:max-w-[1500px] 2xl:px-12">
         <motion.button
           whileHover={{ y: -2, scale: 1.03 }}
           whileTap={{ scale: 0.96 }}
