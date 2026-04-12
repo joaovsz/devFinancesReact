@@ -60,6 +60,27 @@ Transformar o app atual (livro-caixa) em um sistema de previsibilidade financeir
   - > 85%: `rose`
 - Aceite: limite disponível calculado dinamicamente.
 
+## EPIC 1.5 - Navegação e Separação de Responsabilidades
+### Issue 1.5.1 - Estruturar rotas e layout do dashboard
+- Escopo: deixar de concentrar tudo em uma única tela.
+- Tarefas:
+  - Adicionar React Router DOM.
+  - Criar layout base com navegação lateral/topo.
+  - Separar páginas: `Overview`, `Transações`, `Cartões`, `Projeções`, `Metas`, `Configurações`.
+- Aceite:
+  - Cada domínio acessível por rota própria.
+  - Navegação preserva estado global sem recarregar app.
+
+### Issue 1.5.2 - Separar responsabilidades por domínio
+- Escopo: reduzir acoplamento entre UI, regras e estado.
+- Tarefas:
+  - Mover componentes para módulos por domínio (`src/components/transactions`, `src/components/cards`, etc.).
+  - Criar camada de serviços/utilitários para cálculos (`src/utils/finance/*`).
+  - Isolar stores por domínio (`useTransactionStore`, `useCardStore`, `useProjectionStore`) ou slices lógicos dentro da store.
+- Aceite:
+  - Tela inicial apenas compõe blocos; lógica de negócio fora dos componentes de apresentação.
+  - Testes de regra não dependem de renderização de UI.
+
 ## EPIC 2 - RF3 + RF4 (Parcelas, Recorrência e Projeção)
 ### Issue 2.1 - Motor de recorrências e parcelamentos
 - Tipos: `RecurringExpense`, `InstallmentPlan`.
@@ -79,9 +100,23 @@ Transformar o app atual (livro-caixa) em um sistema de previsibilidade financeir
 - Aceite: barra de progresso por meta + impacto no saldo livre.
 
 ### Issue 3.2 - Motor de faturamento PJ com dias úteis
-- Modelo `ContractConfig` (valor/hora, horas/dia).
-- Integração BrasilAPI: `/api/feriados/v1/{ano}`.
-- Aceite: faturamento mensal estimado injetado na projeção.
+- Modelo `ContractConfig` (valor/hora, horas/dia) sem fator de desconto operacional.
+- Incluir provedores de calendário:
+  - API de feriados: BrasilAPI `/api/feriados/v1/{ano}`.
+  - API de dias úteis (provider dedicado) com fallback para cálculo local.
+- Regras de cálculo:
+  - `diasUteisMes = diasSegSex - feriadosEmDiaUtil`.
+  - `horasUteisMes = diasUteisMes * horasDia`.
+  - `faturamentoMes = horasUteisMes * valorHora`.
+- Tarefas:
+  - Criar `src/services/calendar.ts` com client e cache por ano (`localStorage`).
+  - Criar `src/utils/business-days.ts` para cálculo local de dias úteis.
+  - Permitir configurar localidade/UF para feriados no planejamento.
+  - Injetar faturamento mensal calculado automaticamente na projeção.
+- Aceite:
+  - Projeção não usa input manual de faturamento.
+  - Mudança de mês/ano recalcula faturamento e gráficos.
+  - Se API falhar, cálculo local continua funcional.
 
 ### Issue 3.3 - UI frictionless
 - Quick Chips (`+10`, `+50`, `+100`), Virtual Numpad e Slider.
@@ -102,6 +137,17 @@ Transformar o app atual (livro-caixa) em um sistema de previsibilidade financeir
   - projeção mensal;
   - cálculo de dias úteis.
 - Aceite: suíte mínima cobrindo fluxos financeiros críticos.
+
+### Issue 4.3 - Tema White com Magic UI
+- Escopo: adicionar troca de tema (dark/light) com controle no dock.
+- Tarefas:
+  - Implementar botão de alternância de tema com visual Magic UI.
+  - Persistir preferência de tema no `localStorage`.
+  - Aplicar tema white consistente no layout (cards, bordas, textos e dock).
+- Aceite:
+  - Usuário alterna tema sem reload.
+  - Tema escolhido permanece após recarregar a página.
+  - Tema white mantém contraste e legibilidade em telas principais.
 
 ## Definição de Pronto (DoD)
 - `npm run build` sem erros.

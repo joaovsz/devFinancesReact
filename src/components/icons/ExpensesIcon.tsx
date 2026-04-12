@@ -9,14 +9,14 @@ function Icon() {
       viewBox="0 0 32 32"
     >
       <path
-        stroke="#E83F5B"
+        stroke="#F59E0B"
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="2"
         d="M16 29.333c7.364 0 13.333-5.97 13.333-13.333 0-7.364-5.97-13.333-13.333-13.333C8.636 2.667 2.667 8.637 2.667 16c0 7.364 5.97 13.333 13.333 13.333z"
       ></path>
       <path
-        stroke="#E83F5B"
+        stroke="#F59E0B"
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="2"

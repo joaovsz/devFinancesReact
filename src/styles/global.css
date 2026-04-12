@@ -3,3 +3,111 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  * {
+    user-select: none;
+    -webkit-user-select: none;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(63, 63, 70, 0.95) rgba(24, 24, 27, 0.82);
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"],
+  [data-allow-select="true"] {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+}
+
+@layer base {
+  .theme-light body {
+    background: #f4f6fb;
+    color: #111827;
+  }
+
+  .theme-light .bg-zinc-950 {
+    background-color: #f4f6fb !important;
+  }
+
+  .theme-light .bg-zinc-900 {
+    background-color: #ffffff !important;
+  }
+
+  .theme-light .bg-zinc-800 {
+    background-color: #e8edf5 !important;
+  }
+
+  .theme-light .bg-zinc-950\/90,
+  .theme-light .bg-zinc-900\/90 {
+    background-color: rgba(255, 255, 255, 0.92) !important;
+  }
+
+  .theme-light .bg-zinc-900\/70,
+  .theme-light .bg-zinc-900\/30 {
+    background-color: rgba(255, 255, 255, 0.7) !important;
+  }
+
+  .theme-light .border-zinc-800,
+  .theme-light .border-zinc-700,
+  .theme-light .border-zinc-700\/80,
+  .theme-light .border-zinc-800\/70 {
+    border-color: #d7deea !important;
+  }
+
+  .theme-light .text-zinc-100,
+  .theme-light .text-zinc-200,
+  .theme-light .text-zinc-300 {
+    color: #111827 !important;
+  }
+
+  .theme-light .text-zinc-400,
+  .theme-light .text-zinc-500 {
+    color: #4b5563 !important;
+  }
+
+  .theme-light .shadow-zinc-950\/20,
+  .theme-light .shadow-zinc-950\/40 {
+    --tw-shadow-color: rgba(148, 163, 184, 0.32) !important;
+  }
+
+  .theme-light * {
+    scrollbar-color: rgba(148, 163, 184, 0.9) rgba(235, 239, 245, 0.92);
+  }
+}
+
+@layer utilities {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(24, 24, 27, 0.82);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(82, 82, 91, 0.95), rgba(63, 63, 70, 0.95));
+    border: 2px solid rgba(24, 24, 27, 0.82);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(161, 161, 170, 0.95), rgba(113, 113, 122, 0.95));
+  }
+
+  .theme-light ::-webkit-scrollbar-track {
+    background: rgba(235, 239, 245, 0.92);
+  }
+
+  .theme-light ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(186, 198, 214, 0.95), rgba(156, 175, 196, 0.95));
+    border-color: rgba(235, 239, 245, 0.92);
+  }
+
+  .theme-light ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(148, 163, 184, 0.95), rgba(100, 116, 139, 0.95));
+  }
+}
