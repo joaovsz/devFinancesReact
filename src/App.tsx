@@ -34,7 +34,7 @@ function App() {
       <main
         className={`mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pt-2 md:px-8 md:pt-4 xl:max-w-7xl xl:gap-10 xl:px-10 2xl:max-w-[1500px] 2xl:px-12 ${
           isTransactionsRoute
-            ? "h-[calc(100dvh-6.5rem)] overflow-hidden pb-[calc(5rem+env(safe-area-inset-bottom))]"
+            ? "pb-[calc(6.25rem+env(safe-area-inset-bottom))]"
             : "pb-[calc(5.5rem+env(safe-area-inset-bottom))]"
         }`}
       >
