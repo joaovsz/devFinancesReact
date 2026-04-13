@@ -44,8 +44,9 @@ export const TransactionsPage = () => {
       <DismissibleInfoCard
         storageKey="info-card-transactions"
         title="Como usar Transações"
-        description="Nesta tela você vê lançamentos reais e planejados no mesmo fluxo."
+        description="Aqui você registra e acompanha seus lançamentos (reais) e itens planejados no mesmo fluxo."
         items={[
+          "Transação é um lançamento financeiro com data e valor (entrada ou saída).",
           "Itens planejados possuem ação de edição para ir ao Planejamento.",
           "A tabela mostra valor, categoria, tipo e forma de pagamento."
         ]}
