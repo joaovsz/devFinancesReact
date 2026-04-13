@@ -26,7 +26,31 @@ export const formatCurrency = (value: number | string) => {
 
 
 
-const Transactions = () => {
+type TransactionsProps = {
+  searchQuery?: string
+  typeFilters?: string[]
+  cardFilterId?: string
+}
+
+type ManualInvoiceEntry = {
+  id: string
+  label: string
+  value: number
+  date: string
+  type: 2
+  paymentMethod: "credit"
+  cardId: string
+  isPlanned: true
+  plannedSourceType: "manualInvoice"
+}
+
+type TransactionRow = Transaction | PlannedEntry | ManualInvoiceEntry
+
+const Transactions = ({
+  searchQuery = "",
+  typeFilters = [],
+  cardFilterId
+}: TransactionsProps) => {
   const transactions = useTransactionStore((state) => state.transactions)
   const cards = useTransactionStore((state) => state.cards)
   const fixedCosts = useTransactionStore((state) => state.fixedCosts)
@@ -78,10 +102,28 @@ const Transactions = () => {
     [currentMonth, fixedCosts, installmentPlans, contractConfig, holidays]
   )
 
-  const allRows: Array<Transaction | PlannedEntry> = useMemo(
-    () => [...plannedEntries, ...transactions],
-    [plannedEntries, transactions]
+  const manualInvoiceEntries = useMemo<ManualInvoiceEntry[]>(
+    () =>
+      cards
+        .filter((card) => (card.manualInvoiceAmount || 0) > 0)
+        .map((card) => ({
+          id: `planned-manual-invoice-${card.id}-${currentMonth}`,
+          label: "Ajuste manual de fatura",
+          value: card.manualInvoiceAmount || 0,
+          date: `${currentMonth}-01`,
+          type: 2 as const,
+          paymentMethod: "credit" as const,
+          cardId: card.id,
+          isPlanned: true as const,
+          plannedSourceType: "manualInvoice" as const
+        })),
+    [cards, currentMonth]
   )
+  const allRows: TransactionRow[] = useMemo(
+    () => [...plannedEntries, ...manualInvoiceEntries, ...transactions],
+    [plannedEntries, manualInvoiceEntries, transactions]
+  )
+  const normalizedSearch = searchQuery.trim().toLowerCase()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<{ label: string; value: string; date: string }>({
     label: "",
@@ -168,7 +210,7 @@ const Transactions = () => {
     return card ? `Crédito - ${card.name}` : "Crédito"
   }
 
-  function getTypeLabel(row: Transaction | PlannedEntry) {
+  function getTypeLabel(row: TransactionRow) {
     const isPlanned = "isPlanned" in row && row.isPlanned
     if (isPlanned) {
       if (row.plannedSourceType === "fixed") {
@@ -177,13 +219,16 @@ const Transactions = () => {
       if (row.plannedSourceType === "installment") {
         return "Parcelamento"
       }
+      if (row.plannedSourceType === "manualInvoice") {
+        return "Ajuste fatura"
+      }
       return "Faturamento"
     }
 
     return row.type === 1 ? "Entrada" : "Saída"
   }
 
-  function getTypeBadgeClass(row: Transaction | PlannedEntry) {
+  function getTypeBadgeClass(row: TransactionRow) {
     const label = getTypeLabel(row)
     if (label === "Entrada" || label === "Faturamento") {
       return "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
@@ -193,6 +238,9 @@ const Transactions = () => {
     }
     if (label === "Parcelamento") {
       return "border-violet-500/40 bg-violet-500/15 text-violet-300"
+    }
+    if (label === "Ajuste fatura") {
+      return "border-cyan-500/40 bg-cyan-500/15 text-cyan-300"
     }
     return "border-amber-500/40 bg-amber-500/15 text-amber-300"
   }
@@ -216,17 +264,51 @@ const Transactions = () => {
     navigate("/planejamento")
   }
 
-  if (allRows.length === 0) {
+  const filteredRows = useMemo(
+    () =>
+      allRows.filter((row) => {
+        const typeLabel = getTypeLabel(row)
+        if (typeFilters.length > 0 && !typeFilters.includes(typeLabel)) {
+          return false
+        }
+
+        if (cardFilterId) {
+          if (!(row.paymentMethod === "credit" && row.cardId === cardFilterId)) {
+            return false
+          }
+        }
+
+        if (!normalizedSearch) {
+          return true
+        }
+
+        const labelMatch = row.label.toLowerCase().includes(normalizedSearch)
+        const typeMatch = typeLabel.toLowerCase().includes(normalizedSearch)
+
+        if ("isPlanned" in row && row.isPlanned) {
+          return labelMatch || typeMatch
+        }
+
+        const transaction = row as Transaction
+        const categoryMatch = getCategoryLabel(transaction).toLowerCase().includes(normalizedSearch)
+        const paymentMatch = getPaymentLabel(transaction).toLowerCase().includes(normalizedSearch)
+
+        return labelMatch || typeMatch || categoryMatch || paymentMatch
+      }),
+    [allRows, typeFilters, cardFilterId, normalizedSearch]
+  )
+
+  if (filteredRows.length === 0) {
     return (
       <div className="px-5 py-12 text-center text-sm text-zinc-500">
-        Nenhuma transação cadastrada.
+        Nenhum resultado para os filtros aplicados.
       </div>
     )
   }
 
   return (
     <>
-      {allRows.map((transaction) => {
+      {filteredRows.map((transaction) => {
         const splittedDate = transaction.date.split('-')
         const isPlanned = "isPlanned" in transaction && transaction.isPlanned
         const actualTransaction = transaction as Transaction
@@ -338,14 +420,19 @@ const Transactions = () => {
                 </button>
               )}
               {isPlanned && (
-                <button
-                  aria-label="Editar item planejado"
-                  title="Editar item planejado"
-                  className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
-                  onClick={() => openPlanningForEntry(transaction as PlannedEntry)}
-                >
-                  <Pencil size={15} />
-                </button>
+                ("plannedSourceType" in transaction &&
+                transaction.plannedSourceType === "manualInvoice" ? (
+                  <span className="text-[11px] text-zinc-500">—</span>
+                ) : (
+                  <button
+                    aria-label="Editar item planejado"
+                    title="Editar item planejado"
+                    className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
+                    onClick={() => openPlanningForEntry(transaction as PlannedEntry)}
+                  >
+                    <Pencil size={15} />
+                  </button>
+                ))
               )}
             </div>
           </div>

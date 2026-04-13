@@ -11,6 +11,11 @@ import {
   InstallmentPlan,
   ProjectionSettings
 } from "../types/planning"
+import {
+  dateToMonthKey,
+  getCurrentMonthKey,
+  getInstallmentTotalForMonth
+} from "../utils/projections"
 
 type TransactionStore = {
   cards: CreditCard[]
@@ -38,19 +43,63 @@ type TransactionStore = {
   updateProjectionSettings: (settings: Partial<ProjectionSettings>) => void
 }
 
-function calculateTotals(transactions: Transaction[]) {
-  const { totalIncomes, totalExpenses } = transactions.reduce(
-    (acc, transaction) => {
-      if (transaction.type === 1) {
-        acc.totalIncomes += transaction.value
-      } else {
-        acc.totalExpenses += transaction.value
-      }
+function calculateTotals(input: {
+  transactions: Transaction[]
+  cards: CreditCard[]
+  fixedCosts: FixedCost[]
+  installmentPlans: InstallmentPlan[]
+}) {
+  const monthKey = getCurrentMonthKey()
+  const totalIncomes = input.transactions
+    .filter(
+      (transaction) =>
+        transaction.type === 1 && dateToMonthKey(transaction.date) === monthKey
+    )
+    .reduce((sum, transaction) => sum + transaction.value, 0)
 
-      return acc
-    },
-    { totalIncomes: 0, totalExpenses: 0 }
-  )
+  const cashExpenses = input.transactions
+    .filter(
+      (transaction) =>
+        transaction.type === 2 &&
+        transaction.paymentMethod === "cash" &&
+        dateToMonthKey(transaction.date) === monthKey
+    )
+    .reduce((sum, transaction) => sum + transaction.value, 0)
+
+  const cardsInvoices = input.cards.reduce((sum, card) => {
+    const fixedCostsTotal = input.fixedCosts
+      .filter((cost) => cost.paymentMethod === "credit" && cost.cardId === card.id)
+      .reduce((total, cost) => total + cost.amount, 0)
+
+    const installmentsTotal = getInstallmentTotalForMonth(
+      input.installmentPlans.filter(
+        (plan) => plan.paymentMethod === "credit" && plan.cardId === card.id
+      ),
+      monthKey
+    )
+
+    const creditTransactionsTotal = input.transactions
+      .filter(
+        (transaction) =>
+          transaction.type === 2 &&
+          transaction.paymentMethod === "credit" &&
+          transaction.cardId === card.id &&
+          dateToMonthKey(transaction.date) === monthKey
+      )
+      .reduce((total, transaction) => total + transaction.value, 0)
+
+    const manualInvoiceAmount = card.manualInvoiceAmount || 0
+
+    return (
+      sum +
+      fixedCostsTotal +
+      installmentsTotal +
+      creditTransactionsTotal +
+      manualInvoiceAmount
+    )
+  }, 0)
+
+  const totalExpenses = cashExpenses + cardsInvoices
 
   return {
     totalIncomes,
@@ -117,8 +166,8 @@ export const useTransactionStore = create<TransactionStore>()(
       totalExpenses: 0,
       totalAmount: 0,
       addCard: (card) =>
-        set((state) => ({
-          cards: [
+        set((state) => {
+          const cards = [
             ...state.cards,
             {
               ...card,
@@ -126,10 +175,19 @@ export const useTransactionStore = create<TransactionStore>()(
               logoUrl: normalizeCardLogoUrl(card)
             }
           ]
-        })),
+          return {
+            cards,
+            ...calculateTotals({
+              transactions: state.transactions,
+              cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
+        }),
       updateCard: (card) =>
-        set((state) => ({
-          cards: state.cards.map((currentCard) =>
+        set((state) => {
+          const cards = state.cards.map((currentCard) =>
             currentCard.id === card.id
               ? {
                   ...card,
@@ -138,73 +196,172 @@ export const useTransactionStore = create<TransactionStore>()(
                 }
               : currentCard
           )
-        })),
+          return {
+            cards,
+            ...calculateTotals({
+              transactions: state.transactions,
+              cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
+        }),
       removeCard: (id) =>
-        set((state) => ({
-          cards: state.cards.filter((card) => card.id !== id),
-          transactions: state.transactions.map((transaction) =>
+        set((state) => {
+          const cards = state.cards.filter((card) => card.id !== id)
+          const transactions = state.transactions.map((transaction) =>
             transaction.paymentMethod === "credit" && transaction.cardId === id
               ? { ...transaction, cardId: undefined }
               : transaction
-          ),
-          fixedCosts: state.fixedCosts.map((cost) =>
+          )
+          const fixedCosts = state.fixedCosts.map((cost) =>
             cost.paymentMethod === "credit" && cost.cardId === id
-              ? { ...cost, paymentMethod: "cash", cardId: undefined }
+              ? { ...cost, paymentMethod: "cash" as const, cardId: undefined }
               : cost
-          ),
-          installmentPlans: state.installmentPlans.map((plan) =>
+          )
+          const installmentPlans = state.installmentPlans.map((plan) =>
             plan.paymentMethod === "credit" && plan.cardId === id
-              ? { ...plan, paymentMethod: "cash", cardId: undefined }
+              ? { ...plan, paymentMethod: "cash" as const, cardId: undefined }
               : plan
           )
-        })),
+          return {
+            cards,
+            transactions,
+            fixedCosts,
+            installmentPlans,
+            ...calculateTotals({
+              transactions,
+              cards,
+              fixedCosts,
+              installmentPlans
+            })
+          }
+        }),
       addTransaction: (transaction) =>
         set((state) => {
           const transactions = [...state.transactions, transaction]
-          return { transactions, ...calculateTotals(transactions) }
+          return {
+            transactions,
+            ...calculateTotals({
+              transactions,
+              cards: state.cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
         }),
       updateTransaction: (transaction) =>
         set((state) => {
           const transactions = state.transactions.map((currentTransaction) =>
             currentTransaction.id === transaction.id ? transaction : currentTransaction
           )
-          return { transactions, ...calculateTotals(transactions) }
+          return {
+            transactions,
+            ...calculateTotals({
+              transactions,
+              cards: state.cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
         }),
       removeTransaction: (id) =>
         set((state) => {
           const transactions = state.transactions.filter(
             (transaction) => transaction.id !== id
           )
-          return { transactions, ...calculateTotals(transactions) }
+          return {
+            transactions,
+            ...calculateTotals({
+              transactions,
+              cards: state.cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
         }),
       addFixedCost: (cost) =>
-        set((state) => ({
-          fixedCosts: [...state.fixedCosts, cost]
-        })),
+        set((state) => {
+          const fixedCosts = [...state.fixedCosts, cost]
+          return {
+            fixedCosts,
+            ...calculateTotals({
+              transactions: state.transactions,
+              cards: state.cards,
+              fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
+        }),
       updateFixedCost: (cost) =>
-        set((state) => ({
-          fixedCosts: state.fixedCosts.map((currentCost) =>
+        set((state) => {
+          const fixedCosts = state.fixedCosts.map((currentCost) =>
             currentCost.id === cost.id ? cost : currentCost
           )
-        })),
+          return {
+            fixedCosts,
+            ...calculateTotals({
+              transactions: state.transactions,
+              cards: state.cards,
+              fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
+        }),
       removeFixedCost: (id) =>
-        set((state) => ({
-          fixedCosts: state.fixedCosts.filter((cost) => cost.id !== id)
-        })),
+        set((state) => {
+          const fixedCosts = state.fixedCosts.filter((cost) => cost.id !== id)
+          return {
+            fixedCosts,
+            ...calculateTotals({
+              transactions: state.transactions,
+              cards: state.cards,
+              fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
+        }),
       addInstallmentPlan: (plan) =>
-        set((state) => ({
-          installmentPlans: [...state.installmentPlans, plan]
-        })),
+        set((state) => {
+          const installmentPlans = [...state.installmentPlans, plan]
+          return {
+            installmentPlans,
+            ...calculateTotals({
+              transactions: state.transactions,
+              cards: state.cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans
+            })
+          }
+        }),
       updateInstallmentPlan: (plan) =>
-        set((state) => ({
-          installmentPlans: state.installmentPlans.map((currentPlan) =>
+        set((state) => {
+          const installmentPlans = state.installmentPlans.map((currentPlan) =>
             currentPlan.id === plan.id ? plan : currentPlan
           )
-        })),
+          return {
+            installmentPlans,
+            ...calculateTotals({
+              transactions: state.transactions,
+              cards: state.cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans
+            })
+          }
+        }),
       removeInstallmentPlan: (id) =>
-        set((state) => ({
-          installmentPlans: state.installmentPlans.filter((plan) => plan.id !== id)
-        })),
+        set((state) => {
+          const installmentPlans = state.installmentPlans.filter((plan) => plan.id !== id)
+          return {
+            installmentPlans,
+            ...calculateTotals({
+              transactions: state.transactions,
+              cards: state.cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans
+            })
+          }
+        }),
       updateContractConfig: (config) =>
         set((state) => ({
           contractConfig: {
@@ -222,7 +379,7 @@ export const useTransactionStore = create<TransactionStore>()(
     }),
     {
       name: "devfinances-storage",
-      version: 18,
+      version: 19,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState, version) => {
         if (!persistedState || typeof persistedState !== "object") {
@@ -241,7 +398,12 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             ...state,
             transactions,
-            ...calculateTotals(transactions)
+            ...calculateTotals({
+              transactions,
+              cards: state.cards || [],
+              fixedCosts: state.fixedCosts || [],
+              installmentPlans: state.installmentPlans || []
+            })
           }
         }
 
@@ -256,7 +418,12 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             ...state,
             transactions,
-            ...calculateTotals(transactions)
+            ...calculateTotals({
+              transactions,
+              cards: state.cards || [],
+              fixedCosts: state.fixedCosts || [],
+              installmentPlans: state.installmentPlans || []
+            })
           }
         }
 
@@ -473,6 +640,23 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             ...state,
             cards: (state.cards || []).filter((card) => !hardcodedCardIds.has(card.id))
+          }
+        }
+
+        if (version < 19) {
+          const state = persistedState as TransactionStore
+          const cards = state.cards || []
+          const transactions = state.transactions || []
+          const fixedCosts = state.fixedCosts || []
+          const installmentPlans = state.installmentPlans || []
+          return {
+            ...state,
+            ...calculateTotals({
+              cards,
+              transactions,
+              fixedCosts,
+              installmentPlans
+            })
           }
         }
 

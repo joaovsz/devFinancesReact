@@ -1,6 +1,7 @@
 import { MouseEvent, useEffect, useMemo, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { ChevronDown, Plus } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 import { CreditCard } from "../../types/card"
 import { Transaction } from "../../types/transaction"
 import { FixedCost, InstallmentPlan } from "../../types/planning"
@@ -35,6 +36,7 @@ export const CreditCardsPanel = ({
   onAddCard,
   onUpdateCard
 }: CreditCardsPanelProps) => {
+  const navigate = useNavigate()
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null)
   const [showAddCardForm, setShowAddCardForm] = useState(false)
   const [institutions, setInstitutions] = useState<BankPreset[]>(bankPresets)
@@ -110,6 +112,25 @@ export const CreditCardsPanel = ({
     )
 
     return plannedFixedUsage + plannedInstallmentsUsage
+  }
+
+  function calculateCurrentMonthInvoiceForCard(currentCardId: string, monthKey: string) {
+    const monthStart = `${monthKey}-`
+    const transactionsCurrentMonth = transactions
+      .filter(
+        (transaction) =>
+          transaction.type === 2 &&
+          transaction.paymentMethod === "credit" &&
+          transaction.cardId === currentCardId &&
+          transaction.date.startsWith(monthStart)
+      )
+      .reduce((totalValue, transaction) => totalValue + transaction.value, 0)
+
+    const plannedMonth = calculatePlannedCardUsageForMonth(currentCardId, monthKey)
+    const card = cards.find((item) => item.id === currentCardId)
+    const manual = card?.manualInvoiceAmount || 0
+
+    return transactionsCurrentMonth + plannedMonth + manual
   }
 
   function getCurrentMonthInvoiceTotal() {
@@ -254,6 +275,7 @@ export const CreditCardsPanel = ({
         {cards.map((card) => {
           const currentMonth = getCurrentMonthKey()
           const plannedCardUsage = calculatePlannedCardUsageForMonth(card.id, currentMonth)
+          const currentInvoice = calculateCurrentMonthInvoiceForCard(card.id, currentMonth)
           const usedLimit = calculateCardUsage(card.id) + (card.manualInvoiceAmount || 0)
           const usagePercentage = Math.min((usedLimit / card.limitTotal) * 100, 100)
           const availableLimit = card.limitTotal - usedLimit
@@ -330,6 +352,20 @@ export const CreditCardsPanel = ({
                   />
                 </span>
               </div>
+              <p className="mt-1 text-[11px] font-bold text-zinc-100">
+                Fatura atual: {formatCurrency(currentInvoice)}
+              </p>
+              <button
+                type="button"
+                className="mt-1 text-[11px] text-zinc-100/85 underline-offset-2 transition hover:underline"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  navigate(`/transacoes?cardId=${card.id}`)
+                }}
+              >
+                Ver fatura
+              </button>
               {plannedCardUsage > 0 && (
                 <p className="mt-2 text-[11px] font-bold text-zinc-100">
                   Planejado no mês: {formatCurrency(plannedCardUsage)}
@@ -367,11 +403,13 @@ export const CreditCardsPanel = ({
                         className="h-10 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none"
                         type="text"
                         inputMode="decimal"
-                        value={formatCurrencyFromNumber(usedLimit)}
+                        value={formatCurrencyFromNumber(currentInvoice)}
                         onChange={(event) => {
                           const totalInvoice = parseCurrencyInput(event.target.value)
-                          const accountedWithoutManual = usedLimit - (card.manualInvoiceAmount || 0)
-                          const manualAdjustment = totalInvoice - accountedWithoutManual
+                          const accountedWithoutManual =
+                            currentInvoice - (card.manualInvoiceAmount || 0)
+                          const safeTotalInvoice = Math.max(totalInvoice, accountedWithoutManual)
+                          const manualAdjustment = safeTotalInvoice - accountedWithoutManual
                           updateCardField(
                             card,
                             "manualInvoiceAmount",

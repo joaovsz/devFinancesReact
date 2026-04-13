@@ -1,6 +1,6 @@
 import { MouseEvent, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { ChevronDown, CreditCard, Plus, Wallet } from "lucide-react"
+import { Check, ChevronDown, CreditCard, Plus, Wallet } from "lucide-react"
 import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
 import { getCurrentMonthKey } from "../utils/projections"
 import { buildPlannedEntriesForMonth } from "../utils/planningEntries"
@@ -120,12 +120,12 @@ export const Cards = () => {
   const plannedIncomes = plannedEntries
     .filter((entry) => entry.type === 1)
     .reduce((sum, entry) => sum + entry.value, 0)
-  const plannedExpenses = plannedEntries
-    .filter((entry) => entry.type === 2)
+  const plannedCashExpenses = plannedEntries
+    .filter((entry) => entry.type === 2 && entry.paymentMethod === "cash")
     .reduce((sum, entry) => sum + entry.value, 0)
 
   const summaryIncomes = totalIncomes + plannedIncomes
-  const summaryExpenses = totalExpenses + plannedExpenses
+  const summaryExpenses = totalExpenses + plannedCashExpenses
   const summaryTotal = summaryIncomes - summaryExpenses
 
   const recentTransactions = useMemo(
@@ -137,8 +137,11 @@ export const Cards = () => {
   )
 
   const cardUsage = useMemo(
-    () =>
-      cards.map((card) => {
+    () => {
+      const monthKey = getCurrentMonthKey()
+      const monthStart = `${monthKey}-`
+
+      return cards.map((card) => {
         const transactionUsage = transactions
           .filter(
             (transaction) =>
@@ -148,14 +151,43 @@ export const Cards = () => {
           )
           .reduce((sum, transaction) => sum + transaction.value, 0)
 
+        const currentMonthInvoiceTransactions = transactions
+          .filter(
+            (transaction) =>
+              transaction.type === 2 &&
+              transaction.paymentMethod === "credit" &&
+              transaction.cardId === card.id &&
+              transaction.date.startsWith(monthStart)
+          )
+          .reduce((sum, transaction) => sum + transaction.value, 0)
+
         const plannedFixedUsage = fixedCosts
           .filter((cost) => cost.paymentMethod === "credit" && cost.cardId === card.id)
           .reduce((sum, cost) => sum + cost.amount, 0)
+
+        const plannedInstallmentsCurrentMonth = installmentPlans
+          .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === card.id)
+          .reduce((sum, plan) => {
+            const start =
+              Number(plan.startMonth.split("-")[0]) * 12 +
+              Number(plan.startMonth.split("-")[1])
+            const target = Number(monthKey.split("-")[0]) * 12 + Number(monthKey.split("-")[1])
+            const currentInstallment = target - start + 1
+            if (currentInstallment < 1 || currentInstallment > plan.totalInstallments) {
+              return sum
+            }
+            return sum + plan.installmentValue
+          }, 0)
 
         const plannedInstallmentsLimitUsage = installmentPlans
           .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === card.id)
           .reduce((sum, plan) => sum + plan.installmentValue * plan.totalInstallments, 0)
 
+        const currentInvoice =
+          currentMonthInvoiceTransactions +
+          plannedFixedUsage +
+          plannedInstallmentsCurrentMonth +
+          (card.manualInvoiceAmount || 0)
         const used =
           transactionUsage +
           plannedFixedUsage +
@@ -166,11 +198,13 @@ export const Cards = () => {
 
         return {
           ...card,
+          currentInvoice,
           used,
           available,
           usagePercentage
         }
-      }),
+      })
+    },
     [cards, transactions, fixedCosts, installmentPlans]
   )
 
@@ -375,11 +409,13 @@ export const Cards = () => {
                       type="text"
                       inputMode="decimal"
                       placeholder="Fatura total"
-                      value={formatCurrencyFromNumber(card.used)}
+                      value={formatCurrencyFromNumber(card.currentInvoice)}
                       onChange={(event) => {
                         const totalInvoice = parseCurrencyInput(event.target.value)
-                        const accountedWithoutManual = card.used - (card.manualInvoiceAmount || 0)
-                        const manualAdjustment = totalInvoice - accountedWithoutManual
+                        const accountedWithoutManual =
+                          card.currentInvoice - (card.manualInvoiceAmount || 0)
+                        const safeTotalInvoice = Math.max(totalInvoice, accountedWithoutManual)
+                        const manualAdjustment = safeTotalInvoice - accountedWithoutManual
                         updateCardField(
                           card,
                           "manualInvoiceAmount",
@@ -413,17 +449,33 @@ export const Cards = () => {
                         ))}
                       </select>
                     </div>
-                    <button
-                      className="rounded-xl border border-red-500/60 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/25"
-                      onClick={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        handleRemoveCard(card.id)
-                      }}
-                      type="button"
-                    >
-                      Remover cartão
-                    </button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        className="inline-flex items-center justify-center rounded-xl border border-red-500/60 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/25"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          handleRemoveCard(card.id)
+                        }}
+                        type="button"
+                      >
+                        Remover cartão
+                      </button>
+                      <button
+                        className="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-500/60 bg-emerald-500/15 px-3 py-2 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/25"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          setExpandedCardId(null)
+                        }}
+                        type="button"
+                        aria-label="Salvar cartão"
+                        title="Salvar cartão"
+                      >
+                        <Check size={14} />
+                        Salvar
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div>
@@ -438,6 +490,17 @@ export const Cards = () => {
                         Disponível:{" "}
                         <NumberTicker className="font-black" value={card.available} format={formatCurrency} />
                       </span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-bold text-zinc-100">
+                        Fatura atual: {formatCurrency(card.currentInvoice)}
+                      </p>
+                      <Link
+                        to={`/transacoes?cardId=${card.id}`}
+                        className="text-[11px] text-zinc-100/85 underline-offset-2 transition hover:underline"
+                      >
+                        Ver fatura
+                      </Link>
                     </div>
                   </div>
                 )}

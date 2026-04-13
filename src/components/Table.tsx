@@ -1,6 +1,12 @@
 import Transactions from "./Transactions"
 
-export const Table = () => {
+type TableProps = {
+  searchQuery?: string
+  typeFilters?: string[]
+  cardFilterId?: string
+}
+
+export const Table = ({ searchQuery = "", typeFilters = [], cardFilterId }: TableProps) => {
   return (
     <section className="flex min-h-0 max-h-[calc(100vh-15rem)] flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
       <div className="min-h-0 flex-1 overflow-auto">
@@ -11,7 +17,11 @@ export const Table = () => {
           <span>Data</span>
           <span className="text-right">Ação</span>
         </div>
-        <Transactions />
+        <Transactions
+          searchQuery={searchQuery}
+          typeFilters={typeFilters}
+          cardFilterId={cardFilterId}
+        />
       </div>
     </section>
   )
