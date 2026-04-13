@@ -250,7 +250,7 @@ const Transactions = () => {
             onBlurCapture={(event) => !isPlanned && handleRowBlur(event, transaction.id)}
             onKeyDown={(event) => !isPlanned && handleRowKeyDown(event, transaction.id)}
           >
-            <div className={`sticky left-0 z-10 pr-2 ${isEditing ? "bg-zinc-900/70" : "bg-zinc-900"}`}>
+            <div className="pr-2">
               {isEditing && !isPlanned ? (
                 <input
                   autoFocus
@@ -287,7 +287,7 @@ const Transactions = () => {
                 </>
               )}
             </div>
-            <div className={`sticky left-[240px] z-10 pr-2 ${isEditing ? "bg-zinc-900/70" : "bg-zinc-900"} font-black ${transaction.type === 1 ? "text-emerald-500" : "text-amber-500"}`}>
+            <div className={`pr-2 font-black ${transaction.type === 1 ? "text-emerald-500" : "text-amber-500"}`}>
               {isEditing && !isPlanned ? (
                 <input
                   className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"

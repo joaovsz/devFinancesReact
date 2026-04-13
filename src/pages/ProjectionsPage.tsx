@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
+import { SelectHTMLAttributes, useEffect, useMemo, useState } from "react"
+import { ChevronDown } from "lucide-react"
 import ReactEChartsCore from "echarts-for-react/lib/core"
 import type { EChartsOption } from "echarts"
 import { echarts } from "../utils/echarts"
@@ -12,9 +13,23 @@ import {
   addMonths,
   buildProjectionTimeline,
   getCurrentMonthKey,
-  getMonthLabel,
-  getAverageMonthlyLeftover
+  getMonthLabel
 } from "../utils/projections"
+
+const selectClassName =
+  "w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 pr-9 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+
+function SelectField(props: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className="relative">
+      <select {...props} className={`${selectClassName} ${props.className || ""}`.trim()} />
+      <ChevronDown
+        size={16}
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500"
+      />
+    </div>
+  )
+}
 
 export const ProjectionsPage = () => {
   const transactions = useTransactionStore((state) => state.transactions)
@@ -22,6 +37,8 @@ export const ProjectionsPage = () => {
   const installmentPlans = useTransactionStore((state) => state.installmentPlans)
   const contractConfig = useTransactionStore((state) => state.contractConfig)
   const [targetMonth, setTargetMonth] = useState(getCurrentMonthKey())
+  const [visibleMonths, setVisibleMonths] = useState(6)
+  const [isMobile, setIsMobile] = useState(false)
   const [holidaysByYear, setHolidaysByYear] = useState<Record<number, string[]>>({})
   const [calendarError, setCalendarError] = useState("")
 
@@ -34,6 +51,25 @@ export const ProjectionsPage = () => {
       Array.from(new Set(monthKeys.map((monthKey) => Number(monthKey.split("-")[0])))),
     [monthKeys]
   )
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 767px)")
+    const updateMode = () => {
+      const mobile = mediaQuery.matches
+      setIsMobile(mobile)
+    }
+
+    updateMode()
+    mediaQuery.addEventListener("change", updateMode)
+
+    return () => {
+      mediaQuery.removeEventListener("change", updateMode)
+    }
+  }, [])
 
   useEffect(() => {
     let ignore = false
@@ -131,13 +167,13 @@ export const ProjectionsPage = () => {
 
   const firstMonth = timeline[0]
   const firstMonthWork = monthlyWorkMetrics[0]
-  const monthlyAverage = useMemo(
-    () => getAverageMonthlyLeftover(transactions, targetMonth, 3),
-    [transactions, targetMonth]
-  )
   const projectedYearTotal = useMemo(
     () => timeline.reduce((sum, item) => sum + item.projectedLeftover, 0),
     [timeline]
+  )
+  const visibleTimeline = useMemo(
+    () => timeline.slice(0, visibleMonths),
+    [timeline, visibleMonths]
   )
 
   const chartOption = useMemo<EChartsOption>(
@@ -161,7 +197,7 @@ export const ProjectionsPage = () => {
       },
       xAxis: {
         type: "category",
-        data: timeline.map((item) => getMonthLabel(item.monthKey)),
+        data: visibleTimeline.map((item) => getMonthLabel(item.monthKey)),
         axisLabel: { color: "#a1a1aa", fontSize: 11 },
         axisLine: { lineStyle: { color: "#3f3f46" } }
       },
@@ -185,18 +221,10 @@ export const ProjectionsPage = () => {
       ],
       series: [
         {
-          name: "Sobra base",
-          type: "line",
-          smooth: true,
-          data: timeline.map((item) => item.monthlyLeftover),
-          lineStyle: { width: 2, type: "dashed" },
-          symbolSize: 7
-        },
-        {
           name: "Compromissos",
           type: "line",
           smooth: true,
-          data: timeline.map((item) => item.committedCosts),
+          data: visibleTimeline.map((item) => item.committedCosts),
           lineStyle: { width: 2 },
           symbolSize: 7
         },
@@ -204,7 +232,7 @@ export const ProjectionsPage = () => {
           name: contractConfig.incomeMode === "pj" ? "Receita PJ" : "Receita CLT",
           type: "line",
           smooth: true,
-          data: timeline.map((item) => item.projectedRevenue),
+          data: visibleTimeline.map((item) => item.projectedRevenue),
           lineStyle: { width: 2 },
           symbolSize: 6
         },
@@ -212,7 +240,7 @@ export const ProjectionsPage = () => {
           name: "Sobra projetada",
           type: "line",
           smooth: true,
-          data: timeline.map((item) => item.projectedLeftover),
+          data: visibleTimeline.map((item) => item.projectedLeftover),
           areaStyle: { opacity: 0.15 },
           lineStyle: { width: 3 },
           symbolSize: 7
@@ -222,17 +250,17 @@ export const ProjectionsPage = () => {
           type: "line",
           yAxisIndex: 1,
           smooth: true,
-          data: timeline.map((item) => item.cumulativeBalance),
+          data: visibleTimeline.map((item) => item.cumulativeBalance),
           lineStyle: { width: 2 },
           symbolSize: 6
         }
       ]
     }),
-    [timeline, contractConfig.incomeMode]
+    [visibleTimeline, contractConfig.incomeMode]
   )
 
   return (
-    <section className="flex flex-col gap-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+    <section className="flex flex-col gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-3 md:gap-5 md:p-5">
       <DismissibleInfoCard
         storageKey="info-card-projections"
         title="Como usar Projeções"
@@ -259,7 +287,7 @@ export const ProjectionsPage = () => {
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
           <div className="text-xs uppercase tracking-wide text-zinc-400">Sobra projetada (mês)</div>
           <NumberTicker
             className={`mt-1 text-xl font-semibold ${
@@ -269,11 +297,11 @@ export const ProjectionsPage = () => {
             format={formatCurrency}
           />
         </div>
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
           <div className="text-xs uppercase tracking-wide text-zinc-400">Compromissos (mês)</div>
           <NumberTicker className="mt-1 text-xl font-semibold text-zinc-100" value={firstMonth?.committedCosts || 0} format={formatCurrency} />
         </div>
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
           <div className="text-xs uppercase tracking-wide text-zinc-400">
             {contractConfig.incomeMode === "pj" ? "Receita PJ (mês)" : "Receita CLT (mês)"}
           </div>
@@ -284,12 +312,9 @@ export const ProjectionsPage = () => {
               : `Salário líquido mensal: ${formatCurrency(contractConfig.cltNetSalary)}`}
           </p>
         </div>
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
           <div className="text-xs uppercase tracking-wide text-zinc-400">Resultado 12 meses</div>
           <NumberTicker className={`mt-1 text-xl font-semibold ${projectedYearTotal >= 0 ? "text-emerald-300" : "text-amber-300"}`} value={projectedYearTotal} format={formatCurrency} />
-          <p className="mt-1 text-xs text-zinc-500">
-            Média sobras base: {formatCurrency(monthlyAverage)}
-          </p>
         </div>
       </div>
 
@@ -299,15 +324,56 @@ export const ProjectionsPage = () => {
         </div>
       )}
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-100">Evolução mensal (linha)</h2>
-        <ReactEChartsCore
-          echarts={echarts}
-          option={chartOption}
-          style={{ height: 380, width: "100%" }}
-          notMerge
-          lazyUpdate
-        />
+      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
+        <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <h2 className="text-sm font-semibold text-zinc-100">
+            Evolução mensal ({isMobile ? "tabela" : "gráfico"})
+          </h2>
+          <div className="grid grid-cols-1 gap-2 md:flex">
+            <SelectField
+              className="h-9 py-2 text-xs"
+              value={String(visibleMonths)}
+              onChange={(event) => setVisibleMonths(Number(event.target.value))}
+            >
+              <option value="3">3 meses</option>
+              <option value="6">6 meses</option>
+              <option value="12">12 meses</option>
+            </SelectField>
+          </div>
+        </div>
+        {!isMobile ? (
+          <ReactEChartsCore
+            echarts={echarts}
+            option={chartOption}
+            style={{ height: 280, width: "100%" }}
+            notMerge
+            lazyUpdate
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <div className="min-w-[680px]">
+              <div className="grid grid-cols-5 border-b border-zinc-800 px-2 py-2 text-[11px] uppercase tracking-wide text-zinc-400">
+                <span>Mês</span>
+                <span>Compromissos</span>
+                <span>Receita</span>
+                <span>Sobra proj.</span>
+                <span>Saldo acum.</span>
+              </div>
+              {visibleTimeline.map((item) => (
+                <div
+                  key={item.monthKey}
+                  className="grid grid-cols-5 border-b border-zinc-800/70 px-2 py-2 text-xs text-zinc-200 last:border-b-0"
+                >
+                  <span>{getMonthLabel(item.monthKey)}</span>
+                  <span>{formatCurrency(item.committedCosts)}</span>
+                  <span>{formatCurrency(item.projectedRevenue)}</span>
+                  <span>{formatCurrency(item.projectedLeftover)}</span>
+                  <span>{formatCurrency(item.cumulativeBalance)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   )
