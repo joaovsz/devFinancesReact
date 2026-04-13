@@ -1,7 +1,6 @@
 import { MouseEvent, useEffect, useMemo, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { ChevronDown, Plus } from "lucide-react"
-import { v4 as uuid } from "uuid"
 import { CreditCard } from "../../types/card"
 import { Transaction } from "../../types/transaction"
 import { FixedCost, InstallmentPlan } from "../../types/planning"
@@ -75,8 +74,6 @@ export const CreditCardsPanel = ({
   }
 
   function calculateCardUsage(currentCardId: string) {
-    const currentMonth = getCurrentMonthKey()
-
     const transactionUsage = transactions
       .filter(
         (transaction) =>
@@ -86,7 +83,18 @@ export const CreditCardsPanel = ({
       )
       .reduce((totalValue, transaction) => totalValue + transaction.value, 0)
 
-    return transactionUsage + calculatePlannedCardUsageForMonth(currentCardId, currentMonth)
+    const plannedFixedUsage = fixedCosts
+      .filter((cost) => cost.paymentMethod === "credit" && cost.cardId === currentCardId)
+      .reduce((totalValue, cost) => totalValue + cost.amount, 0)
+
+    const plannedInstallmentsLimitUsage = installmentPlans
+      .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === currentCardId)
+      .reduce(
+        (totalValue, plan) => totalValue + plan.installmentValue * plan.totalInstallments,
+        0
+      )
+
+    return transactionUsage + plannedFixedUsage + plannedInstallmentsLimitUsage
   }
 
   function calculatePlannedCardUsageForMonth(currentCardId: string, monthKey: string) {
@@ -207,7 +215,7 @@ export const CreditCardsPanel = ({
       filteredBankOptions[0]
 
     onAddCard({
-      id: uuid(),
+      id: crypto.randomUUID(),
       bankId: selectedBank?.id || "other",
       name: selectedBank?.name || "Outros",
       brandColor: selectedBank?.brandColor || "#64748B",

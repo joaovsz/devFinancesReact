@@ -1,7 +1,6 @@
 import { SelectHTMLAttributes, useEffect, useMemo, useRef, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { useSearchParams } from "react-router-dom"
-import { v4 as uuid } from "uuid"
 import { defaultCategories } from "../data/categories"
 import { useTransactionStore } from "../store/useTransactionStore"
 import { formatCurrency } from "../components/Transactions"
@@ -232,7 +231,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
       })
     } else {
       addFixedCost({
-        id: uuid(),
+        id: crypto.randomUUID(),
         name: fixedName,
         amount: parseCurrencyInput(fixedAmount),
         categoryId: fixedCategoryId,
@@ -310,7 +309,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
       })
     } else {
       addInstallmentPlan({
-        id: uuid(),
+        id: crypto.randomUUID(),
         name: installmentName,
         installmentValue: parseCurrencyInput(installmentValue),
         totalInstallments: Number(installmentTotal),

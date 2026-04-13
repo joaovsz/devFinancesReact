@@ -139,7 +139,6 @@ export const Cards = () => {
   const cardUsage = useMemo(
     () =>
       cards.map((card) => {
-        const monthKey = getCurrentMonthKey()
         const transactionUsage = transactions
           .filter(
             (transaction) =>
@@ -153,19 +152,15 @@ export const Cards = () => {
           .filter((cost) => cost.paymentMethod === "credit" && cost.cardId === card.id)
           .reduce((sum, cost) => sum + cost.amount, 0)
 
-        const plannedInstallments = installmentPlans
+        const plannedInstallmentsLimitUsage = installmentPlans
           .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === card.id)
-          .reduce((sum, plan) => {
-            const start = Number(plan.startMonth.split("-")[0]) * 12 + Number(plan.startMonth.split("-")[1])
-            const target = Number(monthKey.split("-")[0]) * 12 + Number(monthKey.split("-")[1])
-            const currentInstallment = target - start + 1
-            if (currentInstallment < 1 || currentInstallment > plan.totalInstallments) {
-              return sum
-            }
-            return sum + plan.installmentValue
-          }, 0)
+          .reduce((sum, plan) => sum + plan.installmentValue * plan.totalInstallments, 0)
 
-        const used = transactionUsage + plannedFixedUsage + plannedInstallments + (card.manualInvoiceAmount || 0)
+        const used =
+          transactionUsage +
+          plannedFixedUsage +
+          plannedInstallmentsLimitUsage +
+          (card.manualInvoiceAmount || 0)
         const available = Math.max(card.limitTotal - used, 0)
         const usagePercentage = Math.min((used / Math.max(card.limitTotal, 1)) * 100, 100)
 

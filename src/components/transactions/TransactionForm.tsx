@@ -1,6 +1,5 @@
 import { MouseEvent, useEffect, useMemo, useRef, useState } from "react"
 import { motion } from "framer-motion"
-import { v4 as uuid } from "uuid"
 import { CalendarDays, ChevronDown } from "lucide-react"
 import { Category } from "../../types/finance"
 import { CreditCard } from "../../types/card"
@@ -157,7 +156,7 @@ export const TransactionForm = ({
     }
 
     onSubmitTransaction({
-      id: uuid(),
+      id: crypto.randomUUID(),
       label: label.trim() || fallbackLabel,
       value: amountCents / 100,
       date: date.toString(),
