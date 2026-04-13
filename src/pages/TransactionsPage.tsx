@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { ChevronDown } from "lucide-react"
 import { Table } from "../components/Table"
@@ -18,6 +18,7 @@ export const TransactionsPage = () => {
   const availableTypeFilters = ["Entrada", "Saída", "Gasto fixo", "Parcelamento", "Faturamento"]
   const selectClassName =
     "w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 pr-9 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+  const tableRef = useRef<HTMLDivElement | null>(null)
 
   function toggleTypeFilter(type: string) {
     setTypeFilters((current) =>
@@ -37,6 +38,18 @@ export const TransactionsPage = () => {
     }
     setSearchParams(next, { replace: true })
   }
+
+  useEffect(() => {
+    const cardId = searchParams.get("cardId")
+    if (!cardId) {
+      return
+    }
+
+    // After navigating from "Ver fatura", focus the table.
+    requestAnimationFrame(() => {
+      tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  }, [searchParams])
 
   return (
     <div className="flex min-h-0 flex-col gap-6">
@@ -103,11 +116,13 @@ export const TransactionsPage = () => {
           })}
         </div>
       </div>
-      <Table
-        searchQuery={searchQuery}
-        typeFilters={typeFilters}
-        cardFilterId={selectedCardId === "all" ? undefined : selectedCardId}
-      />
+      <div ref={tableRef}>
+        <Table
+          searchQuery={searchQuery}
+          typeFilters={typeFilters}
+          cardFilterId={selectedCardId === "all" ? undefined : selectedCardId}
+        />
+      </div>
     </div>
   )
 }
