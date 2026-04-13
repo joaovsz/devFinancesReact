@@ -2,7 +2,6 @@ import { SelectHTMLAttributes, useEffect, useMemo, useRef, useState } from "reac
 import { ChevronDown } from "lucide-react"
 import { useSearchParams } from "react-router-dom"
 import { v4 as uuid } from "uuid"
-import { stateCityOptions, stateOptions } from "../data/localities"
 import { defaultCategories } from "../data/categories"
 import { useTransactionStore } from "../store/useTransactionStore"
 import { formatCurrency } from "../components/Transactions"
@@ -44,15 +43,12 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   const updateFixedCost = useTransactionStore((state) => state.updateFixedCost)
   const removeFixedCost = useTransactionStore((state) => state.removeFixedCost)
   const addInstallmentPlan = useTransactionStore((state) => state.addInstallmentPlan)
+  const updateInstallmentPlan = useTransactionStore((state) => state.updateInstallmentPlan)
   const removeInstallmentPlan = useTransactionStore((state) => state.removeInstallmentPlan)
   const updateContractConfig = useTransactionStore((state) => state.updateContractConfig)
 
   const currentMonth = getCurrentMonthKey()
   const firstCardId = cards[0]?.id || ""
-  const stateCityList = useMemo(
-    () => stateCityOptions[contractConfig.localityState] || [],
-    [contractConfig.localityState]
-  )
 
   const [fixedName, setFixedName] = useState("")
   const [fixedAmount, setFixedAmount] = useState("")
@@ -72,6 +68,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   >("cash")
   const [installmentCardId, setInstallmentCardId] = useState(firstCardId)
   const [installmentStartMonth, setInstallmentStartMonth] = useState(currentMonth)
+  const [editingInstallmentId, setEditingInstallmentId] = useState("")
 
   const [hourlyRateInput, setHourlyRateInput] = useState(
     formatCurrencyFromNumber(contractConfig.hourlyRate)
@@ -81,9 +78,10 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   )
 
   const [wizardStep, setWizardStep] = useState<0 | 1>(0)
-  const [highlightedSection, setHighlightedSection] = useState<"income" | "fixed" | null>(null)
+  const [highlightedSection, setHighlightedSection] = useState<"income" | "fixed" | "installment" | null>(null)
   const incomeSectionRef = useRef<HTMLDivElement | null>(null)
   const fixedSectionRef = useRef<HTMLDivElement | null>(null)
+  const installmentSectionRef = useRef<HTMLDivElement | null>(null)
 
   const selectedFixedCategory = useMemo(
     () =>
@@ -145,6 +143,46 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
 
     const timer = window.setTimeout(() => {
       setHighlightedSection((current) => (current === "fixed" ? null : current))
+    }, 2200)
+
+    return () => window.clearTimeout(timer)
+  }, [searchParams, wizardStep])
+
+  useEffect(() => {
+    const editingId = searchParams.get("editInstallmentId")
+    if (!editingId) {
+      return
+    }
+
+    setWizardStep(1)
+
+    const plan = installmentPlans.find((item) => item.id === editingId)
+    if (!plan) {
+      return
+    }
+
+    setEditingInstallmentId(plan.id)
+    setInstallmentName(plan.name)
+    setInstallmentValue(formatCurrencyFromNumber(plan.installmentValue))
+    setInstallmentTotal(String(plan.totalInstallments))
+    setInstallmentPaymentMethod(plan.paymentMethod)
+    setInstallmentCardId(plan.cardId || firstCardId)
+    setInstallmentStartMonth(plan.startMonth)
+  }, [searchParams, installmentPlans, firstCardId])
+
+  useEffect(() => {
+    const editingId = searchParams.get("editInstallmentId")
+    if (!editingId || wizardStep !== 1) {
+      return
+    }
+
+    setHighlightedSection("installment")
+    requestAnimationFrame(() => {
+      installmentSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+    })
+
+    const timer = window.setTimeout(() => {
+      setHighlightedSection((current) => (current === "installment" ? null : current))
     }, 2200)
 
     return () => window.clearTimeout(timer)
@@ -248,19 +286,75 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
       return
     }
 
-    addInstallmentPlan({
-      id: uuid(),
-      name: installmentName,
-      installmentValue: parseCurrencyInput(installmentValue),
-      totalInstallments: Number(installmentTotal),
-      startMonth: installmentStartMonth,
-      paymentMethod: installmentPaymentMethod,
-      cardId: installmentPaymentMethod === "credit" ? installmentCardId : undefined
-    })
+    if (editingInstallmentId) {
+      const target = installmentPlans.find((item) => item.id === editingInstallmentId)
+      if (!target) {
+        setEditingInstallmentId("")
+        return
+      }
+
+      updateInstallmentPlan({
+        ...target,
+        name: installmentName,
+        installmentValue: parseCurrencyInput(installmentValue),
+        totalInstallments: Number(installmentTotal),
+        startMonth: installmentStartMonth,
+        paymentMethod: installmentPaymentMethod,
+        cardId: installmentPaymentMethod === "credit" ? installmentCardId : undefined
+      })
+      setEditingInstallmentId("")
+      setSearchParams((currentParams) => {
+        const nextParams = new URLSearchParams(currentParams)
+        nextParams.delete("editInstallmentId")
+        return nextParams
+      })
+    } else {
+      addInstallmentPlan({
+        id: uuid(),
+        name: installmentName,
+        installmentValue: parseCurrencyInput(installmentValue),
+        totalInstallments: Number(installmentTotal),
+        startMonth: installmentStartMonth,
+        paymentMethod: installmentPaymentMethod,
+        cardId: installmentPaymentMethod === "credit" ? installmentCardId : undefined
+      })
+    }
 
     setInstallmentName("")
     setInstallmentValue("")
     setInstallmentTotal("")
+  }
+
+  function startEditingInstallment(planId: string) {
+    const plan = installmentPlans.find((item) => item.id === planId)
+    if (!plan) {
+      return
+    }
+
+    setEditingInstallmentId(plan.id)
+    setInstallmentName(plan.name)
+    setInstallmentValue(formatCurrencyFromNumber(plan.installmentValue))
+    setInstallmentTotal(String(plan.totalInstallments))
+    setInstallmentPaymentMethod(plan.paymentMethod)
+    setInstallmentCardId(plan.cardId || firstCardId)
+    setInstallmentStartMonth(plan.startMonth)
+    setWizardStep(1)
+    setHighlightedSection("installment")
+    requestAnimationFrame(() => {
+      installmentSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+    })
+  }
+
+  function cancelEditingInstallment() {
+    setEditingInstallmentId("")
+    setInstallmentName("")
+    setInstallmentValue("")
+    setInstallmentTotal("")
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams)
+      nextParams.delete("editInstallmentId")
+      return nextParams
+    })
   }
 
   return (
@@ -341,41 +435,6 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
               </label>
             )}
 
-            <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
-              UF
-              <SelectField
-                value={contractConfig.localityState}
-                onChange={(event) => {
-                  const nextState = event.target.value
-                  const fallbackCity = stateCityOptions[nextState]?.[0] || ""
-                  updateContractConfig({
-                    localityState: nextState,
-                    localityCity: fallbackCity
-                  })
-                }}
-              >
-                {stateOptions.map((stateCode) => (
-                  <option key={stateCode} value={stateCode}>
-                    {stateCode}
-                  </option>
-                ))}
-              </SelectField>
-            </label>
-
-            <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
-              Cidade
-              <SelectField
-                value={contractConfig.localityCity}
-                onChange={(event) => updateContractConfig({ localityCity: event.target.value })}
-              >
-                {stateCityList.length === 0 && <option value="">Selecione</option>}
-                {stateCityList.map((city) => (
-                  <option key={city} value={city}>
-                    {city}
-                  </option>
-                ))}
-              </SelectField>
-            </label>
           </div>
 
           {contractConfig.incomeMode === "pj" && (
@@ -474,6 +533,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                 {fixedPaymentMethod === "credit" && (
                   <SelectField value={fixedCardId} onChange={(event) => setFixedCardId(event.target.value)}>
                     <option value="">Selecionar cartão</option>
+                    <option value="other">Outros</option>
                     {cards.map((card) => (
                       <option key={card.id} value={card.id}>
                         {card.name}
@@ -547,7 +607,12 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
           )}
 
           {wizardStep === 1 && (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+            <div
+              ref={installmentSectionRef}
+              className={`rounded-xl border border-zinc-800 bg-zinc-950 p-4 transition ${
+                highlightedSection === "installment" ? "ring-2 ring-emerald-500 animate-pulse" : ""
+              }`}
+            >
               <h2 className="mb-3 text-sm font-semibold text-zinc-100">Parcelamentos</h2>
               <div className="grid gap-2">
                 <div className="grid gap-2 md:grid-cols-2">
@@ -589,6 +654,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     onChange={(event) => setInstallmentCardId(event.target.value)}
                   >
                     <option value="">Selecionar cartão</option>
+                    <option value="other">Outros</option>
                     {cards.map((card) => (
                       <option key={card.id} value={card.id}>
                         {card.name}
@@ -596,18 +662,54 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     ))}
                   </SelectField>
                 )}
-                <input
-                  className={inputClassName}
-                  type="month"
-                  value={installmentStartMonth}
-                  onChange={(event) => setInstallmentStartMonth(event.target.value)}
-                />
+                <div className="grid gap-2 md:grid-cols-2">
+                  <SelectField
+                    value={installmentStartMonth.split("-")[1]}
+                    onChange={(event) => {
+                      const [year] = installmentStartMonth.split("-")
+                      setInstallmentStartMonth(`${year}-${event.target.value}`)
+                    }}
+                  >
+                    {Array.from({ length: 12 }).map((_, index) => {
+                      const month = String(index + 1).padStart(2, "0")
+                      return (
+                        <option key={`month-${month}`} value={month}>
+                          {month}
+                        </option>
+                      )
+                    })}
+                  </SelectField>
+                  <SelectField
+                    value={installmentStartMonth.split("-")[0]}
+                    onChange={(event) => {
+                      const month = installmentStartMonth.split("-")[1]
+                      setInstallmentStartMonth(`${event.target.value}-${month}`)
+                    }}
+                  >
+                    {Array.from({ length: 7 }).map((_, index) => {
+                      const year = String(new Date().getFullYear() - 3 + index)
+                      return (
+                        <option key={`year-${year}`} value={year}>
+                          {year}
+                        </option>
+                      )
+                    })}
+                  </SelectField>
+                </div>
                 <button
                   className="rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
                   onClick={addInstallment}
                 >
-                  Adicionar
+                  {editingInstallmentId ? "Salvar edição" : "Adicionar"}
                 </button>
+                {editingInstallmentId && (
+                  <button
+                    className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+                    onClick={cancelEditingInstallment}
+                  >
+                    Cancelar edição
+                  </button>
+                )}
               </div>
               <div className="mt-3 space-y-2">
                 {installmentPlans.map((plan) => {
@@ -626,12 +728,20 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                           {getPaymentLabel(plan.paymentMethod, plan.cardId)}
                         </span>
                       </span>
-                      <button
-                        className="text-zinc-500 hover:text-zinc-200"
-                        onClick={() => removeInstallmentPlan(plan.id)}
-                      >
-                        remover
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="text-zinc-500 hover:text-zinc-200"
+                          onClick={() => startEditingInstallment(plan.id)}
+                        >
+                          editar
+                        </button>
+                        <button
+                          className="text-zinc-500 hover:text-zinc-200"
+                          onClick={() => removeInstallmentPlan(plan.id)}
+                        >
+                          remover
+                        </button>
+                      </div>
                     </div>
                   )
                 })}

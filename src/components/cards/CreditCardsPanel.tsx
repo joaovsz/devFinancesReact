@@ -1,4 +1,4 @@
-import { MouseEvent, useEffect, useState } from "react"
+import { MouseEvent, useEffect, useMemo, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { ChevronDown, Plus } from "lucide-react"
 import { v4 as uuid } from "uuid"
@@ -39,11 +39,24 @@ export const CreditCardsPanel = ({
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null)
   const [showAddCardForm, setShowAddCardForm] = useState(false)
   const [institutions, setInstitutions] = useState<BankPreset[]>(bankPresets)
-  const [selectedBankId, setSelectedBankId] = useState(bankPresets[0].id)
+  const [selectedBankId, setSelectedBankId] = useState(bankPresets[0]?.id || "other")
+  const [bankSearch, setBankSearch] = useState(bankPresets[0]?.name || "")
+  const [showBankOptions, setShowBankOptions] = useState(false)
   const [newCardLimit, setNewCardLimit] = useState("")
   const [newCardCloseDay, setNewCardCloseDay] = useState("")
   const [newCardDueDay, setNewCardDueDay] = useState("")
   const dayOptions = Array.from({ length: 31 }, (_, index) => String(index + 1))
+  const cardBankOptions = useMemo(
+    () => [...institutions, { id: "other", name: "Outros", brandColor: "#64748B" }],
+    [institutions]
+  )
+  const filteredBankOptions = useMemo(
+    () =>
+      cardBankOptions.filter((bank) =>
+        bank.name.toLowerCase().includes(bankSearch.trim().toLowerCase())
+      ),
+    [cardBankOptions, bankSearch]
+  )
   const selectClassName =
     "h-10 max-h-10 w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 pr-9 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
 
@@ -153,6 +166,13 @@ export const CreditCardsPanel = ({
     }
   }, [])
 
+  useEffect(() => {
+    const selected = cardBankOptions.find((bank) => bank.id === selectedBankId)
+    if (selected) {
+      setBankSearch(selected.name)
+    }
+  }, [selectedBankId, cardBankOptions])
+
   function updateCardField(card: CreditCard, field: keyof CreditCard, value: string) {
     const numericValue = Number(value)
 
@@ -180,13 +200,17 @@ export const CreditCardsPanel = ({
       return
     }
 
-    const selectedBank = institutions.find((bank) => bank.id === selectedBankId)
+    const normalizedSearch = bankSearch.trim().toLowerCase()
+    const selectedBank =
+      cardBankOptions.find((bank) => bank.id === selectedBankId) ||
+      cardBankOptions.find((bank) => bank.name.toLowerCase() === normalizedSearch) ||
+      filteredBankOptions[0]
 
     onAddCard({
       id: uuid(),
-      bankId: selectedBank?.id,
-      name: selectedBank?.name || "Novo Cartão",
-      brandColor: selectedBank?.brandColor || "#10B981",
+      bankId: selectedBank?.id || "other",
+      name: selectedBank?.name || "Outros",
+      brandColor: selectedBank?.brandColor || "#64748B",
       logoUrl: selectedBank?.logoUrl,
       limitTotal: parseCurrencyInput(newCardLimit),
       closeDay: Number(newCardCloseDay),
@@ -330,19 +354,22 @@ export const CreditCardsPanel = ({
                       />
                     </label>
                     <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-zinc-400">
-                      Fatura manual
+                      Fatura total
                       <input
                         className="h-10 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none"
                         type="text"
                         inputMode="decimal"
-                        value={formatCurrencyFromNumber(card.manualInvoiceAmount || 0)}
-                        onChange={(event) =>
+                        value={formatCurrencyFromNumber(usedLimit)}
+                        onChange={(event) => {
+                          const totalInvoice = parseCurrencyInput(event.target.value)
+                          const accountedWithoutManual = usedLimit - (card.manualInvoiceAmount || 0)
+                          const manualAdjustment = totalInvoice - accountedWithoutManual
                           updateCardField(
                             card,
                             "manualInvoiceAmount",
-                            String(parseCurrencyInput(event.target.value))
+                            String(manualAdjustment)
                           )
-                        }
+                        }}
                       />
                     </label>
                     <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-zinc-400">
@@ -409,21 +436,45 @@ export const CreditCardsPanel = ({
                 <h3 className="mb-3 text-sm font-semibold text-zinc-100">Novo cartão</h3>
                 <div className="grid gap-2">
                   <div className="relative">
-                    <select
+                    <input
                       className={selectClassName}
-                      value={selectedBankId}
-                      onChange={(event) => setSelectedBankId(event.target.value)}
-                    >
-                      {institutions.map((bank) => (
-                        <option key={bank.id} value={bank.id}>
-                          {bank.name}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500"
+                      type="text"
+                      placeholder="Pesquisar banco"
+                      value={bankSearch}
+                      onFocus={() => setShowBankOptions(true)}
+                      onChange={(event) => {
+                        setBankSearch(event.target.value)
+                        setShowBankOptions(true)
+                      }}
                     />
+                    <button
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500"
+                      type="button"
+                      onClick={() => setShowBankOptions((current) => !current)}
+                    >
+                      <ChevronDown size={16} />
+                    </button>
+                    {showBankOptions && (
+                      <div className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-900 p-1">
+                        {filteredBankOptions.length === 0 && (
+                          <div className="px-2 py-1.5 text-xs text-zinc-500">Nenhum banco encontrado</div>
+                        )}
+                        {filteredBankOptions.map((bank) => (
+                          <button
+                            key={bank.id}
+                            className="w-full rounded-lg px-2 py-1.5 text-left text-xs text-zinc-200 transition hover:bg-zinc-800"
+                            type="button"
+                            onClick={() => {
+                              setSelectedBankId(bank.id)
+                              setBankSearch(bank.name)
+                              setShowBankOptions(false)
+                            }}
+                          >
+                            {bank.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <input
                     className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"

@@ -32,6 +32,7 @@ type TransactionStore = {
   updateFixedCost: (cost: FixedCost) => void
   removeFixedCost: (id: string) => void
   addInstallmentPlan: (plan: InstallmentPlan) => void
+  updateInstallmentPlan: (plan: InstallmentPlan) => void
   removeInstallmentPlan: (id: string) => void
   updateContractConfig: (config: Partial<ContractConfig>) => void
   updateProjectionSettings: (settings: Partial<ProjectionSettings>) => void
@@ -193,6 +194,12 @@ export const useTransactionStore = create<TransactionStore>()(
       addInstallmentPlan: (plan) =>
         set((state) => ({
           installmentPlans: [...state.installmentPlans, plan]
+        })),
+      updateInstallmentPlan: (plan) =>
+        set((state) => ({
+          installmentPlans: state.installmentPlans.map((currentPlan) =>
+            currentPlan.id === plan.id ? plan : currentPlan
+          )
         })),
       removeInstallmentPlan: (id) =>
         set((state) => ({

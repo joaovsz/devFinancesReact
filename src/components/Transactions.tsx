@@ -203,6 +203,11 @@ const Transactions = () => {
       return
     }
 
+    if (entry.plannedSourceType === "installment" && entry.sourceId) {
+      navigate(`/planejamento?editInstallmentId=${entry.sourceId}`)
+      return
+    }
+
     if (entry.plannedSourceType === "income") {
       navigate("/planejamento?editIncome=1")
       return
@@ -229,7 +234,7 @@ const Transactions = () => {
         return (
           <div
             key={transaction.id}
-            className={`grid grid-cols-[1.8fr_1fr_1fr_1fr_56px] items-center border-b border-zinc-800/70 px-5 py-4 text-sm text-zinc-200 last:border-b-0 ${
+            className={`grid min-w-[720px] grid-cols-[240px_140px_130px_130px_56px] items-center border-b border-zinc-800/70 px-5 py-4 text-sm text-zinc-200 last:border-b-0 md:min-w-0 md:grid-cols-[1.8fr_1fr_1fr_1fr_56px] ${
               isEditing ? "bg-zinc-900/70" : ""
             }`}
             onDoubleClick={(event) => {
@@ -245,7 +250,7 @@ const Transactions = () => {
             onBlurCapture={(event) => !isPlanned && handleRowBlur(event, transaction.id)}
             onKeyDown={(event) => !isPlanned && handleRowKeyDown(event, transaction.id)}
           >
-            <div>
+            <div className={`sticky left-0 z-10 pr-2 ${isEditing ? "bg-zinc-900/70" : "bg-zinc-900"}`}>
               {isEditing && !isPlanned ? (
                 <input
                   autoFocus
@@ -282,14 +287,7 @@ const Transactions = () => {
                 </>
               )}
             </div>
-            <div>
-              <span
-                className={`inline-flex rounded-lg border px-2 py-1 text-xs font-medium ${getTypeBadgeClass(transaction)}`}
-              >
-                {getTypeLabel(transaction)}
-              </span>
-            </div>
-            <div className={`font-black ${transaction.type === 1 ? "text-emerald-500" : "text-amber-500"}`}>
+            <div className={`sticky left-[240px] z-10 pr-2 ${isEditing ? "bg-zinc-900/70" : "bg-zinc-900"} font-black ${transaction.type === 1 ? "text-emerald-500" : "text-amber-500"}`}>
               {isEditing && !isPlanned ? (
                 <input
                   className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
@@ -306,6 +304,13 @@ const Transactions = () => {
               ) : (
                 formatCurrency(transaction.value)
               )}
+            </div>
+            <div>
+              <span
+                className={`inline-flex rounded-lg border px-2 py-1 text-xs font-medium ${getTypeBadgeClass(transaction)}`}
+              >
+                {getTypeLabel(transaction)}
+              </span>
             </div>
             <div className="text-zinc-400">
               {isEditing && !isPlanned ? (

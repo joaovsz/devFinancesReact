@@ -34,11 +34,24 @@ export const Cards = () => {
   const [showAddCardForm, setShowAddCardForm] = useState(false)
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null)
   const [institutions, setInstitutions] = useState<BankPreset[]>(bankPresets)
-  const [selectedBankId, setSelectedBankId] = useState(bankPresets[0].id)
+  const [selectedBankId, setSelectedBankId] = useState(bankPresets[0]?.id || "other")
+  const [bankSearch, setBankSearch] = useState(bankPresets[0]?.name || "")
+  const [showBankOptions, setShowBankOptions] = useState(false)
   const [newCardLimit, setNewCardLimit] = useState("")
   const [newCardCloseDay, setNewCardCloseDay] = useState("")
   const [newCardDueDay, setNewCardDueDay] = useState("")
   const dayOptions = Array.from({ length: 31 }, (_, index) => String(index + 1))
+  const cardBankOptions = useMemo(
+    () => [...institutions, { id: "other", name: "Outros", brandColor: "#64748B" }],
+    [institutions]
+  )
+  const filteredBankOptions = useMemo(
+    () =>
+      cardBankOptions.filter((bank) =>
+        bank.name.toLowerCase().includes(bankSearch.trim().toLowerCase())
+      ),
+    [cardBankOptions, bankSearch]
+  )
 
   useEffect(() => {
     let ignore = false
@@ -84,6 +97,13 @@ export const Cards = () => {
       ignore = true
     }
   }, [])
+
+  useEffect(() => {
+    const selected = cardBankOptions.find((bank) => bank.id === selectedBankId)
+    if (selected) {
+      setBankSearch(selected.name)
+    }
+  }, [selectedBankId, cardBankOptions])
 
   const plannedEntries = useMemo(
     () =>
@@ -197,12 +217,16 @@ export const Cards = () => {
       return
     }
 
-    const selectedBank = institutions.find((bank) => bank.id === selectedBankId)
+    const normalizedSearch = bankSearch.trim().toLowerCase()
+    const selectedBank =
+      cardBankOptions.find((bank) => bank.id === selectedBankId) ||
+      cardBankOptions.find((bank) => bank.name.toLowerCase() === normalizedSearch) ||
+      filteredBankOptions[0]
     addCard({
       id: crypto.randomUUID(),
-      bankId: selectedBank?.id,
-      name: selectedBank?.name || "Novo Cartão",
-      brandColor: selectedBank?.brandColor || "#10B981",
+      bankId: selectedBank?.id || "other",
+      name: selectedBank?.name || "Outros",
+      brandColor: selectedBank?.brandColor || "#64748B",
       logoUrl: selectedBank?.logoUrl,
       limitTotal: parseCurrencyInput(newCardLimit),
       closeDay: Number(newCardCloseDay),
@@ -351,6 +375,23 @@ export const Cards = () => {
                         )
                       }
                     />
+                    <input
+                      className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="Fatura total"
+                      value={formatCurrencyFromNumber(card.used)}
+                      onChange={(event) => {
+                        const totalInvoice = parseCurrencyInput(event.target.value)
+                        const accountedWithoutManual = card.used - (card.manualInvoiceAmount || 0)
+                        const manualAdjustment = totalInvoice - accountedWithoutManual
+                        updateCardField(
+                          card,
+                          "manualInvoiceAmount",
+                          String(manualAdjustment)
+                        )
+                      }}
+                    />
                     <div className="grid grid-cols-2 gap-2">
                       <select
                         size={1}
@@ -427,21 +468,45 @@ export const Cards = () => {
             ) : (
               <div className="grid gap-2">
                 <div className="relative">
-                  <select
-                    className="w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 pr-8 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                    value={selectedBankId}
-                    onChange={(event) => setSelectedBankId(event.target.value)}
-                  >
-                    {institutions.map((bank) => (
-                      <option key={bank.id} value={bank.id}>
-                        {bank.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={14}
-                    className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500"
+                  <input
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 pr-8 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                    type="text"
+                    placeholder="Pesquisar banco"
+                    value={bankSearch}
+                    onFocus={() => setShowBankOptions(true)}
+                    onChange={(event) => {
+                      setBankSearch(event.target.value)
+                      setShowBankOptions(true)
+                    }}
                   />
+                  <button
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500"
+                    type="button"
+                    onClick={() => setShowBankOptions((current) => !current)}
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                  {showBankOptions && (
+                    <div className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-900 p-1">
+                      {filteredBankOptions.length === 0 && (
+                        <div className="px-2 py-1.5 text-xs text-zinc-500">Nenhum banco encontrado</div>
+                      )}
+                      {filteredBankOptions.map((bank) => (
+                        <button
+                          key={bank.id}
+                          className="w-full rounded-lg px-2 py-1.5 text-left text-xs text-zinc-200 transition hover:bg-zinc-800"
+                          type="button"
+                          onClick={() => {
+                            setSelectedBankId(bank.id)
+                            setBankSearch(bank.name)
+                            setShowBankOptions(false)
+                          }}
+                        >
+                          {bank.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <input
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
