@@ -56,15 +56,15 @@ export const TransactionsPage = () => {
         existingTransactions={transactions}
         onSubmitTransaction={addTransaction}
       />
-      <div className="grid gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <input
-          className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+          className="min-w-[220px] flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
           type="text"
           placeholder="Buscar por descrição, categoria, pagamento..."
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
         />
-        <div className="relative sm:max-w-xs">
+        <div className="relative min-w-[220px] sm:max-w-xs">
           <select
             className={selectClassName}
             value={selectedCardId}
