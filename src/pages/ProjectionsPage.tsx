@@ -32,6 +32,7 @@ function SelectField(props: SelectHTMLAttributes<HTMLSelectElement>) {
 }
 
 export const ProjectionsPage = () => {
+  const cards = useTransactionStore((state) => state.cards)
   const transactions = useTransactionStore((state) => state.transactions)
   const fixedCosts = useTransactionStore((state) => state.fixedCosts)
   const installmentPlans = useTransactionStore((state) => state.installmentPlans)
@@ -149,6 +150,7 @@ export const ProjectionsPage = () => {
   const timeline = useMemo(
     () =>
       buildProjectionTimeline({
+        cards,
         transactions,
         fixedCosts,
         installmentPlans,
@@ -157,6 +159,7 @@ export const ProjectionsPage = () => {
         projectedRevenueByMonth
       }),
     [
+      cards,
       transactions,
       fixedCosts,
       installmentPlans,

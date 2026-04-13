@@ -1,5 +1,6 @@
 import { Transaction } from "../types/transaction"
 import { FixedCost, InstallmentPlan } from "../types/planning"
+import { CreditCard } from "../types/card"
 
 export function getCurrentMonthKey() {
   const now = new Date()
@@ -95,24 +96,81 @@ export function hasTransactionsInMonth(
 }
 
 export function getCommittedCostsForMonth(input: {
+  cards?: CreditCard[]
+  transactions?: Transaction[]
   fixedCosts: FixedCost[]
   installmentPlans: InstallmentPlan[]
   monthKey: string
 }) {
   const fixedCostsTotal = getFixedCostsTotal(input.fixedCosts)
-  const installmentsTotal = getInstallmentTotalForMonth(
-    input.installmentPlans,
+  const installmentsTotal = getInstallmentTotalForMonth(input.installmentPlans, input.monthKey)
+
+  // Business rule: total outflows should include cash expenses PLUS the full credit card invoices.
+  // A credit card invoice for a month is:
+  // active installments + credit fixed costs + ad-hoc credit transactions + manualInvoiceAmount.
+  const cards = input.cards || []
+  const cashFixedCostsTotal = input.fixedCosts
+    .filter((cost) => cost.paymentMethod === "cash")
+    .reduce((total, cost) => total + cost.amount, 0)
+  const cashInstallmentsTotal = getInstallmentTotalForMonth(
+    input.installmentPlans.filter((plan) => plan.paymentMethod === "cash"),
     input.monthKey
   )
+  const cashTransactionsTotal = (input.transactions || [])
+    .filter(
+      (transaction) =>
+        transaction.type === 2 &&
+        transaction.paymentMethod === "cash" &&
+        dateToMonthKey(transaction.date) === input.monthKey
+    )
+    .reduce((total, transaction) => total + transaction.value, 0)
+
+  const creditInvoicesTotal = cards.reduce((sum, card) => {
+    const creditFixedCostsTotal = input.fixedCosts
+      .filter((cost) => cost.paymentMethod === "credit" && cost.cardId === card.id)
+      .reduce((total, cost) => total + cost.amount, 0)
+
+    const creditInstallmentsTotal = getInstallmentTotalForMonth(
+      input.installmentPlans.filter(
+        (plan) => plan.paymentMethod === "credit" && plan.cardId === card.id
+      ),
+      input.monthKey
+    )
+
+    const creditTransactionsTotal = (input.transactions || [])
+      .filter(
+        (transaction) =>
+          transaction.type === 2 &&
+          transaction.paymentMethod === "credit" &&
+          transaction.cardId === card.id &&
+          dateToMonthKey(transaction.date) === input.monthKey
+      )
+      .reduce((total, transaction) => total + transaction.value, 0)
+
+    const manualInvoiceAmount = card.manualInvoiceAmount || 0
+
+    return (
+      sum +
+      creditFixedCostsTotal +
+      creditInstallmentsTotal +
+      creditTransactionsTotal +
+      manualInvoiceAmount
+    )
+  }, 0)
 
   return {
     fixedCostsTotal,
     installmentsTotal,
-    total: fixedCostsTotal + installmentsTotal
+    total:
+      cashFixedCostsTotal +
+      cashInstallmentsTotal +
+      cashTransactionsTotal +
+      creditInvoicesTotal
   }
 }
 
 export function buildProjectionTimeline(input: {
+  cards: CreditCard[]
   transactions: Transaction[]
   fixedCosts: FixedCost[]
   installmentPlans: InstallmentPlan[]
@@ -121,34 +179,27 @@ export function buildProjectionTimeline(input: {
   projectedRevenueByMonth?: Record<string, number>
 }) {
   const monthsForward = input.monthsForward ?? 12
-  const baseline = getAverageMonthlyLeftover(
-    input.transactions,
-    input.targetMonth,
-    3
-  )
 
   let cumulativeBalance = 0
 
   return Array.from({ length: monthsForward }).map((_, index) => {
     const monthKey = addMonths(input.targetMonth, index)
-    const hasObservedData = hasTransactionsInMonth(input.transactions, monthKey)
-    const monthlyLeftover = hasObservedData
-      ? getMonthlyLeftoverFromTransactions(input.transactions, monthKey)
-      : baseline
     const projectedRevenue = input.projectedRevenueByMonth?.[monthKey] || 0
     const committed = getCommittedCostsForMonth({
+      cards: input.cards,
+      transactions: input.transactions,
       fixedCosts: input.fixedCosts,
       installmentPlans: input.installmentPlans,
       monthKey
     })
 
-    const projectedLeftover = monthlyLeftover + projectedRevenue - committed.total
+    // Projected leftover should reflect what will remain:
+    // projected revenue minus all outflows (cash + credit invoices).
+    const projectedLeftover = projectedRevenue - committed.total
     cumulativeBalance += projectedLeftover
 
     return {
       monthKey,
-      hasObservedData,
-      monthlyLeftover,
       projectedRevenue,
       projectedLeftover,
       committedCosts: committed.total,
