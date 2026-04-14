@@ -58,6 +58,10 @@ const Transactions = ({
   const contractConfig = useTransactionStore((state) => state.contractConfig)
   const removeTransaction = useTransactionStore((state) => state.removeTransaction)
   const updateTransaction = useTransactionStore((state) => state.updateTransaction)
+  const updateFixedCost = useTransactionStore((state) => state.updateFixedCost)
+  const removeFixedCost = useTransactionStore((state) => state.removeFixedCost)
+  const removeInstallmentPlan = useTransactionStore((state) => state.removeInstallmentPlan)
+  const updateCard = useTransactionStore((state) => state.updateCard)
   const navigate = useNavigate()
   const currentMonth = getCurrentMonthKey()
   const [holidays, setHolidays] = useState<Holiday[]>([])
@@ -144,9 +148,72 @@ const Transactions = ({
     })
   }
 
-  function saveEditById(transactionId: string) {
-    const transaction = transactions.find((item) => item.id === transactionId)
+  function startEditingManualInvoice(entry: ManualInvoiceEntry) {
+    setEditingId(entry.id)
+    setDraft({
+      label: entry.label,
+      value: formatCurrencyFromNumber(entry.value),
+      date: entry.date
+    })
+  }
+
+  function startEditingFixedEntry(entry: PlannedEntry) {
+    if (!entry.sourceId) {
+      return
+    }
+
+    const cost = fixedCosts.find((item) => item.id === entry.sourceId)
+    if (!cost) {
+      return
+    }
+
+    setEditingId(entry.id)
+    setDraft({
+      label: cost.name,
+      value: formatCurrencyFromNumber(cost.amount),
+      date: entry.date
+    })
+  }
+
+  function saveEditById(rowId: string) {
+    const transaction = transactions.find((item) => item.id === rowId)
     if (!transaction) {
+      const manualEntry = manualInvoiceEntries.find((item) => item.id === rowId)
+      if (!manualEntry) {
+        setEditingId(null)
+        return
+      }
+
+      const card = cards.find((item) => item.id === manualEntry.cardId)
+      if (!card) {
+        setEditingId(null)
+        return
+      }
+
+      updateCard({
+        ...card,
+        manualInvoiceAmount: Math.max(parseCurrencyInput(draft.value), 0)
+      })
+      setEditingId(null)
+      return
+    }
+
+    const fixedEntry = plannedEntries.find(
+      (item) => item.id === rowId && item.plannedSourceType === "fixed"
+    )
+    if (fixedEntry?.sourceId) {
+      const targetCost = fixedCosts.find((item) => item.id === fixedEntry.sourceId)
+      if (!targetCost) {
+        setEditingId(null)
+        return
+      }
+
+      const parsedValue = parseCurrencyInput(draft.value)
+      updateFixedCost({
+        ...targetCost,
+        name: draft.label.trim() || targetCost.name,
+        amount: parsedValue > 0 ? parsedValue : targetCost.amount
+      })
       setEditingId(null)
       return
     }
@@ -162,6 +229,59 @@ const Transactions = ({
     })
 
     setEditingId(null)
+  }
+
+  function removeManualInvoiceEntry(entry: ManualInvoiceEntry) {
+    const card = cards.find((item) => item.id === entry.cardId)
+    if (!card) {
+      return
+    }
+
+    updateCard({
+      ...card,
+      manualInvoiceAmount: 0
+    })
+    setEditingId((current) => (current === entry.id ? null : current))
+  }
+
+  function isManualInvoiceRow(row: TransactionRow): row is ManualInvoiceEntry {
+    return "isPlanned" in row && row.isPlanned && row.plannedSourceType === "manualInvoice"
+  }
+
+  function isFixedPlannedRow(row: TransactionRow): row is PlannedEntry {
+    return "isPlanned" in row && row.isPlanned && row.plannedSourceType === "fixed"
+  }
+
+  function isInstallmentPlannedRow(row: TransactionRow): row is PlannedEntry {
+    return "isPlanned" in row && row.isPlanned && row.plannedSourceType === "installment"
+  }
+
+  function isIncomePlannedRow(row: TransactionRow): row is PlannedEntry {
+    return "isPlanned" in row && row.isPlanned && row.plannedSourceType === "income"
+  }
+
+  function isRowEditable(row: TransactionRow) {
+    if (!("isPlanned" in row) || !row.isPlanned) {
+      return true
+    }
+
+    return row.plannedSourceType === "manualInvoice" || row.plannedSourceType === "fixed"
+  }
+
+  function removeFixedEntry(entry: PlannedEntry) {
+    if (!entry.sourceId) {
+      return
+    }
+    removeFixedCost(entry.sourceId)
+    setEditingId((current) => (current === entry.id ? null : current))
+  }
+
+  function removeInstallmentEntry(entry: PlannedEntry) {
+    if (!entry.sourceId) {
+      return
+    }
+    removeInstallmentPlan(entry.sourceId)
+    setEditingId((current) => (current === entry.id ? null : current))
   }
 
   function handleRowBlur(event: FocusEvent<HTMLDivElement>, transactionId: string) {
@@ -208,6 +328,19 @@ const Transactions = ({
 
     const card = cards.find((item) => item.id === transaction.cardId)
     return card ? `Crédito - ${card.name}` : "Crédito"
+  }
+
+  function getCreditCardLabel(row: TransactionRow) {
+    if (row.paymentMethod !== "credit") {
+      return "—"
+    }
+
+    const card = cards.find((item) => item.id === row.cardId)
+    if (card) {
+      return card.name
+    }
+
+    return row.cardId ? "Cartão removido" : "Crédito sem cartão"
   }
 
   function getTypeLabel(row: TransactionRow) {
@@ -311,29 +444,46 @@ const Transactions = ({
       {filteredRows.map((transaction) => {
         const splittedDate = transaction.date.split('-')
         const isPlanned = "isPlanned" in transaction && transaction.isPlanned
+        const isManualInvoice = isManualInvoiceRow(transaction)
+        const isFixedPlanned = isFixedPlannedRow(transaction)
+        const isInstallmentPlanned = isInstallmentPlannedRow(transaction)
+        const isIncomePlanned = isIncomePlannedRow(transaction)
+        const isEditable = isRowEditable(transaction)
         const actualTransaction = transaction as Transaction
         const isEditing = editingId === transaction.id
         return (
           <div
             key={transaction.id}
-            className={`grid min-w-[720px] grid-cols-[240px_140px_130px_130px_56px] items-center border-b border-zinc-800/70 px-5 py-4 text-sm text-zinc-200 last:border-b-0 md:min-w-0 md:grid-cols-[1.8fr_1fr_1fr_1fr_56px] ${
+            className={`grid min-w-[860px] grid-cols-[220px_130px_120px_170px_120px_56px] items-center border-b border-zinc-800/70 px-5 py-4 text-sm text-zinc-200 last:border-b-0 md:min-w-0 md:grid-cols-[1.8fr_1fr_1fr_1.2fr_1fr_56px] ${
               isEditing ? "bg-zinc-900/70" : ""
             }`}
             onDoubleClick={(event) => {
-              if (isPlanned) {
-                return
-              }
               const target = event.target as HTMLElement
               if (target.closest("button")) {
                 return
               }
+              if (!isEditable) {
+                return
+              }
+              if (isManualInvoice) {
+                startEditingManualInvoice(transaction)
+                return
+              }
+              if (isFixedPlanned) {
+                startEditingFixedEntry(transaction)
+                return
+              }
               startEditing(transaction as Transaction)
             }}
-            onBlurCapture={(event) => !isPlanned && handleRowBlur(event, transaction.id)}
-            onKeyDown={(event) => !isPlanned && handleRowKeyDown(event, transaction.id)}
+            onBlurCapture={(event) =>
+              isEditable && handleRowBlur(event, transaction.id)
+            }
+            onKeyDown={(event) =>
+              isEditable && handleRowKeyDown(event, transaction.id)
+            }
           >
             <div className="pr-2">
-              {isEditing && !isPlanned ? (
+              {isEditing && isEditable ? (
                 <input
                   autoFocus
                   className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
@@ -351,9 +501,6 @@ const Transactions = ({
                   <div className="mt-1 truncate text-xs text-zinc-400">
                     {getCategoryLabel(actualTransaction)}
                   </div>
-                  <div className="mt-1 truncate text-xs text-zinc-500">
-                    {getPaymentLabel(actualTransaction)}
-                  </div>
                   {(actualTransaction.tags?.length || 0) > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {actualTransaction.tags.map((tag) => (
@@ -370,7 +517,7 @@ const Transactions = ({
               )}
             </div>
             <div className={`pr-2 font-black ${transaction.type === 1 ? "text-emerald-500" : "text-amber-500"}`}>
-              {isEditing && !isPlanned ? (
+              {isEditing && isEditable ? (
                 <input
                   className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
                   type="text"
@@ -394,6 +541,9 @@ const Transactions = ({
                 {getTypeLabel(transaction)}
               </span>
             </div>
+            <div className="truncate pr-2 text-xs text-zinc-300">
+              {getCreditCardLabel(transaction)}
+            </div>
             <div className="text-zinc-400">
               {isEditing && !isPlanned ? (
                 <input
@@ -410,19 +560,145 @@ const Transactions = ({
             </div>
             <div className="flex justify-end">
               {!isPlanned && (
-                <button
-                  aria-label="Remover transação"
-                  title="Remover transação"
-                  className="rounded-lg p-1 text-red-400 transition hover:bg-red-500/15 hover:text-red-300"
-                  onClick={() => { removeTransactions(transaction.id) }}
-                >
-                  <X size={16} />
-                </button>
+                <div className="flex items-center gap-1">
+                  {isEditing ? (
+                    <button
+                      aria-label="Salvar transação"
+                      title="Salvar transação"
+                      className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
+                      onClick={() => saveEditById(transaction.id)}
+                    >
+                      salvar
+                    </button>
+                  ) : (
+                    <button
+                      aria-label="Editar transação"
+                      title="Editar transação"
+                      className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
+                      onClick={() => startEditing(transaction as Transaction)}
+                    >
+                      <Pencil size={15} />
+                    </button>
+                  )}
+                  <button
+                    aria-label="Remover transação"
+                    title="Remover transação"
+                    className="rounded-lg p-1 text-red-400 transition hover:bg-red-500/15 hover:text-red-300"
+                    onClick={() => { removeTransactions(transaction.id) }}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               )}
               {isPlanned && (
-                ("plannedSourceType" in transaction &&
-                transaction.plannedSourceType === "manualInvoice" ? (
-                  <span className="text-[11px] text-zinc-500">—</span>
+                ("plannedSourceType" in transaction && transaction.plannedSourceType === "manualInvoice" ? (
+                  <div className="flex items-center gap-1">
+                    {isEditing ? (
+                      <button
+                        aria-label="Salvar ajuste manual"
+                        title="Salvar ajuste manual"
+                        className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
+                        onClick={() => saveEditById(transaction.id)}
+                      >
+                        salvar
+                      </button>
+                    ) : (
+                      <button
+                        aria-label="Editar ajuste manual"
+                        title="Editar ajuste manual"
+                        className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
+                        onClick={() => startEditingManualInvoice(transaction)}
+                      >
+                        <Pencil size={15} />
+                      </button>
+                    )}
+                    <button
+                      aria-label="Remover ajuste manual"
+                      title="Remover ajuste manual"
+                      className="rounded-lg p-1 text-red-400 transition hover:bg-red-500/15 hover:text-red-300"
+                      onClick={() => removeManualInvoiceEntry(transaction)}
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                ) : isFixedPlanned ? (
+                  <div className="flex items-center gap-1">
+                    {isEditing ? (
+                      <button
+                        aria-label="Salvar gasto fixo"
+                        title="Salvar gasto fixo"
+                        className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
+                        onClick={() => saveEditById(transaction.id)}
+                      >
+                        salvar
+                      </button>
+                    ) : (
+                      <button
+                        aria-label="Editar gasto fixo"
+                        title="Editar gasto fixo"
+                        className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
+                        onClick={() => startEditingFixedEntry(transaction)}
+                      >
+                        <Pencil size={15} />
+                      </button>
+                    )}
+                    <button
+                      aria-label="Remover gasto fixo"
+                      title="Remover gasto fixo"
+                      className="rounded-lg p-1 text-red-400 transition hover:bg-red-500/15 hover:text-red-300"
+                      onClick={() => removeFixedEntry(transaction)}
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                ) : isInstallmentPlanned ? (
+                  <div className="flex items-center gap-1">
+                    <div className="group relative">
+                      <button
+                        aria-label="Editar parcelamento indisponível na tela de transações"
+                        className="cursor-not-allowed rounded-lg p-1 text-zinc-600"
+                        type="button"
+                        disabled
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-56 -translate-x-1/2 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-200 shadow-lg group-hover:block">
+                        Parcelamentos só podem ser editados na tela de Planejamento.
+                      </span>
+                    </div>
+                    <button
+                      aria-label="Remover parcelamento"
+                      title="Remover parcelamento"
+                      className="rounded-lg p-1 text-red-400 transition hover:bg-red-500/15 hover:text-red-300"
+                      onClick={() => removeInstallmentEntry(transaction)}
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                ) : isIncomePlanned ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      aria-label="Editar faturamento"
+                      title="Editar faturamento no Planejamento"
+                      className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
+                      onClick={() => openPlanningForEntry(transaction as PlannedEntry)}
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <div className="group relative">
+                      <button
+                        aria-label="Remover faturamento indisponível na tela de transações"
+                        className="cursor-not-allowed rounded-lg p-1 text-zinc-600"
+                        type="button"
+                        disabled
+                      >
+                        <X size={15} />
+                      </button>
+                      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-56 -translate-x-1/2 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-200 shadow-lg group-hover:block">
+                        Faturamento é calculado no Planejamento e não pode ser removido nesta tela.
+                      </span>
+                    </div>
+                  </div>
                 ) : (
                   <button
                     aria-label="Editar item planejado"

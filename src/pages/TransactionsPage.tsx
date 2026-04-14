@@ -15,9 +15,12 @@ export const TransactionsPage = () => {
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilters, setTypeFilters] = useState<string[]>([])
   const [selectedCardId, setSelectedCardId] = useState(searchParams.get("cardId") || "all")
+  const quickAddCreditCardId =
+    searchParams.get("action") === "add-expense" ? searchParams.get("cardId") || undefined : undefined
   const availableTypeFilters = ["Entrada", "Saída", "Gasto fixo", "Parcelamento", "Faturamento"]
   const selectClassName =
     "w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 pr-9 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+  const formRef = useRef<HTMLDivElement | null>(null)
   const tableRef = useRef<HTMLDivElement | null>(null)
 
   function toggleTypeFilter(type: string) {
@@ -40,6 +43,14 @@ export const TransactionsPage = () => {
   }
 
   useEffect(() => {
+    const action = searchParams.get("action")
+    if (action === "add-expense") {
+      requestAnimationFrame(() => {
+        formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+      })
+      return
+    }
+
     const cardId = searchParams.get("cardId")
     if (!cardId) {
       return
@@ -64,12 +75,15 @@ export const TransactionsPage = () => {
           "A tabela mostra valor, categoria, tipo e forma de pagamento."
         ]}
       />
-      <TransactionForm
-        categories={defaultCategories}
-        cards={cards}
-        existingTransactions={transactions}
-        onSubmitTransaction={addTransaction}
-      />
+      <div ref={formRef}>
+        <TransactionForm
+          categories={defaultCategories}
+          cards={cards}
+          initialCreditCardId={quickAddCreditCardId}
+          existingTransactions={transactions}
+          onSubmitTransaction={addTransaction}
+        />
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <input
           className="min-w-[220px] flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"

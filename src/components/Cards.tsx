@@ -1,13 +1,19 @@
 import { MouseEvent, useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { Check, ChevronDown, CreditCard, Plus, Wallet } from "lucide-react"
 import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
-import { getCurrentMonthKey } from "../utils/projections"
+import {
+  dateToMonthKey,
+  getCurrentMonthKey,
+  isCardInvoicePaidForMonth,
+  isMonthKeyAfter
+} from "../utils/projections"
 import { buildPlannedEntriesForMonth } from "../utils/planningEntries"
 import { useTransactionStore } from "../store/useTransactionStore"
 import { NumberTicker } from "./magic/NumberTicker"
 import { formatCurrency } from "./Transactions"
 import { bankPresets, BankPreset } from "../data/banks"
+import { selectTotalMonthlyContribution, useGoalStore } from "../store/useGoalStore"
 import {
   formatCurrencyFromNumber,
   formatCurrencyInput,
@@ -16,8 +22,17 @@ import {
 import { fetchBankInstitutions } from "../services/banks"
 import { CreditCard as CardType } from "../types/card"
 import { DismissibleInfoCard } from "./ui/DismissibleInfoCard"
+import { CardInvoiceModal } from "./cards/CardInvoiceModal"
+
+type InvoicePlannedItem = {
+  id: string
+  label: string
+  value: number
+  sourceLabel: string
+}
 
 export const Cards = () => {
+  const navigate = useNavigate()
   const cards = useTransactionStore((state) => state.cards)
   const transactions = useTransactionStore((state) => state.transactions)
   const fixedCosts = useTransactionStore((state) => state.fixedCosts)
@@ -25,9 +40,13 @@ export const Cards = () => {
   const contractConfig = useTransactionStore((state) => state.contractConfig)
   const totalIncomes = useTransactionStore((state) => state.totalIncomes)
   const totalExpenses = useTransactionStore((state) => state.totalExpenses)
+  const goalsMonthlyContribution = useGoalStore(selectTotalMonthlyContribution)
   const addCard = useTransactionStore((state) => state.addCard)
   const updateCard = useTransactionStore((state) => state.updateCard)
   const removeCard = useTransactionStore((state) => state.removeCard)
+  const markCardInvoiceAsPaid = useTransactionStore(
+    (state) => state.markCardInvoiceAsPaid
+  )
 
   const currentMonth = getCurrentMonthKey()
   const [holidays, setHolidays] = useState<Holiday[]>([])
@@ -40,6 +59,10 @@ export const Cards = () => {
   const [newCardLimit, setNewCardLimit] = useState("")
   const [newCardCloseDay, setNewCardCloseDay] = useState("")
   const [newCardDueDay, setNewCardDueDay] = useState("")
+  const [invoiceCardId, setInvoiceCardId] = useState<string | null>(null)
+  const [invoiceTotalDraftByCard, setInvoiceTotalDraftByCard] = useState<
+    Record<string, string>
+  >({})
   const dayOptions = Array.from({ length: 31 }, (_, index) => String(index + 1))
   const cardBankOptions = useMemo(
     () => [...institutions, { id: "other", name: "Outros", brandColor: "#64748B" }],
@@ -120,12 +143,8 @@ export const Cards = () => {
   const plannedIncomes = plannedEntries
     .filter((entry) => entry.type === 1)
     .reduce((sum, entry) => sum + entry.value, 0)
-  const plannedCashExpenses = plannedEntries
-    .filter((entry) => entry.type === 2 && entry.paymentMethod === "cash")
-    .reduce((sum, entry) => sum + entry.value, 0)
-
   const summaryIncomes = totalIncomes + plannedIncomes
-  const summaryExpenses = totalExpenses + plannedCashExpenses
+  const summaryExpenses = totalExpenses + goalsMonthlyContribution
   const summaryTotal = summaryIncomes - summaryExpenses
 
   const recentTransactions = useMemo(
@@ -142,12 +161,15 @@ export const Cards = () => {
       const monthStart = `${monthKey}-`
 
       return cards.map((card) => {
+        const isPaidForCurrentMonth = isCardInvoicePaidForMonth(card, monthKey)
         const transactionUsage = transactions
           .filter(
             (transaction) =>
               transaction.type === 2 &&
               transaction.paymentMethod === "credit" &&
-              transaction.cardId === card.id
+              transaction.cardId === card.id &&
+              (!card.paidThroughMonth ||
+                isMonthKeyAfter(dateToMonthKey(transaction.date), card.paidThroughMonth))
           )
           .reduce((sum, transaction) => sum + transaction.value, 0)
 
@@ -157,7 +179,9 @@ export const Cards = () => {
               transaction.type === 2 &&
               transaction.paymentMethod === "credit" &&
               transaction.cardId === card.id &&
-              transaction.date.startsWith(monthStart)
+              transaction.date.startsWith(monthStart) &&
+              (!card.paidThroughMonth ||
+                isMonthKeyAfter(dateToMonthKey(transaction.date), card.paidThroughMonth))
           )
           .reduce((sum, transaction) => sum + transaction.value, 0)
 
@@ -183,11 +207,12 @@ export const Cards = () => {
           .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === card.id)
           .reduce((sum, plan) => sum + plan.installmentValue * plan.totalInstallments, 0)
 
-        const currentInvoice =
-          currentMonthInvoiceTransactions +
-          plannedFixedUsage +
-          plannedInstallmentsCurrentMonth +
-          (card.manualInvoiceAmount || 0)
+        const currentInvoice = isPaidForCurrentMonth
+          ? 0
+          : currentMonthInvoiceTransactions +
+            plannedFixedUsage +
+            plannedInstallmentsCurrentMonth +
+            (card.manualInvoiceAmount || 0)
         const used =
           transactionUsage +
           plannedFixedUsage +
@@ -206,6 +231,61 @@ export const Cards = () => {
       })
     },
     [cards, transactions, fixedCosts, installmentPlans]
+  )
+  const selectedInvoiceCard = useMemo(
+    () => cardUsage.find((card) => card.id === invoiceCardId) || null,
+    [cardUsage, invoiceCardId]
+  )
+  const selectedInvoiceTransactions = useMemo(
+    () =>
+      invoiceCardId
+        ? transactions
+            .filter(
+              (transaction) =>
+                transaction.type === 2 &&
+                transaction.paymentMethod === "credit" &&
+                transaction.cardId === invoiceCardId &&
+                dateToMonthKey(transaction.date) === currentMonth
+            )
+            .sort((left, right) => right.date.localeCompare(left.date))
+        : [],
+    [transactions, invoiceCardId, currentMonth]
+  )
+  const selectedInvoicePlannedItems = useMemo<InvoicePlannedItem[]>(
+    () => {
+      if (!invoiceCardId) {
+        return []
+      }
+
+      const items = plannedEntries
+        .filter(
+          (entry) =>
+            entry.type === 2 &&
+            entry.paymentMethod === "credit" &&
+            entry.cardId === invoiceCardId
+        )
+        .map((entry) => ({
+          id: entry.id,
+          label: entry.label,
+          value: entry.value,
+          sourceLabel:
+            entry.plannedSourceType === "fixed"
+              ? "Gasto fixo planejado"
+              : "Parcelamento planejado"
+        }))
+
+      if ((selectedInvoiceCard?.manualInvoiceAmount || 0) > 0) {
+        items.push({
+          id: `planned-manual-invoice-${selectedInvoiceCard?.id}-${currentMonth}`,
+          label: "Ajuste manual de fatura",
+          value: selectedInvoiceCard?.manualInvoiceAmount || 0,
+          sourceLabel: "Ajuste manual"
+        })
+      }
+
+      return items
+    },
+    [plannedEntries, invoiceCardId, selectedInvoiceCard, currentMonth]
   )
 
   const totalCreditUsed = cardUsage.reduce((sum, card) => sum + card.used, 0)
@@ -241,6 +321,42 @@ export const Cards = () => {
     })
   }
 
+  function setInvoiceTotalDraft(cardId: string, inputValue: string) {
+    setInvoiceTotalDraftByCard((current) => ({
+      ...current,
+      [cardId]: inputValue
+    }))
+  }
+
+  function getInvoiceTotalDraft(cardId: string) {
+    return invoiceTotalDraftByCard[cardId]
+  }
+
+  function clearInvoiceTotalDraft(cardId: string) {
+    setInvoiceTotalDraftByCard((current) => {
+      if (!(cardId in current)) {
+        return current
+      }
+
+      const next = { ...current }
+      delete next[cardId]
+      return next
+    })
+  }
+
+  function commitInvoiceTotalFromDraft(card: CardType & { currentInvoice: number }) {
+    const draftValue = getInvoiceTotalDraft(card.id)
+    if (draftValue === undefined) {
+      return
+    }
+
+    const totalInvoice = parseCurrencyInput(draftValue)
+    const accountedWithoutManual = card.currentInvoice - (card.manualInvoiceAmount || 0)
+    const nextManualAdjustment = totalInvoice - accountedWithoutManual
+    updateCardField(card, "manualInvoiceAmount", String(nextManualAdjustment))
+    clearInvoiceTotalDraft(card.id)
+  }
+
   function handleAddCard() {
     if (!selectedBankId || !newCardLimit || !newCardCloseDay || !newCardDueDay) {
       return
@@ -272,6 +388,53 @@ export const Cards = () => {
   function handleRemoveCard(cardId: string) {
     removeCard(cardId)
     setExpandedCardId((current) => (current === cardId ? null : current))
+    setInvoiceCardId((current) => (current === cardId ? null : current))
+  }
+
+  function openCardInvoice(cardId: string) {
+    setInvoiceCardId(cardId)
+  }
+
+  function closeCardInvoice() {
+    setInvoiceCardId(null)
+  }
+
+  function openTransactionsForInvoice(cardId: string) {
+    closeCardInvoice()
+    navigate(`/transacoes?cardId=${cardId}`)
+  }
+
+  function openAddExpenseForInvoice(cardId: string) {
+    closeCardInvoice()
+    navigate(`/transacoes?cardId=${cardId}&action=add-expense`)
+  }
+
+  function saveManualInvoiceAdjustment(cardId: string, value: number) {
+    const card = cards.find((currentCard) => currentCard.id === cardId)
+    if (!card) {
+      return
+    }
+
+    updateCard({
+      ...card,
+      manualInvoiceAmount: value
+    })
+  }
+
+  function removeManualInvoiceAdjustment(cardId: string) {
+    saveManualInvoiceAdjustment(cardId, 0)
+  }
+
+  function markInvoiceAsPaid(card: CardType) {
+    const confirmed = window.confirm(
+      `Confirmar pagamento da fatura de ${card.name} deste mês?`
+    )
+    if (!confirmed) {
+      return
+    }
+
+    markCardInvoiceAsPaid(card.id, currentMonth)
+    closeCardInvoice()
   }
 
   return (
@@ -364,6 +527,9 @@ export const Cards = () => {
                 setExpandedCardId((currentCardId) =>
                   currentCardId === card.id ? null : card.id
                 )
+                if (expandedCardId === card.id) {
+                  clearInvoiceTotalDraft(card.id)
+                }
               }}
             >
               <div className="flex h-full flex-col justify-between">
@@ -390,64 +556,71 @@ export const Cards = () => {
                 </div>
                 {isExpanded ? (
                   <div className="mt-2 grid gap-2 rounded-xl border border-zinc-700/80 bg-zinc-900/30 p-2">
-                    <input
-                      className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="Limite"
-                      value={formatCurrencyFromNumber(card.limitTotal)}
-                      onChange={(event) =>
-                        updateCardField(
-                          card,
-                          "limitTotal",
-                          String(parseCurrencyInput(event.target.value))
-                        )
-                      }
-                    />
-                    <input
-                      className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="Fatura total"
-                      value={formatCurrencyFromNumber(card.currentInvoice)}
-                      onChange={(event) => {
-                        const totalInvoice = parseCurrencyInput(event.target.value)
-                        const accountedWithoutManual =
-                          card.currentInvoice - (card.manualInvoiceAmount || 0)
-                        const safeTotalInvoice = Math.max(totalInvoice, accountedWithoutManual)
-                        const manualAdjustment = safeTotalInvoice - accountedWithoutManual
-                        updateCardField(
-                          card,
-                          "manualInvoiceAmount",
-                          String(manualAdjustment)
-                        )
-                      }}
-                    />
+                    <label className="grid gap-1 text-[11px] uppercase tracking-wide text-zinc-400">
+                      Limite total
+                      <input
+                        className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs normal-case text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                        type="text"
+                        inputMode="decimal"
+                        value={formatCurrencyFromNumber(card.limitTotal)}
+                        onChange={(event) =>
+                          updateCardField(
+                            card,
+                            "limitTotal",
+                            String(parseCurrencyInput(event.target.value))
+                          )
+                        }
+                      />
+                    </label>
+                    <label className="grid gap-1 text-[11px] uppercase tracking-wide text-zinc-400">
+                      Valor total da fatura
+                      <input
+                        className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs normal-case text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                        type="text"
+                        inputMode="decimal"
+                        value={getInvoiceTotalDraft(card.id) ?? formatCurrencyFromNumber(card.currentInvoice)}
+                        onFocus={() =>
+                          setInvoiceTotalDraft(card.id, formatCurrencyFromNumber(card.currentInvoice))
+                        }
+                        onChange={(event) =>
+                          setInvoiceTotalDraft(card.id, formatCurrencyInput(event.target.value))
+                        }
+                        onBlur={() => commitInvoiceTotalFromDraft(card)}
+                      />
+                    </label>
                     <div className="grid grid-cols-2 gap-2">
-                      <select
-                        size={1}
-                        className="h-10 max-h-10 w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                        value={String(card.closeDay)}
-                        onChange={(event) => updateCardField(card, "closeDay", event.target.value)}
-                      >
-                        {dayOptions.map((day) => (
-                          <option key={`card-close-${card.id}-${day}`} value={day}>
-                            Fech. {day}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        size={1}
-                        className="h-10 max-h-10 w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                        value={String(card.dueDay)}
-                        onChange={(event) => updateCardField(card, "dueDay", event.target.value)}
-                      >
-                        {dayOptions.map((day) => (
-                          <option key={`card-due-${card.id}-${day}`} value={day}>
-                            Venc. {day}
-                          </option>
-                        ))}
-                      </select>
+                      <label className="grid gap-1 text-[11px] uppercase tracking-wide text-zinc-400">
+                        Dia de fechamento
+                        <select
+                          size={1}
+                          className="h-10 max-h-10 w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs normal-case text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                          value={String(card.closeDay)}
+                          onChange={(event) =>
+                            updateCardField(card, "closeDay", event.target.value)
+                          }
+                        >
+                          {dayOptions.map((day) => (
+                            <option key={`card-close-${card.id}-${day}`} value={day}>
+                              {day}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="grid gap-1 text-[11px] uppercase tracking-wide text-zinc-400">
+                        Dia de vencimento
+                        <select
+                          size={1}
+                          className="h-10 max-h-10 w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs normal-case text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                          value={String(card.dueDay)}
+                          onChange={(event) => updateCardField(card, "dueDay", event.target.value)}
+                        >
+                          {dayOptions.map((day) => (
+                            <option key={`card-due-${card.id}-${day}`} value={day}>
+                              {day}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button
@@ -466,6 +639,7 @@ export const Cards = () => {
                         onClick={(event) => {
                           event.preventDefault()
                           event.stopPropagation()
+                          commitInvoiceTotalFromDraft(card)
                           setExpandedCardId(null)
                         }}
                         type="button"
@@ -495,12 +669,13 @@ export const Cards = () => {
                       <p className="text-[11px] font-bold text-zinc-100">
                         Fatura atual: {formatCurrency(card.currentInvoice)}
                       </p>
-                      <Link
-                        to={`/transacoes?cardId=${card.id}`}
+                      <button
+                        type="button"
+                        onClick={() => openCardInvoice(card.id)}
                         className="text-[11px] text-zinc-100/85 underline-offset-2 transition hover:underline"
                       >
                         Ver fatura
-                      </Link>
+                      </button>
                     </div>
                   </div>
                 )}
@@ -646,6 +821,47 @@ export const Cards = () => {
           ))}
         </div>
       </article>
+
+      <CardInvoiceModal
+        isOpen={Boolean(selectedInvoiceCard)}
+        cardName={selectedInvoiceCard?.name || ""}
+        monthKey={currentMonth}
+        currentInvoice={selectedInvoiceCard?.currentInvoice || 0}
+        manualAdjustmentValue={selectedInvoiceCard?.manualInvoiceAmount || 0}
+        transactions={selectedInvoiceTransactions}
+        plannedItems={selectedInvoicePlannedItems}
+        onClose={closeCardInvoice}
+        onSaveManualAdjustment={(value) => {
+          if (!selectedInvoiceCard) {
+            return
+          }
+          saveManualInvoiceAdjustment(selectedInvoiceCard.id, value)
+        }}
+        onRemoveManualAdjustment={() => {
+          if (!selectedInvoiceCard) {
+            return
+          }
+          removeManualInvoiceAdjustment(selectedInvoiceCard.id)
+        }}
+        onMarkAsPaid={() => {
+          if (!selectedInvoiceCard) {
+            return
+          }
+          markInvoiceAsPaid(selectedInvoiceCard)
+        }}
+        onOpenTransactions={() => {
+          if (!selectedInvoiceCard) {
+            return
+          }
+          openTransactionsForInvoice(selectedInvoiceCard.id)
+        }}
+        onAddExpense={() => {
+          if (!selectedInvoiceCard) {
+            return
+          }
+          openAddExpenseForInvoice(selectedInvoiceCard.id)
+        }}
+      />
     </section>
   )
 }

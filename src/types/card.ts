@@ -8,4 +8,5 @@ export type CreditCard = {
   closeDay: number
   dueDay: number
   manualInvoiceAmount: number
+  paidThroughMonth?: string
 }

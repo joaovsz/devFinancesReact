@@ -12,6 +12,22 @@ export function monthKeyToIndex(monthKey: string) {
   return year * 12 + (month - 1)
 }
 
+export function isMonthKeyOnOrBefore(monthKey: string, referenceMonthKey: string) {
+  return monthKeyToIndex(monthKey) <= monthKeyToIndex(referenceMonthKey)
+}
+
+export function isMonthKeyAfter(monthKey: string, referenceMonthKey: string) {
+  return monthKeyToIndex(monthKey) > monthKeyToIndex(referenceMonthKey)
+}
+
+export function isCardInvoicePaidForMonth(card: CreditCard, monthKey: string) {
+  if (!card.paidThroughMonth) {
+    return false
+  }
+
+  return isMonthKeyOnOrBefore(monthKey, card.paidThroughMonth)
+}
+
 export function dateToMonthKey(dateString: string) {
   if (!dateString) {
     return getCurrentMonthKey()
@@ -126,6 +142,10 @@ export function getCommittedCostsForMonth(input: {
     .reduce((total, transaction) => total + transaction.value, 0)
 
   const creditInvoicesTotal = cards.reduce((sum, card) => {
+    if (isCardInvoicePaidForMonth(card, input.monthKey)) {
+      return sum
+    }
+
     const creditFixedCostsTotal = input.fixedCosts
       .filter((cost) => cost.paymentMethod === "credit" && cost.cardId === card.id)
       .reduce((total, cost) => total + cost.amount, 0)
@@ -174,6 +194,7 @@ export function buildProjectionTimeline(input: {
   transactions: Transaction[]
   fixedCosts: FixedCost[]
   installmentPlans: InstallmentPlan[]
+  goalsMonthlyContribution?: number
   targetMonth: string
   monthsForward?: number
   projectedRevenueByMonth?: Record<string, number>
@@ -185,6 +206,7 @@ export function buildProjectionTimeline(input: {
   return Array.from({ length: monthsForward }).map((_, index) => {
     const monthKey = addMonths(input.targetMonth, index)
     const projectedRevenue = input.projectedRevenueByMonth?.[monthKey] || 0
+    const goalsMonthlyContribution = Math.max(input.goalsMonthlyContribution || 0, 0)
     const committed = getCommittedCostsForMonth({
       cards: input.cards,
       transactions: input.transactions,
@@ -194,17 +216,19 @@ export function buildProjectionTimeline(input: {
     })
 
     // Projected leftover should reflect what will remain:
-    // projected revenue minus all outflows (cash + credit invoices).
-    const projectedLeftover = projectedRevenue - committed.total
+    // projected revenue minus all outflows (cash + credit invoices + goals contribution).
+    const committedCosts = committed.total + goalsMonthlyContribution
+    const projectedLeftover = projectedRevenue - committedCosts
     cumulativeBalance += projectedLeftover
 
     return {
       monthKey,
       projectedRevenue,
       projectedLeftover,
-      committedCosts: committed.total,
+      committedCosts,
       fixedCostsTotal: committed.fixedCostsTotal,
       installmentsTotal: committed.installmentsTotal,
+      goalsMonthlyContribution,
       cumulativeBalance
     }
   })

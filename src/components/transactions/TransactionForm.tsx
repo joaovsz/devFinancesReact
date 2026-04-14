@@ -9,6 +9,7 @@ import { parseCurrencyInput } from "../../utils/currency-input"
 type TransactionFormProps = {
   categories: Category[]
   cards: CreditCard[]
+  initialCreditCardId?: string
   existingTransactions: Transaction[]
   onSubmitTransaction: (transaction: Transaction) => void
 }
@@ -40,9 +41,18 @@ function formatDateLabel(dateValue: string) {
   })
 }
 
+function getInitialCardId(cards: CreditCard[], initialCreditCardId?: string) {
+  if (initialCreditCardId && cards.some((card) => card.id === initialCreditCardId)) {
+    return initialCreditCardId
+  }
+
+  return cards[0]?.id || ""
+}
+
 export const TransactionForm = ({
   categories,
   cards,
+  initialCreditCardId,
   existingTransactions,
   onSubmitTransaction
 }: TransactionFormProps) => {
@@ -51,7 +61,7 @@ export const TransactionForm = ({
   const [date, setDate] = useState(getTodayDate())
   const [option, setOption] = useState(2)
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit">("credit")
-  const [cardId, setCardId] = useState(cards[0]?.id || "")
+  const [cardId, setCardId] = useState(getInitialCardId(cards, initialCreditCardId))
   const [categoryId, setCategoryId] = useState(categories[0].id)
   const [subcategoryId, setSubcategoryId] = useState(categories[0].subcategories[0].id)
   const [tagsInput, setTagsInput] = useState("")
@@ -64,9 +74,19 @@ export const TransactionForm = ({
 
   useEffect(() => {
     if (!cardId && cards[0]?.id) {
-      setCardId(cards[0].id)
+      setCardId(getInitialCardId(cards, initialCreditCardId))
     }
-  }, [cards, cardId])
+  }, [cards, cardId, initialCreditCardId])
+
+  useEffect(() => {
+    if (!initialCreditCardId || !cards.some((card) => card.id === initialCreditCardId)) {
+      return
+    }
+
+    setOption(2)
+    setPaymentMethod("credit")
+    setCardId(initialCreditCardId)
+  }, [initialCreditCardId, cards])
 
   function formatCents(cents: number) {
     return (cents / 100).toLocaleString("pt-BR", {
@@ -90,7 +110,7 @@ export const TransactionForm = ({
     setDate(getTodayDate())
     setOption(2)
     setPaymentMethod("credit")
-    setCardId(cards[0]?.id || "")
+    setCardId(getInitialCardId(cards, initialCreditCardId))
     setCategoryId(categories[0].id)
     setSubcategoryId(categories[0].subcategories[0].id)
     setTagsInput("")

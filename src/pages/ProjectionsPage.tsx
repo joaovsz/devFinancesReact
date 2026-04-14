@@ -7,6 +7,7 @@ import { NumberTicker } from "../components/magic/NumberTicker"
 import { formatCurrency } from "../components/Transactions"
 import { DismissibleInfoCard } from "../components/ui/DismissibleInfoCard"
 import { useTransactionStore } from "../store/useTransactionStore"
+import { selectTotalMonthlyContribution, useGoalStore } from "../store/useGoalStore"
 import { fetchBrazilHolidaysByYear } from "../services/calendar"
 import { getWorkingMonthMetrics } from "../utils/business-days"
 import {
@@ -37,6 +38,7 @@ export const ProjectionsPage = () => {
   const fixedCosts = useTransactionStore((state) => state.fixedCosts)
   const installmentPlans = useTransactionStore((state) => state.installmentPlans)
   const contractConfig = useTransactionStore((state) => state.contractConfig)
+  const goalsMonthlyContribution = useGoalStore(selectTotalMonthlyContribution)
   const [targetMonth, setTargetMonth] = useState(getCurrentMonthKey())
   const [visibleMonths, setVisibleMonths] = useState(6)
   const [isMobile, setIsMobile] = useState(false)
@@ -154,6 +156,7 @@ export const ProjectionsPage = () => {
         transactions,
         fixedCosts,
         installmentPlans,
+        goalsMonthlyContribution,
         targetMonth,
         monthsForward: 12,
         projectedRevenueByMonth
@@ -163,6 +166,7 @@ export const ProjectionsPage = () => {
       transactions,
       fixedCosts,
       installmentPlans,
+      goalsMonthlyContribution,
       targetMonth,
       projectedRevenueByMonth
     ]
@@ -270,7 +274,7 @@ export const ProjectionsPage = () => {
         description="Projeções simulam os próximos meses com base no histórico e no planejamento."
         items={[
           "Selecione o mês inicial para recalcular a janela de 12 meses.",
-          "Veja compromissos, receita projetada e saldo acumulado no gráfico.",
+          "Veja compromissos (incluindo aportes de metas), receita projetada e saldo acumulado no gráfico.",
           "Funciona para PJ e CLT, respeitando o modo de renda configurado no planejamento."
         ]}
       />

@@ -15,7 +15,7 @@ import {
   dateToMonthKey,
   getCurrentMonthKey,
   getCommittedCostsForMonth,
-  getInstallmentTotalForMonth
+  isMonthKeyAfter
 } from "../utils/projections"
 import { getWorkingMonthMetrics } from "../utils/business-days"
 
@@ -41,6 +41,7 @@ export type TransactionStore = {
   addInstallmentPlan: (plan: InstallmentPlan) => void
   updateInstallmentPlan: (plan: InstallmentPlan) => void
   removeInstallmentPlan: (id: string) => void
+  markCardInvoiceAsPaid: (cardId: string, monthKey: string) => void
   updateContractConfig: (config: Partial<ContractConfig>) => void
   updateProjectionSettings: (settings: Partial<ProjectionSettings>) => void
 }
@@ -59,55 +60,27 @@ function calculateTotals(input: {
     )
     .reduce((sum, transaction) => sum + transaction.value, 0)
 
-  const cashExpenses = input.transactions
-    .filter(
-      (transaction) =>
-        transaction.type === 2 &&
-        transaction.paymentMethod === "cash" &&
-        dateToMonthKey(transaction.date) === monthKey
-    )
-    .reduce((sum, transaction) => sum + transaction.value, 0)
-
-  const cardsInvoices = input.cards.reduce((sum, card) => {
-    const fixedCostsTotal = input.fixedCosts
-      .filter((cost) => cost.paymentMethod === "credit" && cost.cardId === card.id)
-      .reduce((total, cost) => total + cost.amount, 0)
-
-    const installmentsTotal = getInstallmentTotalForMonth(
-      input.installmentPlans.filter(
-        (plan) => plan.paymentMethod === "credit" && plan.cardId === card.id
-      ),
-      monthKey
-    )
-
-    const creditTransactionsTotal = input.transactions
-      .filter(
-        (transaction) =>
-          transaction.type === 2 &&
-          transaction.paymentMethod === "credit" &&
-          transaction.cardId === card.id &&
-          dateToMonthKey(transaction.date) === monthKey
-      )
-      .reduce((total, transaction) => total + transaction.value, 0)
-
-    const manualInvoiceAmount = card.manualInvoiceAmount || 0
-
-    return (
-      sum +
-      fixedCostsTotal +
-      installmentsTotal +
-      creditTransactionsTotal +
-      manualInvoiceAmount
-    )
-  }, 0)
-
-  const totalExpenses = cashExpenses + cardsInvoices
+  const totalExpenses = getCommittedCostsForMonth({
+    cards: input.cards,
+    transactions: input.transactions,
+    fixedCosts: input.fixedCosts,
+    installmentPlans: input.installmentPlans,
+    monthKey
+  }).total
 
   return {
     totalIncomes,
     totalExpenses,
     totalAmount: totalIncomes - totalExpenses
   }
+}
+
+function getLatestPaidThroughMonth(previousMonthKey: string | undefined, monthKey: string) {
+  if (!previousMonthKey) {
+    return monthKey
+  }
+
+  return isMonthKeyAfter(monthKey, previousMonthKey) ? monthKey : previousMonthKey
 }
 
 function getProjectedRevenueForMonth(
@@ -174,6 +147,50 @@ function normalizeCardLogoUrl(card: CreditCard) {
   return normalizeLegacyLogoUrl(card.logoUrl)
 }
 
+function normalizePaidThroughMonth(value?: string) {
+  if (typeof value === "string" && /^\d{4}-\d{2}$/.test(value)) {
+    return value
+  }
+
+  return undefined
+}
+
+function sanitizeCard(card: CreditCard, fallback?: CreditCard): CreditCard {
+  const safeLimit = Number.isFinite(card.limitTotal)
+    ? card.limitTotal
+    : fallback?.limitTotal || 0
+  const safeCloseDay = Number.isFinite(card.closeDay)
+    ? Math.min(Math.max(Math.round(card.closeDay), 1), 31)
+    : fallback?.closeDay || 1
+  const safeDueDay = Number.isFinite(card.dueDay)
+    ? Math.min(Math.max(Math.round(card.dueDay), 1), 31)
+    : fallback?.dueDay || 1
+  const safeManualInvoiceAmount = Number.isFinite(card.manualInvoiceAmount)
+    ? card.manualInvoiceAmount
+    : fallback?.manualInvoiceAmount || 0
+
+  return {
+    id: card.id || fallback?.id || crypto.randomUUID(),
+    bankId: card.bankId ?? fallback?.bankId,
+    name: card.name || fallback?.name || "Cartão",
+    brandColor: normalizeCardBrandColor({
+      ...card,
+      brandColor: card.brandColor || fallback?.brandColor || "#64748B"
+    }),
+    logoUrl: normalizeCardLogoUrl({
+      ...card,
+      logoUrl: card.logoUrl || fallback?.logoUrl
+    }),
+    limitTotal: safeLimit,
+    closeDay: safeCloseDay,
+    dueDay: safeDueDay,
+    manualInvoiceAmount: safeManualInvoiceAmount,
+    paidThroughMonth: normalizePaidThroughMonth(
+      card.paidThroughMonth ?? fallback?.paidThroughMonth
+    )
+  }
+}
+
 export const useTransactionStore = create<TransactionStore>()(
   persist(
     (set) => ({
@@ -201,11 +218,7 @@ export const useTransactionStore = create<TransactionStore>()(
         set((state) => {
           const cards = [
             ...state.cards,
-            {
-              ...card,
-              brandColor: normalizeCardBrandColor(card),
-              logoUrl: normalizeCardLogoUrl(card)
-            }
+            sanitizeCard(card)
           ]
           return {
             cards,
@@ -221,11 +234,7 @@ export const useTransactionStore = create<TransactionStore>()(
         set((state) => {
           const cards = state.cards.map((currentCard) =>
             currentCard.id === card.id
-              ? {
-                  ...card,
-                  brandColor: normalizeCardBrandColor(card),
-                  logoUrl: normalizeCardLogoUrl(card)
-                }
+              ? sanitizeCard(card, currentCard)
               : currentCard
           )
           return {
@@ -394,6 +403,28 @@ export const useTransactionStore = create<TransactionStore>()(
             })
           }
         }),
+      markCardInvoiceAsPaid: (cardId, monthKey) =>
+        set((state) => {
+          const cards = state.cards.map((card) =>
+            card.id === cardId
+              ? {
+                  ...card,
+                  paidThroughMonth: getLatestPaidThroughMonth(card.paidThroughMonth, monthKey),
+                  manualInvoiceAmount: 0
+                }
+              : card
+          )
+
+          return {
+            cards,
+            ...calculateTotals({
+              transactions: state.transactions,
+              cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
+        }),
       updateContractConfig: (config) =>
         set((state) => ({
           contractConfig: {
@@ -411,7 +442,7 @@ export const useTransactionStore = create<TransactionStore>()(
     }),
     {
       name: "devfinances-storage",
-      version: 19,
+      version: 21,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState, version) => {
         if (!persistedState || typeof persistedState !== "object") {
@@ -689,6 +720,22 @@ export const useTransactionStore = create<TransactionStore>()(
               fixedCosts,
               installmentPlans
             })
+          }
+        }
+
+        if (version < 20) {
+          const state = persistedState as TransactionStore
+          return {
+            ...state,
+            cards: (state.cards || []).map((card) => sanitizeCard(card))
+          }
+        }
+
+        if (version < 21) {
+          const state = persistedState as TransactionStore
+          return {
+            ...state,
+            cards: (state.cards || []).map((card) => sanitizeCard(card))
           }
         }
 
