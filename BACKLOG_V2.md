@@ -95,9 +95,23 @@ Transformar o app atual (livro-caixa) em um sistema de previsibilidade financeir
 
 ## EPIC 3 - RF5 + RF6 + RF7 (Metas, PJ e Frictionless UX)
 ### Issue 3.1 - Metas e baldes
-- Modelo `GoalBucket` (alvo, prazo, valor alocado).
-- Exibir saldo total vs saldo livre.
-- Aceite: barra de progresso por meta + impacto no saldo livre.
+- **Descrição consolidada:** Dashboard interativo e gamificado para gestão de múltiplas metas simultâneas, com projeção em meses inteiros (ciclos reais de recebimento) e validação de aderência à sobra líquida projetada.
+- **User Stories (escopo funcional):**
+  - **US01 - CRUD de metas:** cadastrar/editar/remover metas com `id`, `name`, `targetAmount`, `currentSaved`, `monthlyContribution`.
+  - **US02 - Projeção com arredondamento realista:** calcular meses com `Math.ceil((targetAmount - currentSaved) / monthlyContribution)` e exibir previsão de conclusão por mês/ano.
+  - **US03 - Validador de sobrecarga:** comparar `Σ monthlyContribution` com `Sobra Líquida Projetada` do fluxo de caixa e sinalizar `rose-500` (excedeu) ou `emerald-500` (ok).
+  - **US04 - Visual gamificado:** Bento Grid com cards de meta, progresso circular animado e paleta dark (`bg-zinc-950`, `bg-zinc-900`, `indigo-400`, `emerald-500`).
+- **Tarefas técnicas detalhadas (T1-T5):**
+  - **T1 - Store de metas (Zustand):** criar `src/store/useGoalStore.ts` com `Goal[]` e actions `addGoal`, `updateGoal`, `deleteGoal`, `updateSavedAmount`, com persistência local.
+  - **T2 - Motor financeiro de metas:** criar `src/utils/goalProjections.ts` com `calculateMonthsToGoal` (usando `Math.ceil`) e formatação da data futura.
+  - **T3 - Store crossing:** criar seletor/hook combinando `useTransactionStore` (sobra) + `useGoalStore` (aportes) para status de sobrecarga.
+  - **T4 - UI do dashboard:** criar `GoalDashboard`, `GoalCard`, `OverloadBanner` com progresso animado por meta.
+  - **T5 - Form frictionless:** criar modal de edição com slider de aporte mensal e preview de tempo restante em tempo real.
+- **Critérios de aceite:**
+  - Estado de metas persistido localmente.
+  - Projeção de tempo sempre em meses inteiros (sem fração).
+  - Banner de risco financeiro reagindo ao cruzamento entre aportes e sobra líquida.
+  - Experiência visual consistente com o tema Calm Developer.
 
 ### Issue 3.2 - Motor de faturamento PJ com dias úteis
 - Modelo `ContractConfig` (valor/hora, horas/dia) sem fator de desconto operacional.

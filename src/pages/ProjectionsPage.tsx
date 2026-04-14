@@ -240,7 +240,7 @@ export const ProjectionsPage = () => {
           symbolSize: 6
         },
         {
-          name: "Sobra projetada",
+          name: "Sobra do mês (estimada)",
           type: "line",
           smooth: true,
           data: visibleTimeline.map((item) => item.projectedLeftover),
@@ -291,7 +291,7 @@ export const ProjectionsPage = () => {
 
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
-          <div className="text-xs uppercase tracking-wide text-zinc-400">Sobra projetada (mês)</div>
+          <div className="text-xs uppercase tracking-wide text-zinc-400">Sobra do mês (estimada)</div>
           <NumberTicker
             className={`mt-1 text-xl font-semibold ${
               (firstMonth?.projectedLeftover || 0) >= 0 ? "text-emerald-300" : "text-amber-300"

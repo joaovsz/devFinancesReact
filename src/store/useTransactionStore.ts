@@ -14,10 +14,12 @@ import {
 import {
   dateToMonthKey,
   getCurrentMonthKey,
+  getCommittedCostsForMonth,
   getInstallmentTotalForMonth
 } from "../utils/projections"
+import { getWorkingMonthMetrics } from "../utils/business-days"
 
-type TransactionStore = {
+export type TransactionStore = {
   cards: CreditCard[]
   transactions: Transaction[]
   fixedCosts: FixedCost[]
@@ -106,6 +108,36 @@ function calculateTotals(input: {
     totalExpenses,
     totalAmount: totalIncomes - totalExpenses
   }
+}
+
+function getProjectedRevenueForMonth(
+  contractConfig: ContractConfig,
+  monthKey: string
+) {
+  if (contractConfig.incomeMode === "clt") {
+    return Math.max(contractConfig.cltNetSalary, 0)
+  }
+
+  return getWorkingMonthMetrics({
+    monthKey,
+    holidays: [],
+    hoursPerWorkday: contractConfig.hoursPerWorkday,
+    hourlyRate: contractConfig.hourlyRate
+  }).projectedRevenue
+}
+
+export function selectProjectedMonthlyLeftover(state: TransactionStore) {
+  const monthKey = getCurrentMonthKey()
+  const projectedRevenue = getProjectedRevenueForMonth(state.contractConfig, monthKey)
+  const committedCosts = getCommittedCostsForMonth({
+    cards: state.cards,
+    transactions: state.transactions,
+    fixedCosts: state.fixedCosts,
+    installmentPlans: state.installmentPlans,
+    monthKey
+  })
+
+  return projectedRevenue - committedCosts.total
 }
 
 function getFallbackCategoryIds() {
