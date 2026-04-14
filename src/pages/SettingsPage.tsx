@@ -53,7 +53,7 @@ export const SettingsPage = () => {
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
         setStatusMessage("Backup importado. Recarregando aplicação...")
-        window.setTimeout(() => window.location.reload(), 350)
+        window.setTimeout(() => window.location.assign("/"), 350)
       } catch {
         setStatusMessage("Falha ao importar backup. Verifique o arquivo selecionado.")
       }
