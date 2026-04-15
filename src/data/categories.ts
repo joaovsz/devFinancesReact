@@ -6,6 +6,16 @@ export const defaultCategories: Category[] = [
     name: "Rendas",
     subcategories: [
       { id: "faturamento-pj", name: "Faturamento PJ" },
+      { id: "salario-clt", name: "Salário CLT" },
+      { id: "freelas", name: "Freelas e bicos" },
+      { id: "bonus-premiacoes", name: "Bônus e premiações" },
+      { id: "comissoes", name: "Comissões" },
+      { id: "renda-variavel", name: "Renda variável" },
+      { id: "dividendos-juros", name: "Dividendos e juros" },
+      { id: "venda-ativos", name: "Venda de bens ou ativos" },
+      { id: "aluguel-recebido", name: "Aluguel recebido" },
+      { id: "reembolsos", name: "Reembolsos" },
+      { id: "cashback", name: "Cashback e benefícios" },
       { id: "recebiveis-familiares", name: "Recebíveis Familiares" },
       { id: "rendimentos", name: "Rendimentos" },
       { id: "outros", name: "Outros" }
