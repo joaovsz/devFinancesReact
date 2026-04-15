@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { useSearchParams } from "react-router-dom"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Info, X } from "lucide-react"
 import { Table } from "../components/Table"
 import { TransactionForm } from "../components/transactions/TransactionForm"
-import { DismissibleInfoCard } from "../components/ui/DismissibleInfoCard"
 import { defaultCategories } from "../data/categories"
 import { useTransactionStore } from "../store/useTransactionStore"
 
@@ -15,6 +15,7 @@ export const TransactionsPage = () => {
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilters, setTypeFilters] = useState<string[]>([])
   const [selectedCardId, setSelectedCardId] = useState(searchParams.get("cardId") || "all")
+  const [isGuideOpen, setIsGuideOpen] = useState(false)
   const quickAddCreditCardId =
     searchParams.get("action") === "add-expense" ? searchParams.get("cardId") || undefined : undefined
   const availableTypeFilters = ["Entrada", "Saída", "Gasto fixo", "Parcelamento", "Faturamento"]
@@ -64,17 +65,71 @@ export const TransactionsPage = () => {
 
   return (
     <div className="flex min-h-0 flex-col gap-6">
-      <h1 className="text-xl font-semibold text-zinc-100">Transações</h1>
-      <DismissibleInfoCard
-        storageKey="info-card-transactions"
-        title="Como usar Transações"
-        description="Aqui você registra e acompanha seus lançamentos (reais) e itens planejados no mesmo fluxo."
-        items={[
-          "Transação é um lançamento financeiro com data e valor (entrada ou saída).",
-          "Itens planejados possuem ação de edição para ir ao Planejamento.",
-          "A tabela mostra valor, categoria, tipo e forma de pagamento."
-        ]}
-      />
+      <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-zinc-100">Transações</h1>
+            <p className="mt-2 max-w-2xl text-sm text-zinc-400">
+              Registre entradas e saídas rápidas, acompanhe itens planejados e filtre sua
+              movimentação por tipo, cartão ou descrição.
+            </p>
+          </div>
+          <button
+            className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100 sm:text-sm"
+            onClick={() => setIsGuideOpen((current) => !current)}
+            type="button"
+            aria-label="Como funciona a lista e adição de transações"
+            title="Como funciona"
+          >
+            <Info size={16} />
+            Como funciona
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {isGuideOpen && (
+            <motion.div
+              className="mt-4 rounded-xl border border-zinc-700/80 bg-zinc-950/80 p-4 shadow-2xl shadow-zinc-950/30"
+              initial={{ opacity: 0, y: -8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="text-sm font-semibold text-zinc-100">
+                  Guia rápido de transações
+                </h2>
+                <button
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+                  onClick={() => setIsGuideOpen(false)}
+                  type="button"
+                  aria-label="Fechar guia de transações"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <ul className="mt-3 space-y-2 text-sm text-zinc-300">
+                <li>
+                  • Use o lançamento rápido para registrar entradas e saídas reais com
+                  categoria, subcategoria, forma de pagamento e tags.
+                </li>
+                <li>
+                  • Saídas no crédito devem ser vinculadas a um cartão cadastrado para
+                  aparecerem na fatura e no uso de limite.
+                </li>
+                <li>
+                  • A lista reúne transações reais e itens planejados. Itens planejados
+                  levam para a tela de Planejamento quando precisam de edição.
+                </li>
+                <li>
+                  • Use busca, filtros por tipo e filtro por cartão para revisar lançamentos
+                  sem mexer nos dados.
+                </li>
+              </ul>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </section>
       <div ref={formRef}>
         <TransactionForm
           categories={defaultCategories}
@@ -85,6 +140,7 @@ export const TransactionsPage = () => {
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-zinc-300">Filtrar por:</span>
         <input
           className="min-w-[220px] flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
           type="text"
