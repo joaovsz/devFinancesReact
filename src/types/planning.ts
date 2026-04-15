@@ -1,10 +1,12 @@
+import { PaymentMethod } from "./transaction"
+
 export type FixedCost = {
   id: string
   name: string
   amount: number
   categoryId: string
   subcategoryId: string
-  paymentMethod: "cash" | "credit"
+  paymentMethod: PaymentMethod
   cardId?: string
 }
 
@@ -13,8 +15,9 @@ export type InstallmentPlan = {
   name: string
   installmentValue: number
   totalInstallments: number
+  paidInstallments: number
   startMonth: string // YYYY-MM
-  paymentMethod: "cash" | "credit"
+  paymentMethod: PaymentMethod
   cardId?: string
 }
 

@@ -10,6 +10,7 @@ import { bankPresets, BankPreset } from "../../data/banks"
 import { NumberTicker } from "../magic/NumberTicker"
 import {
   getCurrentMonthKey,
+  getInstallmentRemainingTotal,
   getInstallmentTotalForMonth
 } from "../../utils/projections"
 import {
@@ -92,7 +93,8 @@ export const CreditCardsPanel = ({
     const plannedInstallmentsLimitUsage = installmentPlans
       .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === currentCardId)
       .reduce(
-        (totalValue, plan) => totalValue + plan.installmentValue * plan.totalInstallments,
+        (totalValue, plan) =>
+          totalValue + getInstallmentRemainingTotal(plan, getCurrentMonthKey()),
         0
       )
 

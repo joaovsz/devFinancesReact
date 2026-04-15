@@ -5,6 +5,8 @@ import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
 import {
   dateToMonthKey,
   getCurrentMonthKey,
+  getInstallmentRemainingTotal,
+  getInstallmentTotalForMonth,
   isCardInvoicePaidForMonth,
   isMonthKeyAfter
 } from "../utils/projections"
@@ -191,21 +193,18 @@ export const Cards = () => {
 
         const plannedInstallmentsCurrentMonth = installmentPlans
           .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === card.id)
-          .reduce((sum, plan) => {
-            const start =
-              Number(plan.startMonth.split("-")[0]) * 12 +
-              Number(plan.startMonth.split("-")[1])
-            const target = Number(monthKey.split("-")[0]) * 12 + Number(monthKey.split("-")[1])
-            const currentInstallment = target - start + 1
-            if (currentInstallment < 1 || currentInstallment > plan.totalInstallments) {
-              return sum
-            }
-            return sum + plan.installmentValue
-          }, 0)
+          .reduce(
+            (sum, plan) =>
+              sum + getInstallmentTotalForMonth([plan], monthKey),
+            0
+          )
 
         const plannedInstallmentsLimitUsage = installmentPlans
           .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === card.id)
-          .reduce((sum, plan) => sum + plan.installmentValue * plan.totalInstallments, 0)
+          .reduce(
+            (sum, plan) => sum + getInstallmentRemainingTotal(plan, monthKey),
+            0
+          )
 
         const currentInvoice = isPaidForCurrentMonth
           ? 0

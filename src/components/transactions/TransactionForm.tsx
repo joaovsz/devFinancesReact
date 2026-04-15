@@ -3,7 +3,7 @@ import { motion } from "framer-motion"
 import { CalendarDays, ChevronDown } from "lucide-react"
 import { Category } from "../../types/finance"
 import { CreditCard } from "../../types/card"
-import { Transaction } from "../../types/transaction"
+import { PaymentMethod, Transaction } from "../../types/transaction"
 import { parseCurrencyInput } from "../../utils/currency-input"
 
 type TransactionFormProps = {
@@ -16,8 +16,20 @@ type TransactionFormProps = {
 
 const quickValueChips = [10, 25, 50, 100, 200]
 const numpadKeys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "00", "0", "⌫"]
+const paymentMethodOptions: Array<{ value: PaymentMethod; label: string }> = [
+  { value: "cash", label: "Conta" },
+  { value: "debit", label: "Débito" },
+  { value: "pix", label: "Pix" },
+  { value: "bank-transfer", label: "Transferência" },
+  { value: "bank-slip", label: "Boleto" },
+  { value: "cash-money", label: "Dinheiro" },
+  { value: "credit", label: "Crédito" }
+]
 const selectClassName =
   "w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 pr-9 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+const inputClassName =
+  "w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+const labelClassName = "grid gap-1 text-xs font-medium text-zinc-400"
 
 function getTodayDate() {
   const now = new Date()
@@ -49,6 +61,10 @@ function getInitialCardId(cards: CreditCard[], initialCreditCardId?: string) {
   return cards[0]?.id || ""
 }
 
+function getInitialPaymentMethod(cards: CreditCard[], initialCreditCardId?: string): PaymentMethod {
+  return getInitialCardId(cards, initialCreditCardId) ? "credit" : "cash"
+}
+
 export const TransactionForm = ({
   categories,
   cards,
@@ -60,11 +76,14 @@ export const TransactionForm = ({
   const [amountCents, setAmountCents] = useState(0)
   const [date, setDate] = useState(getTodayDate())
   const [option, setOption] = useState(2)
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit">("credit")
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
+    getInitialPaymentMethod(cards, initialCreditCardId)
+  )
   const [cardId, setCardId] = useState(getInitialCardId(cards, initialCreditCardId))
   const [categoryId, setCategoryId] = useState(categories[0].id)
   const [subcategoryId, setSubcategoryId] = useState(categories[0].subcategories[0].id)
   const [tagsInput, setTagsInput] = useState("")
+  const [showMissingCardModal, setShowMissingCardModal] = useState(false)
   const dateInputRef = useRef<HTMLInputElement>(null)
 
   const selectedCategory = useMemo(
@@ -109,7 +128,7 @@ export const TransactionForm = ({
     setAmountCents(0)
     setDate(getTodayDate())
     setOption(2)
-    setPaymentMethod("credit")
+    setPaymentMethod(getInitialPaymentMethod(cards, initialCreditCardId))
     setCardId(getInitialCardId(cards, initialCreditCardId))
     setCategoryId(categories[0].id)
     setSubcategoryId(categories[0].subcategories[0].id)
@@ -137,6 +156,12 @@ export const TransactionForm = ({
     setOption(transactionType)
     if (transactionType === 1) {
       setPaymentMethod("cash")
+      return
+    }
+
+    if (paymentMethod === "cash" && cards.length > 0) {
+      setPaymentMethod("credit")
+      setCardId(getInitialCardId(cards, initialCreditCardId))
     }
   }
 
@@ -145,6 +170,23 @@ export const TransactionForm = ({
       categories.find((category) => category.id === nextCategoryId) || categories[0]
     setCategoryId(nextCategory.id)
     setSubcategoryId(nextCategory.subcategories[0].id)
+  }
+
+  function handlePaymentMethod(nextPaymentMethod: PaymentMethod) {
+    if (nextPaymentMethod === "credit" && cards.length === 0) {
+      setShowMissingCardModal(true)
+      setPaymentMethod("cash")
+      setCardId("")
+      return
+    }
+
+    setPaymentMethod(nextPaymentMethod)
+    if (nextPaymentMethod === "credit") {
+      setCardId(getInitialCardId(cards, initialCreditCardId))
+      return
+    }
+
+    setCardId("")
   }
 
   function submitTransaction(e: MouseEvent<HTMLButtonElement, globalThis.MouseEvent>) {
@@ -217,16 +259,19 @@ export const TransactionForm = ({
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="mb-3 text-sm text-zinc-400">Valor</div>
           <div className="mb-3 text-3xl font-semibold text-zinc-100">{formatCents(amountCents)}</div>
-          <input
-            className="mb-3 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-            type="text"
-            inputMode="decimal"
-            placeholder="R$ 0,00"
-            value={amountCents > 0 ? formatCents(amountCents) : ""}
-            onChange={(event) =>
-              setAmountCents(Math.round(parseCurrencyInput(event.target.value) * 100))
-            }
-          />
+          <label className={`${labelClassName} mb-3`}>
+            Valor da transação
+            <input
+              className={inputClassName}
+              type="text"
+              inputMode="decimal"
+              placeholder="R$ 0,00"
+              value={amountCents > 0 ? formatCents(amountCents) : ""}
+              onChange={(event) =>
+                setAmountCents(Math.round(parseCurrencyInput(event.target.value) * 100))
+              }
+            />
+          </label>
           <div className="mb-3 flex flex-wrap gap-2">
             {quickValueChips.map((chipValue) => (
               <button
@@ -250,15 +295,18 @@ export const TransactionForm = ({
               Limpar
             </button>
           </div>
-          <input
-            className="mb-3 w-full accent-emerald-500"
-            type="range"
-            min="0"
-            max="500000"
-            step="500"
-            value={amountCents}
-            onChange={(event) => setAmountCents(Number(event.target.value))}
-          />
+          <label className={`${labelClassName} mb-3`}>
+            Ajuste rápido do valor
+            <input
+              className="w-full accent-emerald-500"
+              type="range"
+              min="0"
+              max="500000"
+              step="500"
+              value={amountCents}
+              onChange={(event) => setAmountCents(Number(event.target.value))}
+            />
+          </label>
           <div className="grid grid-cols-3 gap-2">
             {numpadKeys.map((key) => (
               <button
@@ -305,13 +353,17 @@ export const TransactionForm = ({
             </button>
           </div>
 
-          <button
-            className="relative flex h-11 items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 transition hover:border-zinc-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-            onClick={openDatePicker}
-          >
-            <CalendarDays size={16} className="text-zinc-400" />
-            <span className="truncate">{formatDateLabel(date)}</span>
-          </button>
+          <label className={labelClassName}>
+            Data
+            <button
+              className="relative flex h-11 items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 transition hover:border-zinc-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+              onClick={openDatePicker}
+              type="button"
+            >
+              <CalendarDays size={16} className="text-zinc-400" />
+              <span className="truncate">{formatDateLabel(date)}</span>
+            </button>
+          </label>
           <input
             ref={dateInputRef}
             className="sr-only"
@@ -319,91 +371,138 @@ export const TransactionForm = ({
             value={date}
             onChange={(event) => setDate(event.target.value)}
           />
-          <input
-            className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-            type="text"
-            placeholder="Descrição (opcional)"
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
-          />
+          <label className={labelClassName}>
+            Descrição
+            <input
+              className={inputClassName}
+              type="text"
+              placeholder="Descrição opcional"
+              value={label}
+              onChange={(event) => setLabel(event.target.value)}
+            />
+          </label>
 
           <div className="grid grid-cols-2 gap-2">
-            <div className="relative">
-              <select
-                className={selectClassName}
-                value={categoryId}
-                onChange={(event) => handleCategory(event.target.value)}
-              >
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-            </div>
-            <div className="relative">
-              <select
-                className={selectClassName}
-                value={subcategoryId}
-                onChange={(event) => setSubcategoryId(event.target.value)}
-              >
-                {selectedCategory.subcategories.map((subcategory) => (
-                  <option key={subcategory.id} value={subcategory.id}>
-                    {subcategory.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-            </div>
+            <label className={labelClassName}>
+              Categoria
+              <div className="relative">
+                <select
+                  className={selectClassName}
+                  value={categoryId}
+                  onChange={(event) => handleCategory(event.target.value)}
+                >
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              </div>
+            </label>
+            <label className={labelClassName}>
+              Subcategoria
+              <div className="relative">
+                <select
+                  className={selectClassName}
+                  value={subcategoryId}
+                  onChange={(event) => setSubcategoryId(event.target.value)}
+                >
+                  {selectedCategory.subcategories.map((subcategory) => (
+                    <option key={subcategory.id} value={subcategory.id}>
+                      {subcategory.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              </div>
+            </label>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <div className="relative">
-              <select
-                className={`${selectClassName} disabled:cursor-not-allowed disabled:opacity-50`}
-                value={paymentMethod}
-                onChange={(event) => setPaymentMethod(event.target.value as "cash" | "credit")}
-                disabled={option === 1}
-              >
-                <option value="cash">Conta / Débito</option>
-                <option value="credit">Crédito</option>
-              </select>
-              <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-            </div>
-            <div className="relative">
-              <select
-                className={`${selectClassName} disabled:cursor-not-allowed disabled:opacity-50`}
-                value={cardId}
-                onChange={(event) => setCardId(event.target.value)}
-                disabled={!(option === 2 && paymentMethod === "credit")}
-              >
-                {cards.map((card) => (
-                  <option key={card.id} value={card.id}>
-                    {card.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-            </div>
+            <label className={labelClassName}>
+              Forma de pagamento
+              <div className="relative">
+                <select
+                  className={`${selectClassName} disabled:cursor-not-allowed disabled:opacity-50`}
+                  value={paymentMethod}
+                  onChange={(event) => handlePaymentMethod(event.target.value as PaymentMethod)}
+                  disabled={option === 1}
+                >
+                  {paymentMethodOptions.map((option) => (
+                    <option key={`transaction-payment-${option.value}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              </div>
+            </label>
+            <label className={labelClassName}>
+              Cartão
+              <div className="relative">
+                <select
+                  className={`${selectClassName} disabled:cursor-not-allowed disabled:opacity-50`}
+                  value={cardId}
+                  onChange={(event) => setCardId(event.target.value)}
+                  disabled={!(option === 2 && paymentMethod === "credit")}
+                >
+                  {cards.length === 0 && <option value="">Nenhum cartão cadastrado</option>}
+                  {cards.map((card) => (
+                    <option key={card.id} value={card.id}>
+                      {card.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              </div>
+            </label>
           </div>
+          {option === 2 && paymentMethod === "credit" && (
+            <p className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-xs text-indigo-200">
+              Vincule essa saída a um cartão de crédito cadastrado
+            </p>
+          )}
 
-          <input
-            className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-            type="text"
-            placeholder="Tags adicionais (separadas por vírgula)"
-            value={tagsInput}
-            onChange={(event) => setTagsInput(event.target.value)}
-          />
+          <label className={labelClassName}>
+            Tags
+            <input
+              className={inputClassName}
+              type="text"
+              placeholder="Separadas por vírgula"
+              value={tagsInput}
+              onChange={(event) => setTagsInput(event.target.value)}
+            />
+          </label>
 
           <button
             className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
             onClick={submitTransaction}
+            type="button"
           >
             Lançar transação
           </button>
         </motion.form>
       </div>
+      {showMissingCardModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl shadow-zinc-950/60">
+            <h3 className="text-lg font-semibold text-zinc-100">Cartão de crédito necessário</h3>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">
+              Adicione um cartão de crédito na tela inicial antes de vincular uma saída ao crédito.
+            </p>
+            <div className="mt-5 flex justify-end">
+              <button
+                className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-400"
+                onClick={() => setShowMissingCardModal(false)}
+                type="button"
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

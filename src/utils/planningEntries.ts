@@ -1,5 +1,6 @@
 import { Holiday } from "../services/calendar"
 import { FixedCost, InstallmentPlan, ContractConfig } from "../types/planning"
+import { PaymentMethod } from "../types/transaction"
 import { getInstallmentProgress } from "./projections"
 import { getWorkingMonthMetrics } from "./business-days"
 
@@ -9,7 +10,7 @@ export type PlannedEntry = {
   value: number
   date: string
   type: 1 | 2
-  paymentMethod: "cash" | "credit"
+  paymentMethod: PaymentMethod
   cardId?: string
   isPlanned: true
   plannedSourceType: "fixed" | "installment" | "income"

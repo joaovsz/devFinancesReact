@@ -46,6 +46,16 @@ type ManualInvoiceEntry = {
 
 type TransactionRow = Transaction | PlannedEntry | ManualInvoiceEntry
 
+const paymentMethodLabels: Record<Transaction["paymentMethod"], string> = {
+  cash: "Conta",
+  debit: "Débito",
+  pix: "Pix",
+  "bank-transfer": "Transferência",
+  "bank-slip": "Boleto",
+  "cash-money": "Dinheiro",
+  credit: "Crédito"
+}
+
 const Transactions = ({
   searchQuery = "",
   typeFilters = [],
@@ -323,7 +333,7 @@ const Transactions = ({
 
   function getPaymentLabel(transaction: Transaction) {
     if (transaction.paymentMethod !== "credit") {
-      return "Conta/Débito"
+      return paymentMethodLabels[transaction.paymentMethod] || "Conta"
     }
 
     const card = cards.find((item) => item.id === transaction.cardId)

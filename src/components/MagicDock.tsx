@@ -47,19 +47,22 @@ export const MagicDock = ({ theme }: MagicDockProps) => {
           {dockItems.map((item) => {
             const Icon = item.icon
             return (
-              <NavLink key={item.to} to={item.to}>
+              <NavLink key={item.to} to={item.to} aria-label={item.label}>
                 {({ isActive }) => (
                   <motion.div
-                    whileHover={{ y: -6, scale: 1.08 }}
+                    whileHover={{ y: -6, scale: 1.04 }}
                     whileTap={{ scale: 0.96 }}
-                    className={`flex h-12 w-12 items-center justify-center rounded-xl border transition ${
+                    className={`flex h-14 min-w-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 transition sm:min-w-20 ${
                       isActive
                         ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
                         : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:text-zinc-100"
                     }`}
                     title={item.label}
                   >
-                    <Icon size={20} />
+                    <Icon size={19} />
+                    <span className="max-w-16 truncate text-[10px] font-medium leading-none sm:max-w-20 sm:text-xs">
+                      {item.label}
+                    </span>
                   </motion.div>
                 )}
               </NavLink>

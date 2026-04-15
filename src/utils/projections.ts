@@ -41,20 +41,58 @@ export function getFixedCostsTotal(fixedCosts: FixedCost[]) {
   return fixedCosts.reduce((total, cost) => total + cost.amount, 0)
 }
 
+export function getInstallmentPaidCount(installmentPlan: InstallmentPlan) {
+  const paidInstallments = Number.isFinite(installmentPlan.paidInstallments)
+    ? Math.floor(installmentPlan.paidInstallments)
+    : 0
+
+  return Math.min(Math.max(paidInstallments, 0), installmentPlan.totalInstallments)
+}
+
 export function getInstallmentProgress(
   installmentPlan: InstallmentPlan,
   targetMonth: string
 ) {
   const start = monthKeyToIndex(installmentPlan.startMonth)
   const target = monthKeyToIndex(targetMonth)
-  const currentInstallment = target - start + 1
+  const paidInstallments = getInstallmentPaidCount(installmentPlan)
+  const currentInstallment = paidInstallments + target - start + 1
   const isActive =
-    currentInstallment >= 1 && currentInstallment <= installmentPlan.totalInstallments
+    currentInstallment > paidInstallments &&
+    currentInstallment >= 1 &&
+    currentInstallment <= installmentPlan.totalInstallments
 
   return {
     isActive,
     currentInstallment: isActive ? currentInstallment : 0
   }
+}
+
+export function getInstallmentRemainingCount(
+  installmentPlan: InstallmentPlan,
+  targetMonth: string
+) {
+  const paidInstallments = getInstallmentPaidCount(installmentPlan)
+  const start = monthKeyToIndex(installmentPlan.startMonth)
+  const target = monthKeyToIndex(targetMonth)
+
+  if (target < start) {
+    return Math.max(installmentPlan.totalInstallments - paidInstallments, 0)
+  }
+
+  const progress = getInstallmentProgress(installmentPlan, targetMonth)
+  if (!progress.isActive) {
+    return 0
+  }
+
+  return installmentPlan.totalInstallments - progress.currentInstallment + 1
+}
+
+export function getInstallmentRemainingTotal(
+  installmentPlan: InstallmentPlan,
+  targetMonth: string
+) {
+  return installmentPlan.installmentValue * getInstallmentRemainingCount(installmentPlan, targetMonth)
 }
 
 export function getInstallmentTotalForMonth(
@@ -126,17 +164,17 @@ export function getCommittedCostsForMonth(input: {
   // active installments + credit fixed costs + ad-hoc credit transactions + manualInvoiceAmount.
   const cards = input.cards || []
   const cashFixedCostsTotal = input.fixedCosts
-    .filter((cost) => cost.paymentMethod === "cash")
+    .filter((cost) => cost.paymentMethod !== "credit")
     .reduce((total, cost) => total + cost.amount, 0)
   const cashInstallmentsTotal = getInstallmentTotalForMonth(
-    input.installmentPlans.filter((plan) => plan.paymentMethod === "cash"),
+    input.installmentPlans.filter((plan) => plan.paymentMethod !== "credit"),
     input.monthKey
   )
   const cashTransactionsTotal = (input.transactions || [])
     .filter(
       (transaction) =>
         transaction.type === 2 &&
-        transaction.paymentMethod === "cash" &&
+        transaction.paymentMethod !== "credit" &&
         dateToMonthKey(transaction.date) === input.monthKey
     )
     .reduce((total, transaction) => total + transaction.value, 0)

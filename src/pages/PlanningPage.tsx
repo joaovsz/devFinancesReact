@@ -5,6 +5,7 @@ import { defaultCategories } from "../data/categories"
 import { useTransactionStore } from "../store/useTransactionStore"
 import { formatCurrency } from "../components/Transactions"
 import { getCurrentMonthKey, getInstallmentProgress } from "../utils/projections"
+import { PaymentMethod } from "../types/transaction"
 import {
   formatCurrencyFromNumber,
   formatCurrencyInput,
@@ -15,6 +16,18 @@ const selectClassName =
   "w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 pr-9 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
 const inputClassName =
   "w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+const numberInputClassName =
+  `${inputClassName} w-24 shrink-0 appearance-none text-left [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`
+const installmentTotalChips = [1, 2, 3, 6, 12]
+const paymentMethodOptions: Array<{ value: PaymentMethod; label: string }> = [
+  { value: "cash", label: "Conta" },
+  { value: "debit", label: "Débito" },
+  { value: "pix", label: "Pix" },
+  { value: "bank-transfer", label: "Transferência" },
+  { value: "bank-slip", label: "Boleto" },
+  { value: "cash-money", label: "Dinheiro" },
+  { value: "credit", label: "Cartão de crédito" }
+]
 
 type PlanningPageProps = {
   embedded?: boolean
@@ -22,7 +35,7 @@ type PlanningPageProps = {
 
 function SelectField(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <div className="relative">
+    <div className="relative w-full min-w-0">
       <select {...props} className={`${selectClassName} ${props.className || ""}`.trim()} />
       <ChevronDown
         size={16}
@@ -55,16 +68,16 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   const [fixedSubcategoryId, setFixedSubcategoryId] = useState(
     defaultCategories[0].subcategories[0].id
   )
-  const [fixedPaymentMethod, setFixedPaymentMethod] = useState<"cash" | "credit">("cash")
+  const [fixedPaymentMethod, setFixedPaymentMethod] = useState<PaymentMethod>("cash")
   const [fixedCardId, setFixedCardId] = useState(firstCardId)
   const [editingFixedCostId, setEditingFixedCostId] = useState("")
 
   const [installmentName, setInstallmentName] = useState("")
   const [installmentValue, setInstallmentValue] = useState("")
   const [installmentTotal, setInstallmentTotal] = useState("")
-  const [installmentPaymentMethod, setInstallmentPaymentMethod] = useState<
-    "cash" | "credit"
-  >("cash")
+  const [installmentPaid, setInstallmentPaid] = useState("0")
+  const [installmentPaymentMethod, setInstallmentPaymentMethod] =
+    useState<PaymentMethod>("cash")
   const [installmentCardId, setInstallmentCardId] = useState(firstCardId)
   const [installmentStartMonth, setInstallmentStartMonth] = useState(currentMonth)
   const [editingInstallmentId, setEditingInstallmentId] = useState("")
@@ -164,6 +177,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setInstallmentName(plan.name)
     setInstallmentValue(formatCurrencyFromNumber(plan.installmentValue))
     setInstallmentTotal(String(plan.totalInstallments))
+    setInstallmentPaid(String(plan.paidInstallments || 0))
     setInstallmentPaymentMethod(plan.paymentMethod)
     setInstallmentCardId(plan.cardId || firstCardId)
     setInstallmentStartMonth(plan.startMonth)
@@ -187,9 +201,12 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     return () => window.clearTimeout(timer)
   }, [searchParams, wizardStep])
 
-  function getPaymentLabel(paymentMethod: "cash" | "credit", cardId?: string) {
+  function getPaymentLabel(paymentMethod: PaymentMethod, cardId?: string) {
     if (paymentMethod !== "credit") {
-      return "Conta/Débito"
+      return (
+        paymentMethodOptions.find((option) => option.value === paymentMethod)?.label ||
+        "Conta"
+      )
     }
 
     const card = cards.find((item) => item.id === cardId)
@@ -275,6 +292,13 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     })
   }
 
+  function addInstallmentTotal(amount: number) {
+    setInstallmentTotal((current) => {
+      const nextTotal = Math.max((Number(current) || 0) + amount, 1)
+      return String(nextTotal)
+    })
+  }
+
   function addInstallment() {
     if (!installmentName || !installmentValue || !installmentTotal || !installmentStartMonth) {
       alert("Preencha nome, valor, total de parcelas e mês inicial.")
@@ -282,6 +306,18 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     }
     if (installmentPaymentMethod === "credit" && !installmentCardId) {
       alert("Selecione um cartão para parcelamento no crédito.")
+      return
+    }
+    const totalInstallments = Number(installmentTotal)
+    const paidInstallments = Number(installmentPaid || 0)
+    if (
+      !Number.isInteger(totalInstallments) ||
+      totalInstallments < 1 ||
+      !Number.isInteger(paidInstallments) ||
+      paidInstallments < 0 ||
+      paidInstallments >= totalInstallments
+    ) {
+      alert("Parcelas já pagas deve ser menor que o total de parcelas.")
       return
     }
 
@@ -296,7 +332,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         ...target,
         name: installmentName,
         installmentValue: parseCurrencyInput(installmentValue),
-        totalInstallments: Number(installmentTotal),
+        totalInstallments,
+        paidInstallments,
         startMonth: installmentStartMonth,
         paymentMethod: installmentPaymentMethod,
         cardId: installmentPaymentMethod === "credit" ? installmentCardId : undefined
@@ -312,7 +349,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         id: crypto.randomUUID(),
         name: installmentName,
         installmentValue: parseCurrencyInput(installmentValue),
-        totalInstallments: Number(installmentTotal),
+        totalInstallments,
+        paidInstallments,
         startMonth: installmentStartMonth,
         paymentMethod: installmentPaymentMethod,
         cardId: installmentPaymentMethod === "credit" ? installmentCardId : undefined
@@ -322,6 +360,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setInstallmentName("")
     setInstallmentValue("")
     setInstallmentTotal("")
+    setInstallmentPaid("0")
   }
 
   function startEditingInstallment(planId: string) {
@@ -334,6 +373,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setInstallmentName(plan.name)
     setInstallmentValue(formatCurrencyFromNumber(plan.installmentValue))
     setInstallmentTotal(String(plan.totalInstallments))
+    setInstallmentPaid(String(plan.paidInstallments || 0))
     setInstallmentPaymentMethod(plan.paymentMethod)
     setInstallmentCardId(plan.cardId || firstCardId)
     setInstallmentStartMonth(plan.startMonth)
@@ -349,6 +389,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setInstallmentName("")
     setInstallmentValue("")
     setInstallmentTotal("")
+    setInstallmentPaid("0")
     setSearchParams((currentParams) => {
       const nextParams = new URLSearchParams(currentParams)
       nextParams.delete("editInstallmentId")
@@ -524,10 +565,13 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                 </div>
                 <SelectField
                   value={fixedPaymentMethod}
-                  onChange={(event) => setFixedPaymentMethod(event.target.value as "cash" | "credit")}
+                  onChange={(event) => setFixedPaymentMethod(event.target.value as PaymentMethod)}
                 >
-                  <option value="cash">Conta/Débito</option>
-                  <option value="credit">Cartão de crédito</option>
+                  {paymentMethodOptions.map((option) => (
+                    <option key={`fixed-payment-${option.value}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </SelectField>
                 {fixedPaymentMethod === "credit" && (
                   <SelectField value={fixedCardId} onChange={(event) => setFixedCardId(event.target.value)}>
@@ -615,85 +659,136 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
               <h2 className="mb-3 text-sm font-semibold text-zinc-100">Parcelamentos</h2>
               <div className="grid gap-2">
                 <div className="grid gap-2 md:grid-cols-2">
-                  <input
-                    className={inputClassName}
-                    placeholder="Nome"
-                    value={installmentName}
-                    onChange={(event) => setInstallmentName(event.target.value)}
-                  />
-                  <input
-                    className={inputClassName}
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="Valor da parcela"
-                    value={installmentValue}
-                    onChange={(event) => setInstallmentValue(formatCurrencyInput(event.target.value))}
-                  />
+                  <label className="grid gap-1 text-xs font-medium text-zinc-400">
+                    Nome
+                    <input
+                      className={inputClassName}
+                      placeholder="Notebook"
+                      value={installmentName}
+                      onChange={(event) => setInstallmentName(event.target.value)}
+                    />
+                  </label>
+                  <label className="grid gap-1 text-xs font-medium text-zinc-400">
+                    Valor da parcela
+                    <input
+                      className={inputClassName}
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="R$ 0,00"
+                      value={installmentValue}
+                      onChange={(event) =>
+                        setInstallmentValue(formatCurrencyInput(event.target.value))
+                      }
+                    />
+                  </label>
                 </div>
-                <input
-                  className={inputClassName}
-                  type="number"
-                  min="1"
-                  placeholder="Total parcelas"
-                  value={installmentTotal}
-                  onChange={(event) => setInstallmentTotal(event.target.value)}
-                />
-                <SelectField
-                  value={installmentPaymentMethod}
-                  onChange={(event) =>
-                    setInstallmentPaymentMethod(event.target.value as "cash" | "credit")
-                  }
-                >
-                  <option value="cash">Conta/Débito</option>
-                  <option value="credit">Cartão de crédito</option>
-                </SelectField>
+                <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_6rem_minmax(0,1fr)]">
+                  <label className="grid gap-1 text-xs font-medium text-zinc-400">
+                    Total de parcelas
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        className={numberInputClassName}
+                        type="number"
+                        min="1"
+                        placeholder="0"
+                        value={installmentTotal}
+                        onChange={(event) => setInstallmentTotal(event.target.value)}
+                      />
+                      {installmentTotalChips.map((amount) => (
+                        <button
+                        key={`installment-chip-${amount}`}
+                          className="h-10 flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 text-xs font-medium text-zinc-300 transition hover:border-emerald-500 hover:text-emerald-300"
+                          onClick={() => addInstallmentTotal(amount)}
+                          type="button"
+                        >
+                          +{amount}
+                        </button>
+                      ))}
+                    </div>
+                  </label>
+                  <label className="grid w-24 shrink-0 gap-1 text-xs font-medium text-zinc-400">
+                    Parcelas pagas
+                    <input
+                      className={numberInputClassName}
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={installmentPaid}
+                      onChange={(event) => setInstallmentPaid(event.target.value)}
+                    />
+                  </label>
+                  <label className="grid min-w-0 gap-1 text-xs font-medium text-zinc-400">
+                    Forma de pagamento
+                    <SelectField
+                      value={installmentPaymentMethod}
+                      onChange={(event) =>
+                        setInstallmentPaymentMethod(event.target.value as PaymentMethod)
+                      }
+                    >
+                      {paymentMethodOptions.map((option) => (
+                        <option key={`installment-payment-${option.value}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </SelectField>
+                  </label>
+                </div>
                 {installmentPaymentMethod === "credit" && (
-                  <SelectField
-                    value={installmentCardId}
-                    onChange={(event) => setInstallmentCardId(event.target.value)}
-                  >
-                    <option value="">Selecionar cartão</option>
-                    <option value="other">Outros</option>
-                    {cards.map((card) => (
-                      <option key={card.id} value={card.id}>
-                        {card.name}
-                      </option>
-                    ))}
-                  </SelectField>
+                  <label className="grid gap-1 text-xs font-medium text-zinc-400">
+                    Cartão
+                    <SelectField
+                      value={installmentCardId}
+                      onChange={(event) => setInstallmentCardId(event.target.value)}
+                    >
+                      <option value="">Selecionar cartão</option>
+                      <option value="other">Outros</option>
+                      {cards.map((card) => (
+                        <option key={card.id} value={card.id}>
+                          {card.name}
+                        </option>
+                      ))}
+                    </SelectField>
+                  </label>
                 )}
                 <div className="grid gap-2 md:grid-cols-2">
-                  <SelectField
-                    value={installmentStartMonth.split("-")[1]}
-                    onChange={(event) => {
-                      const [year] = installmentStartMonth.split("-")
-                      setInstallmentStartMonth(`${year}-${event.target.value}`)
-                    }}
-                  >
-                    {Array.from({ length: 12 }).map((_, index) => {
-                      const month = String(index + 1).padStart(2, "0")
-                      return (
-                        <option key={`month-${month}`} value={month}>
-                          {month}
-                        </option>
-                      )
-                    })}
-                  </SelectField>
-                  <SelectField
-                    value={installmentStartMonth.split("-")[0]}
-                    onChange={(event) => {
-                      const month = installmentStartMonth.split("-")[1]
-                      setInstallmentStartMonth(`${event.target.value}-${month}`)
-                    }}
-                  >
-                    {Array.from({ length: 7 }).map((_, index) => {
-                      const year = String(new Date().getFullYear() - 3 + index)
-                      return (
-                        <option key={`year-${year}`} value={year}>
-                          {year}
-                        </option>
-                      )
-                    })}
-                  </SelectField>
+                  <label className="grid gap-1 text-xs font-medium text-zinc-400">
+                    Mês da próxima parcela
+                    <SelectField
+                      value={installmentStartMonth.split("-")[1]}
+                      onChange={(event) => {
+                        const [year] = installmentStartMonth.split("-")
+                        setInstallmentStartMonth(`${year}-${event.target.value}`)
+                      }}
+                    >
+                      {Array.from({ length: 12 }).map((_, index) => {
+                        const month = String(index + 1).padStart(2, "0")
+                        return (
+                          <option key={`month-${month}`} value={month}>
+                            {month}
+                          </option>
+                        )
+                      })}
+                    </SelectField>
+                  </label>
+                  <label className="grid gap-1 text-xs font-medium text-zinc-400">
+                    Ano da próxima parcela
+                    <SelectField
+                      value={installmentStartMonth.split("-")[0]}
+                      onChange={(event) => {
+                        const month = installmentStartMonth.split("-")[1]
+                        setInstallmentStartMonth(`${event.target.value}-${month}`)
+                      }}
+                    >
+                      {Array.from({ length: 7 }).map((_, index) => {
+                        const year = String(new Date().getFullYear() - 3 + index)
+                        return (
+                          <option key={`year-${year}`} value={year}>
+                            {year}
+                          </option>
+                        )
+                      })}
+                    </SelectField>
+                  </label>
                 </div>
                 <button
                   className="rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
@@ -723,6 +818,11 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                         {progress.isActive
                           ? `${progress.currentInstallment}/${plan.totalInstallments}`
                           : "encerrado"}
+                        {(plan.paidInstallments || 0) > 0 && (
+                          <span className="ml-2 text-zinc-500">
+                            {plan.paidInstallments} pagas
+                          </span>
+                        )}
                         <span className="ml-2 text-zinc-500">
                           {getPaymentLabel(plan.paymentMethod, plan.cardId)}
                         </span>

@@ -191,6 +191,21 @@ function sanitizeCard(card: CreditCard, fallback?: CreditCard): CreditCard {
   }
 }
 
+function sanitizeInstallmentPlan(plan: InstallmentPlan): InstallmentPlan {
+  const totalInstallments = Number.isFinite(plan.totalInstallments)
+    ? Math.max(Math.round(plan.totalInstallments), 1)
+    : 1
+  const paidInstallments = Number.isFinite(plan.paidInstallments)
+    ? Math.min(Math.max(Math.floor(plan.paidInstallments), 0), totalInstallments - 1)
+    : 0
+
+  return {
+    ...plan,
+    totalInstallments,
+    paidInstallments
+  }
+}
+
 export const useTransactionStore = create<TransactionStore>()(
   persist(
     (set) => ({
@@ -364,7 +379,7 @@ export const useTransactionStore = create<TransactionStore>()(
         }),
       addInstallmentPlan: (plan) =>
         set((state) => {
-          const installmentPlans = [...state.installmentPlans, plan]
+          const installmentPlans = [...state.installmentPlans, sanitizeInstallmentPlan(plan)]
           return {
             installmentPlans,
             ...calculateTotals({
@@ -378,7 +393,7 @@ export const useTransactionStore = create<TransactionStore>()(
       updateInstallmentPlan: (plan) =>
         set((state) => {
           const installmentPlans = state.installmentPlans.map((currentPlan) =>
-            currentPlan.id === plan.id ? plan : currentPlan
+            currentPlan.id === plan.id ? sanitizeInstallmentPlan(plan) : currentPlan
           )
           return {
             installmentPlans,
@@ -442,7 +457,7 @@ export const useTransactionStore = create<TransactionStore>()(
     }),
     {
       name: "devfinances-storage",
-      version: 21,
+      version: 22,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState, version) => {
         if (!persistedState || typeof persistedState !== "object") {
@@ -736,6 +751,23 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             ...state,
             cards: (state.cards || []).map((card) => sanitizeCard(card))
+          }
+        }
+
+        if (version < 22) {
+          const state = persistedState as TransactionStore
+          const installmentPlans = (state.installmentPlans || []).map((plan) =>
+            sanitizeInstallmentPlan(plan)
+          )
+          return {
+            ...state,
+            installmentPlans,
+            ...calculateTotals({
+              cards: state.cards || [],
+              transactions: state.transactions || [],
+              fixedCosts: state.fixedCosts || [],
+              installmentPlans
+            })
           }
         }
 
