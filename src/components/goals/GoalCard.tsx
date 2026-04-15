@@ -17,6 +17,23 @@ type GoalCardProps = {
   onUpdateSavedAmount: (id: string, currentSaved: number) => void
 }
 
+const goalBorderPalette = [
+  "#818cf8",
+  "#10b981",
+  "#22d3ee",
+  "#f59e0b",
+  "#f43f5e",
+  "#a78bfa"
+]
+
+function getGoalBorderColor(goalId: string) {
+  const hash = Array.from(goalId).reduce(
+    (accumulator, character) => accumulator + character.charCodeAt(0),
+    0
+  )
+  return goalBorderPalette[hash % goalBorderPalette.length]
+}
+
 function getProgressVisual(progress: number) {
   if (progress >= 85) {
     return {
@@ -45,6 +62,7 @@ export const GoalCard = ({
   onDelete,
   onUpdateSavedAmount
 }: GoalCardProps) => {
+  const borderColor = getGoalBorderColor(goal.id)
   const progress = calculateGoalProgress(goal.targetAmount, goal.currentSaved)
   const remainingAmount = calculateRemainingAmount(goal.targetAmount, goal.currentSaved)
   const monthsToGoal = calculateMonthsToGoal(
@@ -60,7 +78,10 @@ export const GoalCard = ({
   const quickSaveChips = [10, 50, 100]
 
   return (
-    <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+    <article
+      className="rounded-2xl border bg-zinc-900 p-4"
+      style={{ borderColor }}
+    >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-base font-semibold text-zinc-100">{goal.name}</h3>

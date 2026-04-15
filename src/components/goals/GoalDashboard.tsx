@@ -130,10 +130,10 @@ export const GoalDashboard = () => {
                 projeções em ciclos mensais reais.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
               <button
                 ref={guideButtonRef}
-                className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+                className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100 sm:text-sm"
                 onClick={() => setIsGuideOpen((current) => !current)}
                 type="button"
                 aria-label="Como funciona a seção de metas"
@@ -143,7 +143,7 @@ export const GoalDashboard = () => {
                 Como funciona
               </button>
               <button
-                className="inline-flex items-center gap-2 rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-indigo-400"
+                className="inline-flex items-center gap-2 rounded-xl bg-indigo-500 px-4 py-2 text-xs font-semibold text-zinc-100 transition hover:bg-indigo-400 sm:text-sm"
                 onClick={openCreateGoalModal}
               >
                 <Target size={16} />
@@ -193,17 +193,26 @@ export const GoalDashboard = () => {
         </div>
 
         {goals.length > 0 ? (
-          goals.map((goal) => (
-            <div key={goal.id} className="lg:col-span-4">
-              <GoalCard
-                goal={goal}
-                monthlyLeftoverLimit={monthlyLeftoverLimit}
-                onEdit={handleEditGoal}
-                onDelete={deleteGoal}
-                onUpdateSavedAmount={updateSavedAmount}
-              />
+          <div className="lg:col-span-12">
+            <div className="-mx-1 overflow-x-auto pb-2 pl-1">
+              <div className="flex w-max min-w-full gap-3 snap-x snap-mandatory">
+                {goals.map((goal) => (
+                  <div
+                    key={goal.id}
+                    className="w-[86vw] min-w-[280px] max-w-[360px] flex-shrink-0 snap-start sm:w-[340px] md:w-[360px]"
+                  >
+                    <GoalCard
+                      goal={goal}
+                      monthlyLeftoverLimit={monthlyLeftoverLimit}
+                      onEdit={handleEditGoal}
+                      onDelete={deleteGoal}
+                      onUpdateSavedAmount={updateSavedAmount}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
-          ))
+          </div>
         ) : (
           <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center lg:col-span-12">
             <h2 className="text-base font-semibold text-zinc-100">
