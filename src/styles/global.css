@@ -18,10 +18,19 @@
 
   input,
   textarea,
+  select,
   [contenteditable="true"],
   [data-allow-select="true"] {
     user-select: text;
     -webkit-user-select: text;
+  }
+
+  @media (max-width: 640px) {
+    input,
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
   }
 }
 
