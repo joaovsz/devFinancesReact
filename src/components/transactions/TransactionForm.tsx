@@ -1,4 +1,4 @@
-import { MouseEvent, useEffect, useMemo, useRef, useState } from "react"
+import { MouseEvent, useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { CalendarDays, ChevronDown } from "lucide-react"
 import { Category } from "../../types/finance"
@@ -84,7 +84,6 @@ export const TransactionForm = ({
   const [subcategoryId, setSubcategoryId] = useState(categories[0].subcategories[0].id)
   const [tagsInput, setTagsInput] = useState("")
   const [showMissingCardModal, setShowMissingCardModal] = useState(false)
-  const dateInputRef = useRef<HTMLInputElement>(null)
 
   const selectedCategory = useMemo(
     () => categories.find((category) => category.id === categoryId) || categories[0],
@@ -232,23 +231,6 @@ export const TransactionForm = ({
     resetValues()
   }
 
-  function openDatePicker(e: MouseEvent<HTMLButtonElement, globalThis.MouseEvent>) {
-    e.preventDefault()
-    const input = dateInputRef.current
-    if (!input) {
-      return
-    }
-
-    const pickerInput = input as HTMLInputElement & { showPicker?: () => void }
-    if (typeof pickerInput.showPicker === "function") {
-      pickerInput.showPicker()
-      return
-    }
-
-    input.focus()
-    input.click()
-  }
-
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-300">
@@ -355,22 +337,18 @@ export const TransactionForm = ({
 
           <label className={labelClassName}>
             Data
-            <button
-              className="relative flex h-11 items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 transition hover:border-zinc-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-              onClick={openDatePicker}
-              type="button"
-            >
+            <div className="relative flex h-11 items-center gap-2 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 transition hover:border-zinc-500 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30">
               <CalendarDays size={16} className="text-zinc-400" />
               <span className="truncate">{formatDateLabel(date)}</span>
-            </button>
+              <input
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                type="date"
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+                aria-label="Data da transação"
+              />
+            </div>
           </label>
-          <input
-            ref={dateInputRef}
-            className="sr-only"
-            type="date"
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
-          />
           <label className={labelClassName}>
             Descrição
             <input

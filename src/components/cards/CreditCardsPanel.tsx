@@ -9,6 +9,7 @@ import { formatCurrency } from "../Transactions"
 import { bankPresets, BankPreset } from "../../data/banks"
 import { NumberTicker } from "../magic/NumberTicker"
 import {
+  dateToMonthKey,
   getCurrentMonthKey,
   getInstallmentRemainingTotal,
   getInstallmentTotalForMonth
@@ -136,9 +137,7 @@ export const CreditCardsPanel = ({
   }
 
   function getCurrentMonthInvoiceTotal() {
-    const now = new Date()
-    const targetMonth = now.getMonth()
-    const targetYear = now.getFullYear()
+    const monthKey = getCurrentMonthKey()
 
     const transactionsTotal = transactions
       .filter((transaction) => {
@@ -146,15 +145,10 @@ export const CreditCardsPanel = ({
           return false
         }
 
-        const transactionDate = new Date(transaction.date)
-        return (
-          transactionDate.getMonth() === targetMonth &&
-          transactionDate.getFullYear() === targetYear
-        )
+        return dateToMonthKey(transaction.date) === monthKey
       })
       .reduce((totalValue, transaction) => totalValue + transaction.value, 0)
 
-    const monthKey = getCurrentMonthKey()
     const plannedCardsTotal = cards.reduce(
       (totalValue, card) => totalValue + calculatePlannedCardUsageForMonth(card.id, monthKey),
       0
