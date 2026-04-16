@@ -18,4 +18,5 @@ export type Transaction = {
   categoryId: string
   subcategoryId: string
   tags: string[]
+  competenceMonth?: string
 }

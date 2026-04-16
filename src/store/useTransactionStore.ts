@@ -56,7 +56,10 @@ function calculateTotals(input: {
   const totalIncomes = input.transactions
     .filter(
       (transaction) =>
-        transaction.type === 1 && dateToMonthKey(transaction.date) === monthKey
+        transaction.type === 1 &&
+        (transaction.competenceMonth
+          ? transaction.competenceMonth === monthKey
+          : dateToMonthKey(transaction.date) === monthKey)
     )
     .reduce((sum, transaction) => sum + transaction.value, 0)
 

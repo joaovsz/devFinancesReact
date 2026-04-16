@@ -682,10 +682,10 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     />
                   </label>
                 </div>
-                <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_6rem_minmax(0,1fr)]">
-                  <label className="grid gap-1 text-xs font-medium text-zinc-400">
-                    Total de parcelas
-                    <div className="flex flex-wrap items-center gap-2">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="grid w-24 shrink-0 gap-1 text-xs font-medium text-zinc-400">
+                      Total de parcelas
                       <input
                         className={numberInputClassName}
                         type="number"
@@ -694,10 +694,12 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                         value={installmentTotal}
                         onChange={(event) => setInstallmentTotal(event.target.value)}
                       />
+                    </label>
+                    <div className="flex shrink-0 items-center gap-1 self-end">
                       {installmentTotalChips.map((amount) => (
                         <button
-                        key={`installment-chip-${amount}`}
-                          className="h-10 flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 text-xs font-medium text-zinc-300 transition hover:border-emerald-500 hover:text-emerald-300"
+                          key={`installment-chip-${amount}`}
+                          className="h-10 rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 text-xs font-medium text-zinc-300 transition hover:border-emerald-500 hover:text-emerald-300"
                           onClick={() => addInstallmentTotal(amount)}
                           type="button"
                         >
@@ -705,19 +707,19 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                         </button>
                       ))}
                     </div>
-                  </label>
-                  <label className="grid w-24 shrink-0 gap-1 text-xs font-medium text-zinc-400">
-                    Parcelas pagas
-                    <input
-                      className={numberInputClassName}
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={installmentPaid}
-                      onChange={(event) => setInstallmentPaid(event.target.value)}
-                    />
-                  </label>
-                  <label className="grid min-w-0 gap-1 text-xs font-medium text-zinc-400">
+                    <label className="grid min-w-0 flex-1 gap-1 text-xs font-medium text-zinc-400">
+                      Parcelas pagas
+                      <input
+                        className={inputClassName}
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={installmentPaid}
+                        onChange={(event) => setInstallmentPaid(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <label className="grid gap-1 text-xs font-medium text-zinc-400">
                     Forma de pagamento
                     <SelectField
                       value={installmentPaymentMethod}

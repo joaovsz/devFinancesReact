@@ -1,4 +1,4 @@
-import { MouseEvent, useEffect, useMemo, useState } from "react"
+import { MouseEvent, useEffect, useMemo, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { CalendarDays, ChevronDown } from "lucide-react"
 import { Category } from "../../types/finance"
@@ -84,10 +84,25 @@ export const TransactionForm = ({
   const [subcategoryId, setSubcategoryId] = useState(categories[0].subcategories[0].id)
   const [tagsInput, setTagsInput] = useState("")
   const [showMissingCardModal, setShowMissingCardModal] = useState(false)
+  const [competenceMonth, setCompetenceMonth] = useState("")
+  const dateInputRef = useRef<HTMLInputElement>(null)
+
+  function openDatePicker() {
+    try {
+      (dateInputRef.current as HTMLInputElement & { showPicker?: () => void })?.showPicker?.()
+    } catch {
+      dateInputRef.current?.click()
+    }
+  }
+
+  const filteredCategories = useMemo(
+    () => option === 2 ? categories.filter((c) => c.id !== "rendas") : categories,
+    [categories, option]
+  )
 
   const selectedCategory = useMemo(
-    () => categories.find((category) => category.id === categoryId) || categories[0],
-    [categories, categoryId]
+    () => filteredCategories.find((category) => category.id === categoryId) || filteredCategories[0],
+    [filteredCategories, categoryId]
   )
 
   useEffect(() => {
@@ -132,6 +147,7 @@ export const TransactionForm = ({
     setCategoryId(categories[0].id)
     setSubcategoryId(categories[0].subcategories[0].id)
     setTagsInput("")
+    setCompetenceMonth("")
   }
 
   function addQuickValue(amount: number) {
@@ -158,6 +174,12 @@ export const TransactionForm = ({
       return
     }
 
+    if (categoryId === "rendas") {
+      const firstExpenseCategory = categories.find((c) => c.id !== "rendas") || categories[0]
+      setCategoryId(firstExpenseCategory.id)
+      setSubcategoryId(firstExpenseCategory.subcategories[0].id)
+    }
+
     if (paymentMethod === "cash" && cards.length > 0) {
       setPaymentMethod("credit")
       setCardId(getInitialCardId(cards, initialCreditCardId))
@@ -166,7 +188,7 @@ export const TransactionForm = ({
 
   function handleCategory(nextCategoryId: string) {
     const nextCategory =
-      categories.find((category) => category.id === nextCategoryId) || categories[0]
+      filteredCategories.find((category) => category.id === nextCategoryId) || filteredCategories[0]
     setCategoryId(nextCategory.id)
     setSubcategoryId(nextCategory.subcategories[0].id)
   }
@@ -226,7 +248,8 @@ export const TransactionForm = ({
       cardId: isCreditExpense ? cardId : undefined,
       categoryId,
       subcategoryId,
-      tags: parseTags()
+      tags: parseTags(),
+      competenceMonth: option === 1 && competenceMonth ? competenceMonth : undefined
     })
     resetValues()
   }
@@ -335,20 +358,66 @@ export const TransactionForm = ({
             </button>
           </div>
 
-          <label className={labelClassName}>
-            Data
-            <div className="relative flex h-11 items-center gap-2 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 transition hover:border-zinc-500 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30">
-              <CalendarDays size={16} className="text-zinc-400" />
-              <span className="truncate">{formatDateLabel(date)}</span>
-              <input
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                type="date"
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-                aria-label="Data da transação"
-              />
-            </div>
-          </label>
+          <div className={option === 1 ? "grid grid-cols-2 gap-2" : ""}>
+            <label className={labelClassName}>
+              Data
+              <div
+                className="relative flex h-11 items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 transition hover:border-zinc-500 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/30"
+                onClick={openDatePicker}
+              >
+                <CalendarDays size={16} className="text-zinc-400" />
+                <span className="truncate">{formatDateLabel(date)}</span>
+                <input
+                  ref={dateInputRef}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  type="date"
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                  aria-label="Data da transação"
+                />
+              </div>
+            </label>
+            {option === 1 && (
+              <label className={labelClassName}>
+                Mês de competência
+                <div className="relative">
+                  <select
+                    className={selectClassName}
+                    value={competenceMonth}
+                    onChange={(event) => setCompetenceMonth(event.target.value)}
+                  >
+                    <option value="">Mês Atual</option>
+                    {(() => {
+                      const now = new Date()
+                      const year = now.getFullYear()
+                      const isDecember = now.getMonth() === 11
+                      const totalMonths = isDecember ? 13 : 12
+                      return Array.from({ length: totalMonths }, (_, i) => {
+                        const d = new Date(year, i, 1)
+                        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+                        const monthLabel = d.toLocaleDateString("pt-BR", { month: "short", year: "numeric" })
+                        return (
+                          <option key={key} value={key}>
+                            {monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)}
+                          </option>
+                        )
+                      })
+                    })()}
+                  </select>
+                  <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                </div>
+              </label>
+            )}
+          </div>
+          {option === 1 && competenceMonth && competenceMonth !== date.slice(0, 7) && (
+            <span className="text-[11px] text-indigo-300">
+              ⏳ Esta renda será contabilizada em{" "}
+              {new Date(`${competenceMonth}-01T00:00:00`).toLocaleDateString("pt-BR", {
+                month: "long",
+                year: "numeric"
+              })}
+            </span>
+          )}
           <label className={labelClassName}>
             Descrição
             <input
@@ -369,7 +438,7 @@ export const TransactionForm = ({
                   value={categoryId}
                   onChange={(event) => handleCategory(event.target.value)}
                 >
-                  {categories.map((category) => (
+                  {filteredCategories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.name}
                     </option>
