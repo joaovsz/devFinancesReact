@@ -196,7 +196,7 @@ export const CardInvoiceModal = ({
                     <p className="truncate text-xs text-zinc-100">{transaction.label}</p>
                     <p className="text-[10px] text-zinc-500">{formatDate(transaction.date)}</p>
                   </div>
-                  <p className="text-xs font-semibold text-amber-300">
+                  <p className="text-xs font-semibold text-zinc-200">
                     {formatCurrencyFromNumber(transaction.value)}
                   </p>
                 </div>
@@ -215,21 +215,21 @@ export const CardInvoiceModal = ({
             Fechar
           </button>
           <button
-            className="rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20"
+            className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
             onClick={onAddExpense}
             type="button"
           >
             Adicionar gasto
           </button>
           <button
-            className="rounded-xl border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200 transition hover:bg-amber-500/20"
+            className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-medium text-white transition hover:bg-emerald-400"
             onClick={onMarkAsPaid}
             type="button"
           >
             Marcar como paga
           </button>
           <button
-            className="rounded-xl bg-indigo-500 px-3 py-2 text-xs font-medium text-zinc-100 transition hover:bg-indigo-400"
+            className="rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20"
             onClick={onOpenTransactions}
             type="button"
           >

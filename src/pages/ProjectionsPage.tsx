@@ -32,7 +32,11 @@ function SelectField(props: SelectHTMLAttributes<HTMLSelectElement>) {
   )
 }
 
-export const ProjectionsPage = () => {
+type ProjectionsPageProps = {
+  embedded?: boolean
+}
+
+export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
   const cards = useTransactionStore((state) => state.cards)
   const transactions = useTransactionStore((state) => state.transactions)
   const fixedCosts = useTransactionStore((state) => state.fixedCosts)
@@ -268,23 +272,27 @@ export const ProjectionsPage = () => {
 
   return (
     <section className="flex flex-col gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-3 md:gap-5 md:p-5">
-      <DismissibleInfoCard
-        storageKey="info-card-projections"
-        title="Como usar Projeções"
-        description="Projeções simulam os próximos meses com base no histórico e no planejamento."
-        items={[
-          "Selecione o mês inicial para recalcular a janela de 12 meses.",
-          "Veja compromissos (incluindo aportes de metas), receita projetada e saldo acumulado no gráfico.",
-          "Funciona para PJ e CLT, respeitando o modo de renda configurado no planejamento."
-        ]}
-      />
+      {!embedded && (
+        <DismissibleInfoCard
+          storageKey="info-card-projections"
+          title="Como usar Projeções"
+          description="Projeções simulam os próximos meses com base no histórico e no planejamento."
+          items={[
+            "Selecione o mês inicial para recalcular a janela de 12 meses.",
+            "Veja compromissos (incluindo aportes de metas), receita projetada e saldo acumulado no gráfico.",
+            "Funciona para PJ e CLT, respeitando o modo de renda configurado no planejamento."
+          ]}
+        />
+      )}
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-100">Projeções</h1>
-          <p className="text-sm text-zinc-400">
-            Evolução mensal baseada nas sobras reais das transações e nos compromissos do Planejamento.
-          </p>
-        </div>
+        {!embedded && (
+          <div>
+            <h1 className="text-xl font-semibold text-zinc-100">Projeções</h1>
+            <p className="text-sm text-zinc-400">
+              Evolução mensal baseada nas sobras reais das transações e nos compromissos do Planejamento.
+            </p>
+          </div>
+        )}
         <input
           className="h-10 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none"
           type="month"

@@ -312,19 +312,34 @@ export const TransactionForm = ({
               onChange={(event) => setAmountCents(Number(event.target.value))}
             />
           </label>
-          <div className="grid grid-cols-3 gap-2">
-            {numpadKeys.map((key) => (
-              <button
-                key={key}
-                className="rounded-xl border border-zinc-700 bg-zinc-900 py-2.5 text-sm font-medium text-zinc-100 transition hover:border-emerald-500 hover:text-emerald-300"
-                onClick={(event) => {
-                  event.preventDefault()
-                  pressNumpad(key)
-                }}
-              >
-                {key}
-              </button>
-            ))}
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-2.5">
+            <div className="mb-2 text-[11px] uppercase tracking-wide text-zinc-500">
+              Teclado numérico
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {numpadKeys.map((key) => {
+                const isDeleteKey = key === "⌫"
+                const isDoubleZeroKey = key === "00"
+                return (
+                  <button
+                    key={key}
+                    className={`h-11 rounded-xl border text-base font-semibold transition active:scale-[0.98] ${
+                      isDeleteKey
+                        ? "border-rose-500/45 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
+                        : isDoubleZeroKey
+                          ? "border-indigo-500/45 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20"
+                          : "border-zinc-700 bg-zinc-900 text-zinc-100 hover:border-emerald-500 hover:text-emerald-300"
+                    }`}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      pressNumpad(key)
+                    }}
+                  >
+                    {key}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </motion.div>
 

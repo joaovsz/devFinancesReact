@@ -4,6 +4,7 @@ import { Transaction } from "../types/transaction"
 import { defaultCategories } from "../data/categories"
 import { defaultCreditCards } from "../data/cards"
 import { CreditCard } from "../types/card"
+import { BankAccount } from "../types/bank-account"
 import { bankPresets } from "../data/banks"
 import {
   ContractConfig,
@@ -12,6 +13,7 @@ import {
   ProjectionSettings
 } from "../types/planning"
 import {
+  addMonths,
   dateToMonthKey,
   getCurrentMonthKey,
   getCommittedCostsForMonth,
@@ -20,6 +22,7 @@ import {
 import { getWorkingMonthMetrics } from "../utils/business-days"
 
 export type TransactionStore = {
+  bankAccounts: BankAccount[]
   cards: CreditCard[]
   transactions: Transaction[]
   fixedCosts: FixedCost[]
@@ -30,6 +33,10 @@ export type TransactionStore = {
   totalExpenses: number
   totalAmount: number
   addCard: (card: CreditCard) => void
+  addBankAccount: (account: BankAccount) => void
+  updateBankAccount: (account: BankAccount) => void
+  removeBankAccount: (id: string) => void
+  allocateFromBankAccount: (id: string, amount: number) => boolean
   updateCard: (card: CreditCard) => void
   removeCard: (id: string) => void
   addTransaction: (transaction: Transaction) => void
@@ -44,6 +51,8 @@ export type TransactionStore = {
   markCardInvoiceAsPaid: (cardId: string, monthKey: string) => void
   updateContractConfig: (config: Partial<ContractConfig>) => void
   updateProjectionSettings: (settings: Partial<ProjectionSettings>) => void
+  loadMockData: () => void
+  clearAllData: () => void
 }
 
 function calculateTotals(input: {
@@ -209,9 +218,270 @@ function sanitizeInstallmentPlan(plan: InstallmentPlan): InstallmentPlan {
   }
 }
 
+function sanitizeBankAccount(account: BankAccount, fallback?: BankAccount): BankAccount {
+  const safeBalance = Number.isFinite(account.balance)
+    ? Math.max(account.balance, 0)
+    : fallback?.balance || 0
+
+  return {
+    id: account.id || fallback?.id || crypto.randomUUID(),
+    name: account.name?.trim() || fallback?.name || "Conta",
+    type: account.type || fallback?.type || "checking",
+    balance: safeBalance
+  }
+}
+
+function createMockTransactionState() {
+  const currentMonth = getCurrentMonthKey()
+  const previousMonth = addMonths(currentMonth, -1)
+  const twoMonthsAgo = addMonths(currentMonth, -2)
+  const currentMonthStart = `${currentMonth}-`
+
+  const bankAccounts: BankAccount[] = [
+    {
+      id: "mock-account-nubank",
+      name: "Conta Nubank",
+      type: "checking",
+      balance: 4350
+    },
+    {
+      id: "mock-account-itau-cdb",
+      name: "CDB Itaú",
+      type: "investment",
+      balance: 12100
+    },
+    {
+      id: "mock-account-reserva",
+      name: "Reserva Liquidez Diária",
+      type: "savings",
+      balance: 2870
+    }
+  ]
+
+  const cards: CreditCard[] = [
+    {
+      id: "mock-card-nubank",
+      bankId: "nubank",
+      name: "Nubank",
+      brandColor: "#8B5CF6",
+      logoUrl: "https://www.google.com/s2/favicons?domain=nubank.com.br&sz=128",
+      limitTotal: 12000,
+      closeDay: 8,
+      dueDay: 15,
+      manualInvoiceAmount: 180.5
+    },
+    {
+      id: "mock-card-itau",
+      bankId: "itau",
+      name: "Itaú Platinum",
+      brandColor: "#F97316",
+      logoUrl: "https://www.google.com/s2/favicons?domain=itau.com.br&sz=128",
+      limitTotal: 8500,
+      closeDay: 5,
+      dueDay: 12,
+      manualInvoiceAmount: 0
+    },
+    {
+      id: "mock-card-inter",
+      bankId: "inter",
+      name: "Inter Black",
+      brandColor: "#F59E0B",
+      logoUrl: "https://www.google.com/s2/favicons?domain=bancointer.com.br&sz=128",
+      limitTotal: 15000,
+      closeDay: 20,
+      dueDay: 28,
+      manualInvoiceAmount: 90
+    }
+  ]
+
+  const transactions: Transaction[] = [
+    {
+      id: "mock-income-pj-1",
+      label: "Faturamento Projeto Alpha",
+      value: 9800,
+      date: `${currentMonthStart}03`,
+      type: 1,
+      paymentMethod: "pix",
+      categoryId: "rendas",
+      subcategoryId: "faturamento-pj",
+      tags: ["cliente-a", "retainer"]
+    },
+    {
+      id: "mock-income-freela-1",
+      label: "Freela Landing Page",
+      value: 2400,
+      date: `${currentMonthStart}10`,
+      type: 1,
+      paymentMethod: "bank-transfer",
+      categoryId: "rendas",
+      subcategoryId: "freelas",
+      tags: ["extra"]
+    },
+    {
+      id: "mock-expense-market-1",
+      label: "Mercado mensal",
+      value: 850,
+      date: `${currentMonthStart}05`,
+      type: 2,
+      paymentMethod: "credit",
+      cardId: "mock-card-nubank",
+      categoryId: "alimentacao",
+      subcategoryId: "mercado",
+      tags: ["casa"]
+    },
+    {
+      id: "mock-expense-streaming-1",
+      label: "Assinaturas streaming",
+      value: 120,
+      date: `${currentMonthStart}09`,
+      type: 2,
+      paymentMethod: "credit",
+      cardId: "mock-card-itau",
+      categoryId: "lazer-assinaturas",
+      subcategoryId: "streaming",
+      tags: ["fixo"]
+    },
+    {
+      id: "mock-expense-internet-1",
+      label: "Internet fibra",
+      value: 139,
+      date: `${currentMonthStart}06`,
+      type: 2,
+      paymentMethod: "pix",
+      categoryId: "moradia",
+      subcategoryId: "internet",
+      tags: ["fixo"]
+    },
+    {
+      id: "mock-expense-academia-1",
+      label: "Academia",
+      value: 99.9,
+      date: `${currentMonthStart}11`,
+      type: 2,
+      paymentMethod: "debit",
+      categoryId: "saude-bem-estar",
+      subcategoryId: "academia",
+      tags: ["saude"]
+    },
+    {
+      id: "mock-expense-eletronicos-1",
+      label: "Headset novo",
+      value: 430,
+      date: `${currentMonthStart}14`,
+      type: 2,
+      paymentMethod: "credit",
+      cardId: "mock-card-inter",
+      categoryId: "bens-equipamentos",
+      subcategoryId: "perifericos",
+      tags: ["home-office"]
+    },
+    {
+      id: "mock-expense-books-1",
+      label: "Livros técnicos",
+      value: 210,
+      date: `${previousMonth}-18`,
+      type: 2,
+      paymentMethod: "credit",
+      cardId: "mock-card-nubank",
+      categoryId: "educacao-carreira",
+      subcategoryId: "livros",
+      tags: ["estudo"]
+    },
+    {
+      id: "mock-income-old-1",
+      label: "Faturamento suporte",
+      value: 5400,
+      date: `${twoMonthsAgo}-12`,
+      type: 1,
+      paymentMethod: "bank-transfer",
+      categoryId: "rendas",
+      subcategoryId: "faturamento-pj",
+      tags: ["cliente-b"]
+    }
+  ]
+
+  const fixedCosts: FixedCost[] = [
+    {
+      id: "mock-fixed-rent",
+      name: "Aluguel",
+      amount: 2100,
+      dueDay: 5,
+      categoryId: "moradia",
+      subcategoryId: "aluguel",
+      paymentMethod: "pix"
+    },
+    {
+      id: "mock-fixed-contab",
+      name: "Contabilidade",
+      amount: 390,
+      dueDay: 10,
+      categoryId: "impostos-empresa",
+      subcategoryId: "contabilidade",
+      paymentMethod: "bank-transfer"
+    },
+    {
+      id: "mock-fixed-course",
+      name: "Plataforma de cursos",
+      amount: 89.9,
+      categoryId: "educacao-carreira",
+      subcategoryId: "cursos-assinaturas",
+      paymentMethod: "credit",
+      cardId: "mock-card-itau"
+    }
+  ]
+
+  const installmentPlans: InstallmentPlan[] = [
+    {
+      id: "mock-install-notebook",
+      name: "Notebook trabalho",
+      installmentValue: 650,
+      totalInstallments: 10,
+      paidInstallments: 3,
+      startMonth: addMonths(currentMonth, -3),
+      paymentMethod: "credit",
+      cardId: "mock-card-inter"
+    },
+    {
+      id: "mock-install-curso",
+      name: "Mentoria carreira",
+      installmentValue: 220,
+      totalInstallments: 6,
+      paidInstallments: 1,
+      startMonth: addMonths(currentMonth, -1),
+      paymentMethod: "pix"
+    }
+  ]
+
+  const contractConfig: ContractConfig = {
+    incomeMode: "pj",
+    hourlyRate: 165,
+    hoursPerWorkday: 6,
+    cltNetSalary: 0,
+    localityState: "SP",
+    localityCity: "Sao Paulo",
+    useHolidayApi: true
+  }
+
+  const projectionSettings: ProjectionSettings = {
+    projectedBalance: 0,
+    projectedRevenue: 0
+  }
+
+  return {
+    bankAccounts,
+    cards,
+    transactions,
+    fixedCosts,
+    installmentPlans,
+    contractConfig,
+    projectionSettings
+  }
+}
+
 export const useTransactionStore = create<TransactionStore>()(
   persist(
     (set) => ({
+      bankAccounts: [],
       cards: defaultCreditCards,
       transactions: [],
       fixedCosts: [],
@@ -232,6 +502,54 @@ export const useTransactionStore = create<TransactionStore>()(
       totalIncomes: 0,
       totalExpenses: 0,
       totalAmount: 0,
+      addBankAccount: (account) =>
+        set((state) => ({
+          bankAccounts: [...state.bankAccounts, sanitizeBankAccount(account)]
+        })),
+      updateBankAccount: (account) =>
+        set((state) => ({
+          bankAccounts: state.bankAccounts.map((current) =>
+            current.id === account.id
+              ? sanitizeBankAccount(account, current)
+              : current
+          )
+        })),
+      removeBankAccount: (id) =>
+        set((state) => ({
+          bankAccounts: state.bankAccounts.filter((account) => account.id !== id)
+        })),
+      allocateFromBankAccount: (id, amount) => {
+        let hasAllocated = false
+
+        set((state) => {
+          const safeAmount = Number.isFinite(amount) ? Math.max(amount, 0) : 0
+          if (safeAmount <= 0) {
+            return state
+          }
+
+          const bankAccounts = state.bankAccounts.map((account) => {
+            if (account.id !== id) {
+              return account
+            }
+
+            if (account.balance < safeAmount) {
+              return account
+            }
+
+            hasAllocated = true
+            return {
+              ...account,
+              balance: account.balance - safeAmount
+            }
+          })
+
+          return {
+            bankAccounts
+          }
+        })
+
+        return hasAllocated
+      },
       addCard: (card) =>
         set((state) => {
           const cards = [
@@ -456,11 +774,61 @@ export const useTransactionStore = create<TransactionStore>()(
             ...state.projectionSettings,
             ...settings
           }
-        }))
+        })),
+      loadMockData: () =>
+        set(() => {
+          const mock = createMockTransactionState()
+          return {
+            ...mock,
+            ...calculateTotals({
+              cards: mock.cards,
+              transactions: mock.transactions,
+              fixedCosts: mock.fixedCosts,
+              installmentPlans: mock.installmentPlans
+            })
+          }
+        }),
+      clearAllData: () =>
+        set(() => {
+          const bankAccounts: BankAccount[] = []
+          const cards: CreditCard[] = []
+          const transactions: Transaction[] = []
+          const fixedCosts: FixedCost[] = []
+          const installmentPlans: InstallmentPlan[] = []
+          const contractConfig: ContractConfig = {
+            incomeMode: "pj",
+            hourlyRate: 0,
+            hoursPerWorkday: 8,
+            cltNetSalary: 0,
+            localityState: "SP",
+            localityCity: "Sao Paulo",
+            useHolidayApi: true
+          }
+          const projectionSettings: ProjectionSettings = {
+            projectedBalance: 0,
+            projectedRevenue: 0
+          }
+
+          return {
+            bankAccounts,
+            cards,
+            transactions,
+            fixedCosts,
+            installmentPlans,
+            contractConfig,
+            projectionSettings,
+            ...calculateTotals({
+              cards,
+              transactions,
+              fixedCosts,
+              installmentPlans
+            })
+          }
+        })
     }),
     {
       name: "devfinances-storage",
-      version: 22,
+      version: 23,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState, version) => {
         if (!persistedState || typeof persistedState !== "object") {
@@ -771,6 +1139,16 @@ export const useTransactionStore = create<TransactionStore>()(
               fixedCosts: state.fixedCosts || [],
               installmentPlans
             })
+          }
+        }
+
+        if (version < 23) {
+          const state = persistedState as TransactionStore
+          return {
+            ...state,
+            bankAccounts: Array.isArray(state.bankAccounts)
+              ? state.bankAccounts.map((account) => sanitizeBankAccount(account))
+              : []
           }
         }
 

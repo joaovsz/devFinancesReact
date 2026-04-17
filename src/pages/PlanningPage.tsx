@@ -68,6 +68,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   const [fixedSubcategoryId, setFixedSubcategoryId] = useState(
     defaultCategories[0].subcategories[0].id
   )
+  const [fixedDueDay, setFixedDueDay] = useState("")
   const [fixedPaymentMethod, setFixedPaymentMethod] = useState<PaymentMethod>("cash")
   const [fixedCardId, setFixedCardId] = useState(firstCardId)
   const [editingFixedCostId, setEditingFixedCostId] = useState("")
@@ -120,6 +121,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setFixedAmount(formatCurrencyFromNumber(cost.amount))
     setFixedCategoryId(cost.categoryId)
     setFixedSubcategoryId(cost.subcategoryId)
+    setFixedDueDay(cost.dueDay ? String(cost.dueDay) : "")
     setFixedPaymentMethod(cost.paymentMethod)
     setFixedCardId(cost.cardId || firstCardId)
   }, [searchParams, fixedCosts, firstCardId])
@@ -234,6 +236,12 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         ...target,
         name: fixedName,
         amount: parseCurrencyInput(fixedAmount),
+        dueDay:
+          fixedPaymentMethod === "credit"
+            ? undefined
+            : fixedDueDay
+              ? Number(fixedDueDay)
+              : undefined,
         categoryId: fixedCategoryId,
         subcategoryId: fixedSubcategoryId,
         paymentMethod: fixedPaymentMethod,
@@ -251,6 +259,12 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         id: crypto.randomUUID(),
         name: fixedName,
         amount: parseCurrencyInput(fixedAmount),
+        dueDay:
+          fixedPaymentMethod === "credit"
+            ? undefined
+            : fixedDueDay
+              ? Number(fixedDueDay)
+              : undefined,
         categoryId: fixedCategoryId,
         subcategoryId: fixedSubcategoryId,
         paymentMethod: fixedPaymentMethod,
@@ -262,6 +276,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setFixedAmount("")
     setFixedCategoryId(defaultCategories[0].id)
     setFixedSubcategoryId(defaultCategories[0].subcategories[0].id)
+    setFixedDueDay("")
   }
 
   function startEditingFixed(costId: string) {
@@ -275,6 +290,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setFixedAmount(formatCurrencyFromNumber(cost.amount))
     setFixedCategoryId(cost.categoryId)
     setFixedSubcategoryId(cost.subcategoryId)
+    setFixedDueDay(cost.dueDay ? String(cost.dueDay) : "")
     setFixedPaymentMethod(cost.paymentMethod)
     setFixedCardId(cost.cardId || firstCardId)
   }
@@ -285,6 +301,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setFixedAmount("")
     setFixedCategoryId(defaultCategories[0].id)
     setFixedSubcategoryId(defaultCategories[0].subcategories[0].id)
+    setFixedDueDay("")
     setSearchParams((currentParams) => {
       const nextParams = new URLSearchParams(currentParams)
       nextParams.delete("editFixedCostId")
@@ -582,6 +599,19 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                         {card.name}
                       </option>
                     ))}
+                    </SelectField>
+                )}
+                {fixedPaymentMethod !== "credit" && (
+                  <SelectField value={fixedDueDay} onChange={(event) => setFixedDueDay(event.target.value)}>
+                    <option value="">Sem vencimento</option>
+                    {Array.from({ length: 31 }).map((_, index) => {
+                      const day = String(index + 1)
+                      return (
+                        <option key={`fixed-due-day-${day}`} value={day}>
+                          Vence dia {day}
+                        </option>
+                      )
+                    })}
                   </SelectField>
                 )}
                 <button
@@ -628,6 +658,9 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                       <span className="ml-2 text-zinc-500">
                         {getPaymentLabel(cost.paymentMethod, cost.cardId)}
                       </span>
+                      {cost.paymentMethod !== "credit" && cost.dueDay && (
+                        <span className="ml-2 text-amber-300">Vence dia {cost.dueDay}</span>
+                      )}
                     </span>
                     <div className="flex items-center gap-2">
                       <button

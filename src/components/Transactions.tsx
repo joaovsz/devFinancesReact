@@ -1,5 +1,5 @@
 import { FocusEvent, KeyboardEvent, useEffect, useMemo, useState } from "react"
-import { Pencil, X } from "lucide-react"
+import { Check, Pencil, X } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { Transaction } from "../types/transaction"
 import { useTransactionStore } from '../store/useTransactionStore'
@@ -578,7 +578,7 @@ const Transactions = ({
                       className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
                       onClick={() => saveEditById(transaction.id)}
                     >
-                      salvar
+                      <Check size={15} />
                     </button>
                   ) : (
                     <button
@@ -610,7 +610,7 @@ const Transactions = ({
                         className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
                         onClick={() => saveEditById(transaction.id)}
                       >
-                        salvar
+                        <Check size={15} />
                       </button>
                     ) : (
                       <button
@@ -640,7 +640,7 @@ const Transactions = ({
                         className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
                         onClick={() => saveEditById(transaction.id)}
                       >
-                        salvar
+                        <Check size={15} />
                       </button>
                     ) : (
                       <button

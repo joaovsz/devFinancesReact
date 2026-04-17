@@ -1,10 +1,22 @@
 import { ChangeEvent, useRef, useState } from "react"
+import type { ColorTheme } from "../App"
+import { useGoalStore } from "../store/useGoalStore"
+import { useTransactionStore } from "../store/useTransactionStore"
 
 const STORAGE_KEY = "devfinances-storage"
 
-export const SettingsPage = () => {
+type SettingsPageProps = {
+  colorTheme: ColorTheme
+  onColorThemeChange: (theme: ColorTheme) => void
+}
+
+export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPageProps) => {
   const [statusMessage, setStatusMessage] = useState("")
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const loadMockData = useTransactionStore((state) => state.loadMockData)
+  const clearAllData = useTransactionStore((state) => state.clearAllData)
+  const loadMockGoals = useGoalStore((state) => state.loadMockGoals)
+  const clearGoals = useGoalStore((state) => state.clearGoals)
 
   function exportBackup() {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -62,10 +74,45 @@ export const SettingsPage = () => {
     event.target.value = ""
   }
 
+  function fillWithMockData() {
+    loadMockData()
+    loadMockGoals()
+    setStatusMessage("Dados mock carregados para testar todos os cards.")
+  }
+
+  function resetAllLocalData() {
+    const confirmed = window.confirm(
+      "Limpar todos os dados locais e voltar para o estado vazio?"
+    )
+    if (!confirmed) {
+      return
+    }
+
+    clearAllData()
+    clearGoals()
+    setStatusMessage("Dados locais limpos com sucesso.")
+  }
+
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
       <h1 className="text-xl font-semibold text-zinc-100">Configurações</h1>
       <p className="mt-2 text-sm text-zinc-400">Gerencie backup e restauração dos dados locais.</p>
+
+      <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+        <label className="grid gap-1 text-xs uppercase tracking-wide text-zinc-400">
+          Estilo de cor
+          <select
+            className="h-10 rounded-lg border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+            value={colorTheme}
+            onChange={(event) => onColorThemeChange(event.target.value as ColorTheme)}
+          >
+            <option value="indigo-calm">Indigo Calm</option>
+            <option value="ocean-slate">Ocean Slate</option>
+            <option value="violet-focus">Violet Focus</option>
+            <option value="amber-graphite">Amber Graphite</option>
+          </select>
+        </label>
+      </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <button
@@ -81,6 +128,23 @@ export const SettingsPage = () => {
           type="button"
         >
           Importar backup (.json)
+        </button>
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <button
+          className="rounded-xl border border-indigo-500/60 bg-indigo-500/15 px-4 py-2.5 text-sm font-medium text-indigo-100 transition hover:bg-indigo-500/25"
+          onClick={fillWithMockData}
+          type="button"
+        >
+          Carregar dados mock
+        </button>
+        <button
+          className="rounded-xl border border-rose-500/60 bg-rose-500/15 px-4 py-2.5 text-sm font-medium text-rose-100 transition hover:bg-rose-500/25"
+          onClick={resetAllLocalData}
+          type="button"
+        >
+          Limpar dados locais
         </button>
       </div>
 

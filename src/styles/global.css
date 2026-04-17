@@ -7,6 +7,10 @@
 @layer base {
   :root {
     --card-gradient-end: rgba(9, 9, 11, 0.92);
+    --chart-slice-border: rgba(24, 24, 27, 0.9);
+    --accent-500: 99, 102, 241;
+    --accent-400: 129, 140, 248;
+    --accent-300: 165, 180, 252;
   }
 
   * {
@@ -37,6 +41,31 @@
 @layer base {
   .theme-light {
     --card-gradient-end: rgba(255, 255, 255, 0.9);
+    --chart-slice-border: rgba(255, 255, 255, 1);
+  }
+
+  .color-indigo-calm {
+    --accent-500: 99, 102, 241;
+    --accent-400: 129, 140, 248;
+    --accent-300: 165, 180, 252;
+  }
+
+  .color-ocean-slate {
+    --accent-500: 13, 148, 136;
+    --accent-400: 45, 212, 191;
+    --accent-300: 94, 234, 212;
+  }
+
+  .color-violet-focus {
+    --accent-500: 139, 92, 246;
+    --accent-400: 167, 139, 250;
+    --accent-300: 196, 181, 253;
+  }
+
+  .color-amber-graphite {
+    --accent-500: 217, 119, 6;
+    --accent-400: 245, 158, 11;
+    --accent-300: 252, 211, 77;
   }
 
   .theme-light body {
@@ -96,6 +125,51 @@
 }
 
 @layer utilities {
+  .bg-emerald-500 {
+    background-color: rgb(var(--accent-500)) !important;
+  }
+
+  .hover\:bg-emerald-400:hover {
+    background-color: rgb(var(--accent-400)) !important;
+  }
+
+  .bg-emerald-500\/15 {
+    background-color: rgba(var(--accent-500), 0.15) !important;
+  }
+
+  .bg-emerald-500\/20 {
+    background-color: rgba(var(--accent-500), 0.2) !important;
+  }
+
+  .hover\:bg-emerald-500\/25:hover {
+    background-color: rgba(var(--accent-500), 0.25) !important;
+  }
+
+  .border-emerald-500 {
+    border-color: rgb(var(--accent-500)) !important;
+  }
+
+  .border-emerald-500\/60 {
+    border-color: rgba(var(--accent-500), 0.6) !important;
+  }
+
+  .focus\:border-emerald-500:focus {
+    border-color: rgb(var(--accent-500)) !important;
+  }
+
+  .focus\:ring-emerald-500\/30:focus {
+    --tw-ring-color: rgba(var(--accent-500), 0.3) !important;
+  }
+
+  .text-emerald-300 {
+    color: rgb(var(--accent-500)) !important;
+  }
+
+  .bg-emerald-500\/15.text-emerald-300,
+  .bg-emerald-500\/20.text-emerald-300 {
+    color: rgb(var(--accent-500)) !important;
+  }
+
   #root .rounded-sm {
     border-radius: 0.625rem;
   }

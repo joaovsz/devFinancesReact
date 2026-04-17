@@ -13,6 +13,8 @@ type GoalStore = {
   updateGoal: (goal: Goal) => void
   deleteGoal: (id: string) => void
   updateSavedAmount: (id: string, currentSaved: number) => void
+  loadMockGoals: () => void
+  clearGoals: () => void
 }
 
 export type GoalCashflowStatus = {
@@ -47,6 +49,32 @@ function createGoalFromInput(goal: GoalInput): Goal {
   })
 }
 
+function createMockGoals(): Goal[] {
+  return [
+    {
+      id: "mock-goal-reserva",
+      name: "Reserva de emergência",
+      targetAmount: 25000,
+      currentSaved: 9200,
+      monthlyContribution: 1200
+    },
+    {
+      id: "mock-goal-viagem",
+      name: "Viagem internacional",
+      targetAmount: 12000,
+      currentSaved: 3200,
+      monthlyContribution: 850
+    },
+    {
+      id: "mock-goal-setup",
+      name: "Upgrade setup home-office",
+      targetAmount: 6000,
+      currentSaved: 1400,
+      monthlyContribution: 500
+    }
+  ]
+}
+
 export const useGoalStore = create<GoalStore>()(
   persist(
     (set) => ({
@@ -75,6 +103,14 @@ export const useGoalStore = create<GoalStore>()(
                 }
               : goal
           )
+        })),
+      loadMockGoals: () =>
+        set(() => ({
+          goals: createMockGoals().map(normalizeGoal)
+        })),
+      clearGoals: () =>
+        set(() => ({
+          goals: []
         }))
     }),
     {

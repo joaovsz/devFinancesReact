@@ -10,6 +10,20 @@ import { PlanningPage } from "./pages/PlanningPage"
 import { GoalsPage } from "./pages/GoalsPage"
 import { SettingsPage } from "./pages/SettingsPage"
 
+export type ColorTheme =
+  | "indigo-calm"
+  | "ocean-slate"
+  | "violet-focus"
+  | "amber-graphite"
+
+const COLOR_THEME_STORAGE_KEY = "devfinances-color-theme"
+const COLOR_THEME_CLASSNAMES: Record<ColorTheme, string> = {
+  "indigo-calm": "color-indigo-calm",
+  "ocean-slate": "color-ocean-slate",
+  "violet-focus": "color-violet-focus",
+  "amber-graphite": "color-amber-graphite"
+}
+
 function App() {
   const location = useLocation()
   const isTransactionsRoute = location.pathname === "/transacoes"
@@ -17,11 +31,32 @@ function App() {
     const storedTheme = localStorage.getItem("devfinances-theme")
     return storedTheme === "light" ? "light" : "dark"
   })
+  const [colorTheme, setColorTheme] = useState<ColorTheme>(() => {
+    const stored = localStorage.getItem(COLOR_THEME_STORAGE_KEY)
+    if (
+      stored === "indigo-calm" ||
+      stored === "ocean-slate" ||
+      stored === "violet-focus" ||
+      stored === "amber-graphite"
+    ) {
+      return stored
+    }
+
+    return "indigo-calm"
+  })
 
   useEffect(() => {
     document.documentElement.classList.toggle("theme-light", theme === "light")
     localStorage.setItem("devfinances-theme", theme)
   }, [theme])
+
+  useEffect(() => {
+    Object.values(COLOR_THEME_CLASSNAMES).forEach((className) => {
+      document.documentElement.classList.remove(className)
+    })
+    document.documentElement.classList.add(COLOR_THEME_CLASSNAMES[colorTheme])
+    localStorage.setItem(COLOR_THEME_STORAGE_KEY, colorTheme)
+  }, [colorTheme])
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -45,7 +80,15 @@ function App() {
           <Route path="/planejamento" element={<PlanningPage />} />
           <Route path="/projecoes" element={<ProjectionsPage />} />
           <Route path="/metas" element={<GoalsPage />} />
-          <Route path="/configuracoes" element={<SettingsPage />} />
+          <Route
+            path="/configuracoes"
+            element={
+              <SettingsPage
+                colorTheme={colorTheme}
+                onColorThemeChange={setColorTheme}
+              />
+            }
+          />
         </Routes>
       </main>
       {!isTransactionsRoute && <Footer />}

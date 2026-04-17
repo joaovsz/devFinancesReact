@@ -1,12 +1,34 @@
 import { MouseEvent, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { Check, ChevronDown, CreditCard, Plus, Wallet } from "lucide-react"
+import {
+  Activity,
+  Beef,
+  BriefcaseBusiness,
+  ChartLine,
+  Check,
+  ChevronDown,
+  CreditCard,
+  Gamepad2,
+  GraduationCap,
+  HandCoins,
+  House,
+  Landmark,
+  PiggyBank,
+  Plus,
+  Target,
+  Wifi,
+  Wallet
+} from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import ReactEChartsCore from "echarts-for-react/lib/core"
+import type { EChartsOption } from "echarts"
 import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
 import {
   dateToMonthKey,
   getCurrentMonthKey,
   getInstallmentRemainingTotal,
   getInstallmentTotalForMonth,
+  getMonthLabel,
   isCardInvoicePaidForMonth,
   isMonthKeyAfter
 } from "../utils/projections"
@@ -25,12 +47,20 @@ import { fetchBankInstitutions } from "../services/banks"
 import { CreditCard as CardType } from "../types/card"
 import { DismissibleInfoCard } from "./ui/DismissibleInfoCard"
 import { CardInvoiceModal } from "./cards/CardInvoiceModal"
+import { defaultCategories } from "../data/categories"
+import { echarts } from "../utils/echarts"
 
 type InvoicePlannedItem = {
   id: string
   label: string
   value: number
   sourceLabel: string
+}
+
+type CategoryExpenseBucket = {
+  categoryId: string
+  subcategoryId: string
+  value: number
 }
 
 export const Cards = () => {
@@ -62,6 +92,7 @@ export const Cards = () => {
   const [newCardCloseDay, setNewCardCloseDay] = useState("")
   const [newCardDueDay, setNewCardDueDay] = useState("")
   const [invoiceCardId, setInvoiceCardId] = useState<string | null>(null)
+  const [selectedCategoryDrillId, setSelectedCategoryDrillId] = useState<string | null>(null)
   const [invoiceTotalDraftByCard, setInvoiceTotalDraftByCard] = useState<
     Record<string, string>
   >({})
@@ -287,11 +318,244 @@ export const Cards = () => {
     [plannedEntries, invoiceCardId, selectedInvoiceCard, currentMonth]
   )
 
+  const categoryExpenseBuckets = useMemo<CategoryExpenseBucket[]>(() => {
+    const byCategoryAndSubcategory = new Map<string, CategoryExpenseBucket>()
+
+    const addExpense = (categoryId: string, subcategoryId: string, value: number) => {
+      if (!(Number.isFinite(value) && value > 0)) {
+        return
+      }
+
+      const key = `${categoryId}::${subcategoryId}`
+      const current = byCategoryAndSubcategory.get(key)
+      if (current) {
+        current.value += value
+        return
+      }
+
+      byCategoryAndSubcategory.set(key, { categoryId, subcategoryId, value })
+    }
+
+    transactions
+      .filter(
+        (transaction) =>
+          transaction.type === 2 && dateToMonthKey(transaction.date) === currentMonth
+      )
+      .forEach((transaction) => {
+        addExpense(transaction.categoryId, transaction.subcategoryId, transaction.value)
+      })
+
+    fixedCosts.forEach((cost) => {
+      addExpense(cost.categoryId, cost.subcategoryId, cost.amount)
+    })
+
+    const activeInstallmentsTotal = getInstallmentTotalForMonth(installmentPlans, currentMonth)
+    if (activeInstallmentsTotal > 0) {
+      addExpense("__installments", "__installments", activeInstallmentsTotal)
+    }
+
+    return Array.from(byCategoryAndSubcategory.values())
+  }, [transactions, fixedCosts, installmentPlans, currentMonth])
+
+  const getCategoryName = (categoryId: string) => {
+    if (categoryId === "__installments") {
+      return "Parcelamentos"
+    }
+
+    return (
+      defaultCategories.find((category) => category.id === categoryId)?.name ||
+      "Categoria não mapeada"
+    )
+  }
+
+  const getSubcategoryName = (categoryId: string, subcategoryId: string) => {
+    if (categoryId === "__installments") {
+      return "Parcelas ativas do mês"
+    }
+
+    const category = defaultCategories.find((item) => item.id === categoryId)
+    if (!category) {
+      return "Subcategoria não mapeada"
+    }
+
+    return (
+      category.subcategories.find((subcategory) => subcategory.id === subcategoryId)?.name ||
+      "Subcategoria não mapeada"
+    )
+  }
+
+  const categorySummary = useMemo(
+    () =>
+      categoryExpenseBuckets.reduce<Record<string, number>>((accumulator, bucket) => {
+        accumulator[bucket.categoryId] = (accumulator[bucket.categoryId] || 0) + bucket.value
+        return accumulator
+      }, {}),
+    [categoryExpenseBuckets]
+  )
+
+  const categoryDonutData = useMemo(
+    () =>
+      Object.entries(categorySummary)
+        .map(([categoryId, value]) => ({
+          id: categoryId,
+          value,
+          name: getCategoryName(categoryId)
+        }))
+        .sort((left, right) => right.value - left.value),
+    [categorySummary]
+  )
+
+  const subcategoryDonutData = useMemo(
+    () =>
+      categoryExpenseBuckets
+        .filter((bucket) => bucket.categoryId === selectedCategoryDrillId)
+        .map((bucket) => ({
+          id: `${bucket.categoryId}-${bucket.subcategoryId}`,
+          value: bucket.value,
+          name: getSubcategoryName(bucket.categoryId, bucket.subcategoryId)
+        }))
+        .sort((left, right) => right.value - left.value),
+    [categoryExpenseBuckets, selectedCategoryDrillId]
+  )
+
+  const totalCategoryExpenses = useMemo(
+    () => categoryDonutData.reduce((sum, item) => sum + item.value, 0),
+    [categoryDonutData]
+  )
+  const hasDrilldown = Boolean(selectedCategoryDrillId)
+  const activeCategoryDonutData = hasDrilldown ? subcategoryDonutData : categoryDonutData
+  const categoryChartTitle = hasDrilldown
+    ? `Detalhes: ${getCategoryName(selectedCategoryDrillId || "")}`
+    : "Distribuição por categoria"
+
+  useEffect(() => {
+    if (!selectedCategoryDrillId) {
+      return
+    }
+
+    if (!(selectedCategoryDrillId in categorySummary)) {
+      setSelectedCategoryDrillId(null)
+    }
+  }, [selectedCategoryDrillId, categorySummary])
+
+  const isLightTheme =
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("theme-light")
+
+  const categoryDistributionOption = useMemo<EChartsOption>(
+    () => ({
+      backgroundColor: "transparent",
+      color: ["#6366f1", "#10b981", "#f59e0b", "#f43f5e", "#0ea5e9", "#22c55e", "#a855f7"],
+      tooltip: {
+        trigger: "item",
+        formatter: (params: any) => {
+          const item = Array.isArray(params) ? params[0] : params
+          const rawValue =
+            typeof item?.value === "number"
+              ? item.value
+              : Number(item?.value || 0)
+          const safePercent = Number.isFinite(item?.percent) ? item.percent : 0
+          return `${item?.name || "Categoria"}<br/>${formatCurrency(rawValue)} (${safePercent}%)`
+        }
+      },
+      legend: {
+        show: false
+      },
+      series: [
+        {
+          name: categoryChartTitle,
+          type: "pie",
+          center: ["50%", "48%"],
+          radius: ["48%", "72%"],
+          avoidLabelOverlap: true,
+          itemStyle: {
+            borderRadius: 6,
+            borderColor: isLightTheme ? "#FFFFFF" : "#18181b",
+            borderWidth: 2
+          },
+          label: {
+            color: isLightTheme ? "#111827" : "#e4e4e7",
+            formatter: "{d}%"
+          },
+          data: activeCategoryDonutData
+        }
+      ]
+    }),
+    [activeCategoryDonutData, categoryChartTitle, isLightTheme]
+  )
+  const categoryDistributionEvents = useMemo(
+    () => ({
+      click: (params: { data?: { id?: string } }) => {
+        if (hasDrilldown) {
+          return
+        }
+
+        const nextCategoryId = params.data?.id
+        if (!nextCategoryId) {
+          return
+        }
+
+        setSelectedCategoryDrillId(nextCategoryId)
+      }
+    }),
+    [hasDrilldown]
+  )
+
+  const totalInvoicesForMonth = useMemo(
+    () => cardUsage.reduce((sum, card) => sum + card.currentInvoice, 0),
+    [cardUsage]
+  )
+  const invoiceDistributionByCard = useMemo(
+    () =>
+      cardUsage
+        .filter((card) => card.currentInvoice > 0)
+        .sort((left, right) => right.currentInvoice - left.currentInvoice),
+    [cardUsage]
+  )
+
   const totalCreditUsed = cardUsage.reduce((sum, card) => sum + card.used, 0)
   const totalCreditLimit = cardUsage.reduce((sum, card) => sum + card.limitTotal, 0)
 
   function getCardBrandColor(cardName: string, currentColor: string) {
     return cardName.toLowerCase().includes("ourocard") ? "#FFCD00" : currentColor
+  }
+
+  function getCategoryIcon(categoryId: string, subcategoryId?: string): LucideIcon {
+    if (categoryId === "moradia" && subcategoryId) {
+      if (subcategoryId === "internet") {
+        return Wifi
+      }
+      if (subcategoryId === "aluguel") {
+        return Landmark
+      }
+    }
+
+    switch (categoryId) {
+      case "rendas":
+        return HandCoins
+      case "moradia":
+        return House
+      case "alimentacao":
+        return Beef
+      case "saude-bem-estar":
+        return Activity
+      case "educacao-carreira":
+        return GraduationCap
+      case "lazer-assinaturas":
+        return Gamepad2
+      case "impostos-empresa":
+        return Landmark
+      case "bens-equipamentos":
+        return CreditCard
+      case "patrimonio-metas":
+        return PiggyBank
+      case "outros":
+        return BriefcaseBusiness
+      case "__installments":
+        return Target
+      default:
+        return ChartLine
+    }
   }
 
   function hexToRgba(hex: string, alpha: number) {
@@ -491,6 +755,127 @@ export const Cards = () => {
       </article>
 
       <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-8">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">
+              Gastos por categoria
+            </h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              {hasDrilldown
+                ? "Mostrando os detalhes da categoria selecionada."
+                : "Clique em uma categoria para ver os detalhes."}
+            </p>
+          </div>
+          {hasDrilldown && (
+            <button
+              type="button"
+              onClick={() => setSelectedCategoryDrillId(null)}
+              className="rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+            >
+              Voltar categorias
+            </button>
+          )}
+        </div>
+
+        {activeCategoryDonutData.length > 0 ? (
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px] md:items-center">
+            <ReactEChartsCore
+              echarts={echarts}
+              option={categoryDistributionOption}
+              onEvents={categoryDistributionEvents}
+              style={{ height: 340, width: "100%" }}
+              notMerge
+              lazyUpdate
+            />
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950">
+              {activeCategoryDonutData.slice(0, 6).map((item) => (
+                <div key={item.id} className="flex items-center justify-between border-b border-zinc-800 px-3 py-2.5 text-sm last:border-b-0">
+                  <span className="flex min-w-0 items-center gap-2 text-zinc-300">
+                    {(() => {
+                      const iconCategoryId = hasDrilldown
+                        ? selectedCategoryDrillId || "outros"
+                        : item.id
+                      const iconSubcategoryId =
+                        hasDrilldown && selectedCategoryDrillId
+                          ? item.id.replace(`${selectedCategoryDrillId}-`, "")
+                          : undefined
+                      const Icon = getCategoryIcon(iconCategoryId, iconSubcategoryId)
+                      return <Icon size={14} className="shrink-0 text-zinc-500" />
+                    })()}
+                    <span className="truncate">{item.name}</span>
+                  </span>
+                  <span className="ml-3 font-semibold text-zinc-100">{formatCurrency(item.value)}</span>
+                </div>
+              ))}
+              <div className="border-t border-zinc-800 px-3 py-2.5 text-sm text-zinc-400">
+                Total do mês {getMonthLabel(currentMonth)}:{" "}
+                <span className="font-semibold text-zinc-100">{formatCurrency(totalCategoryExpenses)}</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-10 text-center text-sm text-zinc-500">
+            Sem despesas categorizadas no mês atual.
+          </div>
+        )}
+      </article>
+
+      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-4">
+        <div className="mb-2 text-xs uppercase tracking-wide text-zinc-400">
+          Total de faturas (mês)
+        </div>
+        <NumberTicker
+          className="text-3xl text-zinc-100"
+          value={totalInvoicesForMonth}
+          format={formatCurrency}
+        />
+        <p className="mt-1 text-xs text-zinc-500">{getMonthLabel(currentMonth)}</p>
+        <div className="mt-4 space-y-0">
+          {invoiceDistributionByCard.length === 0 && (
+            <div className="rounded-lg border border-zinc-800 px-3 py-3 text-xs text-zinc-500">
+              Nenhuma fatura ativa neste mês.
+            </div>
+          )}
+          {invoiceDistributionByCard.slice(0, 4).map((card) => (
+            <div
+              key={`invoice-summary-${card.id}`}
+              className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 text-xs last:border-b-0"
+            >
+              <span className="truncate text-zinc-300">{card.name}</span>
+              <span className="ml-3 font-semibold text-zinc-100">
+                {formatCurrency(card.currentInvoice)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </article>
+
+      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">Últimas transações</h2>
+          <Link to="/transacoes" className="text-xs text-zinc-500 hover:text-zinc-300">Ver todas</Link>
+        </div>
+        <div className="space-y-0">
+          {recentTransactions.length === 0 && (
+            <div className="rounded-xl border border-zinc-800 px-3 py-6 text-center text-xs text-zinc-500">
+              Sem lançamentos recentes.
+            </div>
+          )}
+          {recentTransactions.map((transaction) => (
+            <div key={transaction.id} className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 last:border-b-0">
+              <div className="min-w-0">
+                <div className="truncate text-sm text-zinc-200">{transaction.label}</div>
+                <div className="text-[11px] text-zinc-500">{transaction.date.split("-").reverse().join("/")}</div>
+              </div>
+              <span className={`text-sm font-black ${transaction.type === 1 ? "text-emerald-400" : "text-amber-400"}`}>
+                {transaction.type === 1 ? "+" : "-"}{formatCurrency(transaction.value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </article>
+
+      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-8">
         <DismissibleInfoCard
           storageKey="info-card-credit-cards"
           title="Como usar Meus Cartões"
@@ -671,7 +1056,7 @@ export const Cards = () => {
                       <button
                         type="button"
                         onClick={() => openCardInvoice(card.id)}
-                        className="text-[11px] text-zinc-100/85 underline-offset-2 transition hover:underline"
+                        className="text-[11px] text-zinc-500 underline-offset-2 transition hover:text-zinc-300 hover:underline"
                       >
                         Ver fatura
                       </button>
@@ -793,31 +1178,6 @@ export const Cards = () => {
               </div>
             )}
           </div>
-        </div>
-      </article>
-
-      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">Últimas transações</h2>
-          <Link to="/transacoes" className="text-xs text-zinc-500 hover:text-zinc-300">Ver todas</Link>
-        </div>
-        <div className="space-y-2">
-          {recentTransactions.length === 0 && (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-6 text-center text-xs text-zinc-500">
-              Sem lançamentos recentes.
-            </div>
-          )}
-          {recentTransactions.map((transaction) => (
-            <div key={transaction.id} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2">
-              <div className="min-w-0">
-                <div className="truncate text-sm text-zinc-200">{transaction.label}</div>
-                <div className="text-[11px] text-zinc-500">{transaction.date.split("-").reverse().join("/")}</div>
-              </div>
-              <span className={`text-sm font-black ${transaction.type === 1 ? "text-emerald-400" : "text-amber-400"}`}>
-                {transaction.type === 1 ? "+" : "-"}{formatCurrency(transaction.value)}
-              </span>
-            </div>
-          ))}
         </div>
       </article>
 
