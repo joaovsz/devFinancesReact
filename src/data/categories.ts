@@ -44,6 +44,18 @@ export const defaultCategories: Category[] = [
     ]
   },
   {
+    id: "transporte",
+    name: "Transporte",
+    subcategories: [
+      { id: "combustivel", name: "Combustível" },
+      { id: "manutencao-veiculo", name: "Manutenção do veículo" },
+      { id: "seguro-automovel", name: "Seguro automóvel" },
+      { id: "ipva", name: "IPVA" },
+      { id: "uber-99-taxi", name: "Uber/99/Taxi" },
+      { id: "transporte-publico", name: "Transporte público" },
+      { id: "estacionamento", name: "Estacionamento" },]
+  },
+  {
     id: "alimentacao",
     name: "Alimentação",
     subcategories: [
