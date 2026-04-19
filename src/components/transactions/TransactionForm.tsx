@@ -521,7 +521,7 @@ export const TransactionForm = ({
             </label>
           </div>
           {option === 2 && paymentMethod === "credit" && (
-            <p className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-xs text-indigo-200">
+            <p className="rounded-xl border border-emerald-500/60 bg-emerald-500/15 px-3 py-2 text-xs text-emerald-300">
               Vincule essa saída a um cartão de crédito cadastrado
             </p>
           )}

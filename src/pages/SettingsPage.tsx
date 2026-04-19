@@ -10,9 +10,53 @@ type SettingsPageProps = {
   onColorThemeChange: (theme: ColorTheme) => void
 }
 
+type SettingsCategory = "appearance" | "data" | "maintenance"
+
+const colorThemeOptions: Array<{
+  value: ColorTheme
+  label: string
+  accentClass: string
+  softClass: string
+  glowClass: string
+}> = [
+  {
+    value: "indigo-calm",
+    label: "Indigo Calm",
+    accentClass: "bg-indigo-500",
+    softClass: "bg-indigo-300",
+    glowClass: "bg-indigo-900/60"
+  },
+  {
+    value: "ocean-slate",
+    label: "Ocean Slate",
+    accentClass: "bg-teal-500",
+    softClass: "bg-teal-300",
+    glowClass: "bg-teal-900/60"
+  },
+  {
+    value: "violet-focus",
+    label: "Violet Focus",
+    accentClass: "bg-violet-500",
+    softClass: "bg-violet-300",
+    glowClass: "bg-violet-900/60"
+  },
+  {
+    value: "amber-graphite",
+    label: "Amber Graphite",
+    accentClass: "bg-amber-500",
+    softClass: "bg-amber-300",
+    glowClass: "bg-amber-900/60"
+  }
+]
+
 export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPageProps) => {
   const [statusMessage, setStatusMessage] = useState("")
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>("appearance")
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
+  const canImportBackup = import.meta.env.DEV || isLocalhost
   const loadMockData = useTransactionStore((state) => state.loadMockData)
   const clearAllData = useTransactionStore((state) => state.clearAllData)
   const loadMockGoals = useGoalStore((state) => state.loadMockGoals)
@@ -96,65 +140,143 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
       <h1 className="text-xl font-semibold text-zinc-100">Configurações</h1>
-      <p className="mt-2 text-sm text-zinc-400">Gerencie backup e restauração dos dados locais.</p>
+      <p className="mt-2 text-sm text-zinc-400">Ajuste aparência, dados e manutenção do app.</p>
 
-      <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
-        <label className="grid gap-1 text-xs uppercase tracking-wide text-zinc-400">
-          Estilo de cor
-          <select
-            className="h-10 rounded-lg border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-            value={colorTheme}
-            onChange={(event) => onColorThemeChange(event.target.value as ColorTheme)}
-          >
-            <option value="indigo-calm">Indigo Calm</option>
-            <option value="ocean-slate">Ocean Slate</option>
-            <option value="violet-focus">Violet Focus</option>
-            <option value="amber-graphite">Amber Graphite</option>
-          </select>
-        </label>
-      </div>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         <button
-          className="rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-2.5 text-sm text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
-          onClick={exportBackup}
+          className={`rounded-xl border px-3 py-2 text-sm transition ${
+            activeCategory === "appearance"
+              ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
+              : "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+          }`}
           type="button"
+          onClick={() => setActiveCategory("appearance")}
         >
-          Exportar backup (.json)
+          Aparência
         </button>
         <button
-          className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
-          onClick={openImportDialog}
+          className={`rounded-xl border px-3 py-2 text-sm transition ${
+            activeCategory === "data"
+              ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
+              : "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+          }`}
           type="button"
+          onClick={() => setActiveCategory("data")}
         >
-          Importar backup (.json)
-        </button>
-      </div>
-
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <button
-          className="rounded-xl border border-indigo-500/60 bg-indigo-500/15 px-4 py-2.5 text-sm font-medium text-indigo-100 transition hover:bg-indigo-500/25"
-          onClick={fillWithMockData}
-          type="button"
-        >
-          Carregar dados mock
+          Backup e dados
         </button>
         <button
-          className="rounded-xl border border-rose-500/60 bg-rose-500/15 px-4 py-2.5 text-sm font-medium text-rose-100 transition hover:bg-rose-500/25"
-          onClick={resetAllLocalData}
+          className={`rounded-xl border px-3 py-2 text-sm transition ${
+            activeCategory === "maintenance"
+              ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
+              : "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+          }`}
           type="button"
+          onClick={() => setActiveCategory("maintenance")}
         >
-          Limpar dados locais
+          Manutenção
         </button>
       </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="application/json,.json"
-        className="hidden"
-        onChange={importBackup}
-      />
+      {activeCategory === "appearance" && (
+        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+          <p className="text-xs uppercase tracking-wide text-zinc-400">Estilo de cor</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {colorThemeOptions.map((themeOption) => {
+              const isActive = colorTheme === themeOption.value
+              return (
+                <button
+                  key={themeOption.value}
+                  aria-pressed={isActive}
+                  className={`rounded-xl border p-3 text-left transition ${
+                    isActive
+                      ? "border-emerald-500 bg-zinc-900 ring-2 ring-emerald-500/30"
+                      : "border-zinc-700 bg-zinc-900 hover:border-zinc-500"
+                  }`}
+                  onClick={() => onColorThemeChange(themeOption.value)}
+                  type="button"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-zinc-100">{themeOption.label}</span>
+                    {isActive && (
+                      <span className="rounded-md border border-emerald-500/60 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                        Ativo
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex gap-2">
+                    <span className={`h-7 flex-1 rounded-md ${themeOption.accentClass}`} />
+                    <span className={`h-7 flex-1 rounded-md ${themeOption.softClass}`} />
+                    <span className={`h-7 flex-1 rounded-md ${themeOption.glowClass}`} />
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {activeCategory === "data" && (
+        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+          <p className="text-xs uppercase tracking-wide text-zinc-400">Backup local</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <button
+              className="rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+              onClick={exportBackup}
+              type="button"
+            >
+              Exportar backup (.json)
+            </button>
+            {canImportBackup && (
+              <button
+                className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-medium text-zinc-950 transition hover:bg-emerald-400"
+                onClick={openImportDialog}
+                type="button"
+              >
+                Importar backup (.json)
+              </button>
+            )}
+          </div>
+          {!canImportBackup && (
+            <p className="mt-3 text-xs text-zinc-500">
+              Importação disponível apenas em execução local.
+            </p>
+          )}
+        </div>
+      )}
+
+      {activeCategory === "maintenance" && (
+        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+          <p className="text-xs uppercase tracking-wide text-zinc-400">Ferramentas de manutenção</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <button
+              className="rounded-xl border border-emerald-500/60 bg-emerald-500/15 px-4 py-2.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/25"
+              onClick={fillWithMockData}
+              type="button"
+            >
+              Carregar dados mock
+            </button>
+            <button
+              className="rounded-xl border border-rose-500/60 bg-rose-500/15 px-4 py-2.5 text-sm font-medium text-rose-100 transition hover:bg-rose-500/25"
+              onClick={resetAllLocalData}
+              type="button"
+            >
+              Limpar dados locais
+            </button>
+          </div>
+        </div>
+      )}
+
+      {canImportBackup && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={importBackup}
+        />
+      )}
 
       {statusMessage && <p className="mt-3 text-xs text-zinc-400">{statusMessage}</p>}
     </section>

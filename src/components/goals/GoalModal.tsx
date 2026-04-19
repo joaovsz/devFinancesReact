@@ -217,11 +217,11 @@ export const GoalModal = ({
             </div>
           </div>
 
-          <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-3">
-            <div className="text-[11px] uppercase tracking-wide text-indigo-300">
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
+            <div className="text-[11px] uppercase tracking-wide text-emerald-300">
               Projeção em ciclos mensais
             </div>
-            <p className="mt-1 text-sm text-indigo-100">{completionLabel}</p>
+            <p className="mt-1 text-sm text-zinc-100">{completionLabel}</p>
           </div>
 
           <div className="flex justify-end gap-2">

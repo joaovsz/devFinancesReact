@@ -93,6 +93,7 @@ export const Cards = () => {
   const [newCardDueDay, setNewCardDueDay] = useState("")
   const [invoiceCardId, setInvoiceCardId] = useState<string | null>(null)
   const [selectedCategoryDrillId, setSelectedCategoryDrillId] = useState<string | null>(null)
+  const [themeVersion, setThemeVersion] = useState(0)
   const [invoiceTotalDraftByCard, setInvoiceTotalDraftByCard] = useState<
     Record<string, string>
   >({})
@@ -160,6 +161,27 @@ export const Cards = () => {
       setBankSearch(selected.name)
     }
   }, [selectedBankId, cardBankOptions])
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return
+    }
+
+    const root = document.documentElement
+    const observer = new MutationObserver((mutations) => {
+      const themeChanged = mutations.some(
+        (mutation) =>
+          mutation.type === "attributes" &&
+          (mutation.attributeName === "class" || mutation.attributeName === "style")
+      )
+      if (themeChanged) {
+        setThemeVersion((current) => current + 1)
+      }
+    })
+
+    observer.observe(root, { attributes: true, attributeFilter: ["class", "style"] })
+    return () => observer.disconnect()
+  }, [])
 
   const plannedEntries = useMemo(
     () =>
@@ -441,11 +463,32 @@ export const Cards = () => {
   const isLightTheme =
     typeof document !== "undefined" &&
     document.documentElement.classList.contains("theme-light")
+  const themeComputedStyle =
+    typeof document !== "undefined"
+      ? window.getComputedStyle(document.documentElement)
+      : null
+  const accent500 = themeComputedStyle?.getPropertyValue("--accent-500")?.trim()
+  const accent400 = themeComputedStyle?.getPropertyValue("--accent-400")?.trim()
+  const accent300 = themeComputedStyle?.getPropertyValue("--accent-300")?.trim()
+  const chartSliceBorderColor =
+    themeComputedStyle?.getPropertyValue("--chart-slice-border")?.trim() ||
+    (isLightTheme ? "rgba(255, 255, 255, 1)" : "rgba(24, 24, 27, 0.9)")
+  const accent500Color = accent500 ? `rgb(${accent500})` : "#6366f1"
+  const accent400Color = accent400 ? `rgb(${accent400})` : "#818cf8"
+  const accent300Color = accent300 ? `rgb(${accent300})` : "#a5b4fc"
 
   const categoryDistributionOption = useMemo<EChartsOption>(
     () => ({
       backgroundColor: "transparent",
-      color: ["#6366f1", "#10b981", "#f59e0b", "#f43f5e", "#0ea5e9", "#22c55e", "#a855f7"],
+      color: [
+        accent500Color,
+        accent400Color,
+        accent300Color,
+        "#0ea5e9",
+        "#22c55e",
+        "#f59e0b",
+        "#f43f5e"
+      ],
       tooltip: {
         trigger: "item",
         formatter: (params: any) => {
@@ -470,18 +513,30 @@ export const Cards = () => {
           avoidLabelOverlap: true,
           itemStyle: {
             borderRadius: 6,
-            borderColor: isLightTheme ? "#FFFFFF" : "#18181b",
+            borderColor: chartSliceBorderColor,
             borderWidth: 2
           },
           label: {
             color: isLightTheme ? "#111827" : "#e4e4e7",
-            formatter: "{d}%"
+            formatter: "{d}%",
+            fontWeight: 600,
+            textBorderColor: chartSliceBorderColor,
+            textBorderWidth: 3
           },
           data: activeCategoryDonutData
         }
       ]
     }),
-    [activeCategoryDonutData, categoryChartTitle, isLightTheme]
+    [
+      activeCategoryDonutData,
+      categoryChartTitle,
+      isLightTheme,
+      chartSliceBorderColor,
+      accent500Color,
+      accent400Color,
+      accent300Color,
+      themeVersion
+    ]
   )
   const categoryDistributionEvents = useMemo(
     () => ({

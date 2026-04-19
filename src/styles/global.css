@@ -86,14 +86,16 @@
   }
 
   .theme-light .bg-zinc-950\/90,
+  .theme-light .bg-zinc-950\/80,
   .theme-light .bg-zinc-950\/70,
   .theme-light .bg-zinc-900\/90 {
     background-color: rgba(255, 255, 255, 0.92) !important;
   }
 
+  .theme-light .bg-zinc-900\/60,
   .theme-light .bg-zinc-900\/70,
   .theme-light .bg-zinc-900\/30 {
-    background-color: rgba(255, 255, 255, 0.7) !important;
+    background-color: rgba(255, 255, 255, 0.78) !important;
   }
 
   .theme-light .border-zinc-800,

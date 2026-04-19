@@ -126,7 +126,7 @@ export const CardInvoiceModal = ({
                 />
                 <div className="flex gap-2">
                   <button
-                    className="rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20"
+                    className="rounded-xl border border-emerald-500/60 bg-emerald-500/15 px-3 py-2 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20"
                     onClick={() => {
                       const totalInvoice = Math.max(parseCurrencyInput(manualAdjustmentInput), 0)
                       const nextManualAdjustment =
@@ -222,14 +222,14 @@ export const CardInvoiceModal = ({
             Adicionar gasto
           </button>
           <button
-            className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-medium text-white transition hover:bg-emerald-400"
+            className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-medium text-zinc-950 transition hover:bg-emerald-400"
             onClick={onMarkAsPaid}
             type="button"
           >
             Marcar como paga
           </button>
           <button
-            className="rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20"
+            className="rounded-xl border border-emerald-500/60 bg-emerald-500/15 px-3 py-2 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20"
             onClick={onOpenTransactions}
             type="button"
           >

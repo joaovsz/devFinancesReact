@@ -42,7 +42,7 @@ export const Modal = () => {
 
           <div className="flex justify-end gap-2 pt-2">
             <button className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-200" onClick={() => {}}>Cancelar</button>
-            <button className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-medium text-white" onClick={() => {}}>Salvar</button>
+            <button className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-medium text-zinc-950" onClick={() => {}}>Salvar</button>
           </div>
         </form>
       </div>
