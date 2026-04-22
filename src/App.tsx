@@ -31,6 +31,7 @@ function App() {
   const { isConfigured, isLoading, user, signOut } = useAuth()
   const location = useLocation()
   const isTransactionsRoute = location.pathname === "/transacoes"
+  const isLoginRoute = location.pathname === "/login"
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     const storedTheme = localStorage.getItem("devfinances-theme")
     return storedTheme === "light" ? "light" : "dark"
@@ -66,7 +67,6 @@ function App() {
 
   const isAuthRequired = isConfigured
   const isAuthenticated = Boolean(user)
-  const isLoginRoute = location.pathname === "/login"
 
   if (isAuthRequired && isLoading) {
     return (
@@ -83,6 +83,21 @@ function App() {
 
   if (isAuthRequired && !isAuthenticated && !isLoginRoute) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  }
+
+  if (isAuthRequired && !isAuthenticated && isLoginRoute) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-zinc-100">
+        <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col items-center justify-center px-4 py-10 md:px-8 xl:max-w-7xl xl:px-10 2xl:max-w-[1500px] 2xl:px-12">
+          <Routes>
+            <Route
+              path="/login"
+              element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+            />
+          </Routes>
+        </main>
+      </div>
+    )
   }
 
   return (
@@ -103,7 +118,10 @@ function App() {
         }`}
       >
         <Routes>
-          <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
+          <Route
+            path="/login"
+            element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+          />
           <Route path="/" element={<OverviewPage />} />
           <Route path="/transacoes" element={<TransactionsPage />} />
           <Route path="/cartoes" element={<Navigate to="/" replace />} />
@@ -121,8 +139,8 @@ function App() {
           />
         </Routes>
       </main>
-      {!isTransactionsRoute && <Footer />}
-      <MagicDock theme={theme} />
+      {!isTransactionsRoute && !isLoginRoute && <Footer />}
+      {!isLoginRoute && <MagicDock theme={theme} />}
     </div>
   )
 }
