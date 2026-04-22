@@ -7,12 +7,14 @@ import {
   AppStateSnapshots,
   buildAppStateSnapshots,
   persistSnapshotsLocally,
+  pullRemoteSnapshotIfNewer,
   pushSnapshotsToSupabase,
   syncFromSupabaseOnLogin
 } from "../services/supabase-sync"
 
 export function useSupabaseSync(user: User | null) {
   const timerRef = useRef<number | null>(null)
+  const pullTimerRef = useRef<number | null>(null)
   const pendingSnapshotsRef = useRef<AppStateSnapshots | null>(null)
   const isBootstrappingRef = useRef(false)
 
@@ -48,6 +50,20 @@ export function useSupabaseSync(user: User | null) {
       void pushSnapshotsToSupabase(user, snapshots)
     }
 
+    const pullRemoteUpdates = async () => {
+      if (isBootstrappingRef.current || pendingSnapshotsRef.current) {
+        return
+      }
+
+      const hasRemoteUpdate = await pullRemoteSnapshotIfNewer(user)
+      if (!hasRemoteUpdate) {
+        return
+      }
+
+      await useTransactionStore.persist.rehydrate()
+      await useGoalStore.persist.rehydrate()
+    }
+
     const schedulePush = () => {
       if (isBootstrappingRef.current) {
         return
@@ -75,7 +91,10 @@ export function useSupabaseSync(user: User | null) {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         flushPendingSnapshots()
+        return
       }
+
+      void pullRemoteUpdates()
     }
 
     const handlePageHide = () => {
@@ -84,11 +103,17 @@ export function useSupabaseSync(user: User | null) {
 
     document.addEventListener("visibilitychange", handleVisibilityChange)
     window.addEventListener("pagehide", handlePageHide)
+    pullTimerRef.current = window.setInterval(() => {
+      void pullRemoteUpdates()
+    }, 15000)
 
     return () => {
       isBootstrappingRef.current = false
       if (timerRef.current) {
         window.clearTimeout(timerRef.current)
+      }
+      if (pullTimerRef.current) {
+        window.clearInterval(pullTimerRef.current)
       }
       flushPendingSnapshots()
       document.removeEventListener("visibilitychange", handleVisibilityChange)

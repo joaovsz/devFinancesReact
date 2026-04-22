@@ -7,6 +7,7 @@ export const TRANSACTION_STORAGE_KEY = "devfinances-storage"
 export const GOALS_STORAGE_KEY = "devfinances-goals-storage"
 export const AUTH_USER_STORAGE_KEY = "devfinances-auth-user-id"
 const AUTH_BOOTSTRAP_RELOADED_PREFIX = "devfinances-auth-bootstrap-reloaded"
+const AUTH_LAST_SYNCED_AT_PREFIX = "devfinances-auth-last-synced-at"
 const TRANSACTION_STORAGE_VERSION = 28
 const GOALS_STORAGE_VERSION = 1
 
@@ -85,6 +86,53 @@ function getBootstrapReloadKey(userId: string) {
   return `${AUTH_BOOTSTRAP_RELOADED_PREFIX}:${userId}`
 }
 
+function getLastSyncedAtKey(userId: string) {
+  return `${AUTH_LAST_SYNCED_AT_PREFIX}:${userId}`
+}
+
+function getLastSyncedAt(userId: string) {
+  return localStorage.getItem(getLastSyncedAtKey(userId))
+}
+
+function setLastSyncedAt(userId: string, updatedAt: string) {
+  localStorage.setItem(getLastSyncedAtKey(userId), updatedAt)
+}
+
+function isRemoteNewer(userId: string, remoteUpdatedAt?: string) {
+  if (!remoteUpdatedAt) {
+    return false
+  }
+
+  const remoteEpoch = Date.parse(remoteUpdatedAt)
+  if (!Number.isFinite(remoteEpoch)) {
+    return false
+  }
+
+  const localUpdatedAt = getLastSyncedAt(userId)
+  if (!localUpdatedAt) {
+    return true
+  }
+
+  const localEpoch = Date.parse(localUpdatedAt)
+  if (!Number.isFinite(localEpoch)) {
+    return true
+  }
+
+  return remoteEpoch > localEpoch
+}
+
+function applyRemoteSnapshot(data: Pick<UserAppStateRow, "transaction_storage" | "goals_storage" | "updated_at">, userId: string) {
+  if (data.transaction_storage) {
+    localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(data.transaction_storage))
+  }
+  if (data.goals_storage) {
+    localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(data.goals_storage))
+  }
+  if (data.updated_at) {
+    setLastSyncedAt(userId, data.updated_at)
+  }
+}
+
 function buildTransactionStateSnapshot(state: TransactionStore) {
   return {
     bankAccounts: state.bankAccounts,
@@ -148,7 +196,7 @@ export async function syncFromSupabaseOnLogin(user: User) {
 
   const { data, error } = await supabase
     .from(TABLE_NAME)
-    .select("transaction_storage, goals_storage")
+    .select("transaction_storage, goals_storage, updated_at")
     .eq("user_id", user.id)
     .maybeSingle()
 
@@ -171,12 +219,7 @@ export async function syncFromSupabaseOnLogin(user: User) {
   }
 
   if (!localHasMeaningfulData && remoteHasMeaningfulData) {
-    if (data.transaction_storage) {
-      localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(data.transaction_storage))
-    }
-    if (data.goals_storage) {
-      localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(data.goals_storage))
-    }
+    applyRemoteSnapshot(data, user.id)
 
     const reloadKey = getBootstrapReloadKey(user.id)
     const hasReloadedThisSession = sessionStorage.getItem(reloadKey) === "1"
@@ -190,6 +233,17 @@ export async function syncFromSupabaseOnLogin(user: User) {
   // Keep backward compatibility for same-device usage where local state is intentionally ahead.
   if (localHasMeaningfulData && !remoteHasMeaningfulData) {
     await pushLocalStateToSupabase(user)
+    return
+  }
+
+  if (localHasMeaningfulData && remoteHasMeaningfulData && isRemoteNewer(user.id, data.updated_at)) {
+    applyRemoteSnapshot(data, user.id)
+    const reloadKey = getBootstrapReloadKey(user.id)
+    const hasReloadedThisSession = sessionStorage.getItem(reloadKey) === "1"
+    if (!hasReloadedThisSession) {
+      sessionStorage.setItem(reloadKey, "1")
+      window.location.reload()
+    }
     return
   }
 
@@ -217,7 +271,10 @@ export async function pushSnapshotsToSupabase(user: User, snapshots: AppStateSna
 
   if (error) {
     console.warn("Falha ao enviar snapshot para Supabase:", error.message)
+    return
   }
+
+  setLastSyncedAt(user.id, payload.updated_at)
 }
 
 export async function pushLocalStateToSupabase(user: User) {
@@ -228,4 +285,36 @@ export async function pushLocalStateToSupabase(user: User) {
     transactionStorage: transactionStorage || { state: {}, version: TRANSACTION_STORAGE_VERSION },
     goalsStorage: goalsStorage || { state: { goals: [] }, version: GOALS_STORAGE_VERSION }
   })
+}
+
+export async function pullRemoteSnapshotIfNewer(user: User) {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    return false
+  }
+
+  const { data, error } = await supabase
+    .from(TABLE_NAME)
+    .select("transaction_storage, goals_storage, updated_at")
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  if (error || !data) {
+    return false
+  }
+
+  const remoteHasMeaningfulData = hasMeaningfulSnapshots({
+    transactionStorage: data.transaction_storage || null,
+    goalsStorage: data.goals_storage || null
+  })
+  if (!remoteHasMeaningfulData) {
+    return false
+  }
+
+  if (!isRemoteNewer(user.id, data.updated_at)) {
+    return false
+  }
+
+  applyRemoteSnapshot(data, user.id)
+  return true
 }
