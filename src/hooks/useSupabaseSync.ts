@@ -39,10 +39,6 @@ export function useSupabaseSync(user: User | null) {
     }
 
     const flushPendingSnapshots = () => {
-      if (!pendingSnapshotsRef.current) {
-        queueSnapshots()
-      }
-
       const snapshots = pendingSnapshotsRef.current
       if (!snapshots) {
         return
