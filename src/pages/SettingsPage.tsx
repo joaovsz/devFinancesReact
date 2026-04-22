@@ -53,10 +53,7 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
   const [statusMessage, setStatusMessage] = useState("")
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("appearance")
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const isLocalhost =
-    typeof window !== "undefined" &&
-    ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
-  const canImportBackup = import.meta.env.DEV || isLocalhost
+  const canLoadMockData = import.meta.env.DEV
   const loadMockData = useTransactionStore((state) => state.loadMockData)
   const clearAllData = useTransactionStore((state) => state.clearAllData)
   const loadMockGoals = useGoalStore((state) => state.loadMockGoals)
@@ -228,21 +225,14 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
             >
               Exportar backup (.json)
             </button>
-            {canImportBackup && (
-              <button
-                className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-medium text-zinc-950 transition hover:bg-emerald-400"
-                onClick={openImportDialog}
-                type="button"
-              >
-                Importar backup (.json)
-              </button>
-            )}
+            <button
+              className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-medium text-zinc-950 transition hover:bg-emerald-400"
+              onClick={openImportDialog}
+              type="button"
+            >
+              Importar backup (.json)
+            </button>
           </div>
-          {!canImportBackup && (
-            <p className="mt-3 text-xs text-zinc-500">
-              Importação disponível apenas em execução local.
-            </p>
-          )}
         </div>
       )}
 
@@ -250,13 +240,15 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
         <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
           <p className="text-xs uppercase tracking-wide text-zinc-400">Ferramentas de manutenção</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <button
-              className="rounded-xl border border-emerald-500/60 bg-emerald-500/15 px-4 py-2.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/25"
-              onClick={fillWithMockData}
-              type="button"
-            >
-              Carregar dados mock
-            </button>
+            {canLoadMockData && (
+              <button
+                className="rounded-xl border border-emerald-500/60 bg-emerald-500/15 px-4 py-2.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/25"
+                onClick={fillWithMockData}
+                type="button"
+              >
+                Carregar dados mock
+              </button>
+            )}
             <button
               className="rounded-xl border border-rose-500/60 bg-rose-500/15 px-4 py-2.5 text-sm font-medium text-rose-100 transition hover:bg-rose-500/25"
               onClick={resetAllLocalData}
@@ -268,15 +260,13 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
         </div>
       )}
 
-      {canImportBackup && (
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/json,.json"
-          className="hidden"
-          onChange={importBackup}
-        />
-      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={importBackup}
+      />
 
       {statusMessage && <p className="mt-3 text-xs text-zinc-400">{statusMessage}</p>}
     </section>
