@@ -1,5 +1,7 @@
 import { ChangeEvent, useRef, useState } from "react"
 import type { ColorTheme } from "../App"
+import { getSupabaseClient, isSupabaseConfigured } from "../lib/supabase"
+import { pushLocalStateToSupabase } from "../services/supabase-sync"
 import { useGoalStore } from "../store/useGoalStore"
 import { useTransactionStore } from "../store/useTransactionStore"
 
@@ -91,7 +93,7 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
     }
 
     const reader = new FileReader()
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const text = String(reader.result || "")
         const parsed = JSON.parse(text) as { state?: unknown; version?: number } | unknown
@@ -105,6 +107,15 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
         }
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+        if (isSupabaseConfigured) {
+          const supabase = getSupabaseClient()
+          const {
+            data: { session }
+          } = await supabase!.auth.getSession()
+          if (session?.user) {
+            await pushLocalStateToSupabase(session.user)
+          }
+        }
         setStatusMessage("Backup importado. Recarregando aplicação...")
         window.setTimeout(() => window.location.assign("/"), 350)
       } catch {
