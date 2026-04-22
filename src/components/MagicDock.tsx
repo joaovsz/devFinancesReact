@@ -37,13 +37,13 @@ export const MagicDock = ({ theme }: MagicDockProps) => {
         }}
       />
       <div
-        className={`fixed bottom-4 left-1/2 z-40 w-[calc(100vw-1rem)] max-w-fit -translate-x-1/2 overflow-x-auto rounded-2xl border p-1.5 shadow-2xl backdrop-blur sm:p-2 ${
+        className={`fixed bottom-4 left-1/2 z-40 w-[calc(100vw-1rem)] max-w-[520px] -translate-x-1/2 overflow-hidden rounded-2xl border p-1.5 shadow-2xl backdrop-blur sm:p-2 ${
           theme === "dark"
             ? "border-zinc-700/80 bg-zinc-900/90 shadow-zinc-950/40"
             : "border-zinc-300/80 bg-white/90 shadow-zinc-300/40"
         }`}
       >
-        <div className="flex min-w-max items-center gap-1.5 sm:gap-2">
+        <div className="grid w-full grid-cols-6 items-center gap-1.5 sm:gap-2">
           {dockItems.map((item) => {
             const Icon = item.icon
             return (
@@ -52,7 +52,7 @@ export const MagicDock = ({ theme }: MagicDockProps) => {
                   <motion.div
                     whileHover={{ y: -4, scale: 1.03 }}
                     whileTap={{ scale: 0.96 }}
-                    className={`flex h-13 min-w-14 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 transition sm:h-14 sm:min-w-20 sm:px-2 ${
+                    className={`flex h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1 transition sm:h-14 sm:px-2 ${
                       isActive
                         ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
                         : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:text-zinc-100"
@@ -60,7 +60,7 @@ export const MagicDock = ({ theme }: MagicDockProps) => {
                     title={item.label}
                   >
                     <Icon size={18} />
-                    <span className="max-w-12 truncate text-[9px] font-medium leading-none sm:max-w-20 sm:text-xs">
+                    <span className="hidden max-w-20 truncate text-xs font-medium leading-none md:block">
                       {item.label}
                     </span>
                   </motion.div>
