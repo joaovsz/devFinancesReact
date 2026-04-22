@@ -197,11 +197,14 @@ export function useGoalCashflowStatus(): GoalCashflowStatus {
       holidays: holidaysForMonth
     })
   }, [
+    contractConfig.cltPaydayDate,
     contractConfig.cltNetSalary,
+    contractConfig.cltCompetenceOffsetMonths,
     contractConfig.hourlyRate,
     contractConfig.hoursPerWorkday,
     contractConfig.incomeMode,
     contractConfig.pjPaydayDate,
+    contractConfig.pjCompetenceOffsetMonths,
     holidaysForMonth,
     monthKey
   ])

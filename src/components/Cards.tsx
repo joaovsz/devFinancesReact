@@ -225,7 +225,10 @@ export const Cards = () => {
               transaction.paymentMethod === "credit" &&
               transaction.cardId === card.id &&
               (!card.paidThroughMonth ||
-                isMonthKeyAfter(dateToMonthKey(transaction.date), card.paidThroughMonth))
+                isMonthKeyAfter(
+                  getCreditTransactionDueMonth(transaction.date, card),
+                  card.paidThroughMonth
+                ))
           )
           .reduce((sum, transaction) => sum + transaction.value, 0)
 
@@ -237,7 +240,10 @@ export const Cards = () => {
               transaction.cardId === card.id &&
               getCreditTransactionDueMonth(transaction.date, card) === monthKey &&
               (!card.paidThroughMonth ||
-                isMonthKeyAfter(dateToMonthKey(transaction.date), card.paidThroughMonth))
+                isMonthKeyAfter(
+                  getCreditTransactionDueMonth(transaction.date, card),
+                  card.paidThroughMonth
+                ))
           )
           .reduce((sum, transaction) => sum + transaction.value, 0)
 
@@ -249,7 +255,7 @@ export const Cards = () => {
           .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === card.id)
           .reduce(
             (sum, plan) =>
-              sum + getInstallmentTotalForMonth([plan], addMonths(monthKey, -1)),
+              sum + getInstallmentTotalForMonth([plan], monthKey),
             0
           )
 
@@ -900,7 +906,7 @@ export const Cards = () => {
               Nenhuma fatura ativa neste mês.
             </div>
           )}
-          {invoiceDistributionByCard.slice(0, 4).map((card) => (
+          {invoiceDistributionByCard.map((card) => (
             <div
               key={`invoice-summary-${card.id}`}
               className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 text-xs last:border-b-0"

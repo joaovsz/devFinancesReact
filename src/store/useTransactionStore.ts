@@ -242,6 +242,14 @@ function sanitizePjPaydayDate(value?: string) {
   return getTodayIsoDate()
 }
 
+function sanitizeCompetenceOffsetMonths(value?: number) {
+  if (!Number.isFinite(value)) {
+    return 0
+  }
+
+  return Math.min(Math.max(Math.round(value || 0), 0), 12)
+}
+
 function sanitizeBankAccount(account: BankAccount, fallback?: BankAccount): BankAccount {
   const safeBalance = Number.isFinite(account.balance)
     ? Math.max(account.balance, 0)
@@ -799,6 +807,12 @@ export const useTransactionStore = create<TransactionStore>()(
             ),
             pjPaydayDate: sanitizePjPaydayDate(
               config.pjPaydayDate || state.contractConfig.pjPaydayDate
+            ),
+            cltCompetenceOffsetMonths: sanitizeCompetenceOffsetMonths(
+              config.cltCompetenceOffsetMonths ?? state.contractConfig.cltCompetenceOffsetMonths
+            ),
+            pjCompetenceOffsetMonths: sanitizeCompetenceOffsetMonths(
+              config.pjCompetenceOffsetMonths ?? state.contractConfig.pjCompetenceOffsetMonths
             )
           }
         })),
@@ -864,7 +878,7 @@ export const useTransactionStore = create<TransactionStore>()(
     }),
     {
       name: "devfinances-storage",
-      version: 27,
+      version: 28,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState, version) => {
         if (!persistedState || typeof persistedState !== "object") {
@@ -1282,6 +1296,29 @@ export const useTransactionStore = create<TransactionStore>()(
               transactions: state.transactions || [],
               fixedCosts: state.fixedCosts || [],
               installmentPlans: state.installmentPlans || []
+            })
+          }
+        }
+
+        if (version < 28) {
+          const state = persistedState as TransactionStore
+          const cards = (state.cards || []).map((card) => sanitizeCard(card))
+          const transactions = state.transactions || []
+          const fixedCosts = state.fixedCosts || []
+          const installmentPlans = (state.installmentPlans || []).map((plan) =>
+            sanitizeInstallmentPlan(plan)
+          )
+          return {
+            ...state,
+            cards,
+            transactions,
+            fixedCosts,
+            installmentPlans,
+            ...calculateTotals({
+              cards,
+              transactions,
+              fixedCosts,
+              installmentPlans
             })
           }
         }

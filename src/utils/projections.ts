@@ -63,9 +63,21 @@ function getDayFromDate(dateString?: string) {
   return Math.round(day)
 }
 
+function sanitizeCompetenceOffsetMonths(value?: number) {
+  if (!Number.isFinite(value)) {
+    return 0
+  }
+
+  return Math.min(Math.max(Math.round(value || 0), 0), 12)
+}
+
 export function getCltIncomeDateForMonth(contractConfig: ContractConfig, monthKey: string) {
+  const competenceOffsetMonths = sanitizeCompetenceOffsetMonths(
+    contractConfig.cltCompetenceOffsetMonths
+  )
+  const receiptMonth = addMonths(monthKey, competenceOffsetMonths)
   const payday = getDayFromDate(contractConfig.cltPaydayDate) || 5
-  return buildMonthDate(monthKey, payday)
+  return buildMonthDate(receiptMonth, payday)
 }
 
 export function getCltProjectedRevenueForMonth(contractConfig: ContractConfig, monthKey: string) {
@@ -74,7 +86,13 @@ export function getCltProjectedRevenueForMonth(contractConfig: ContractConfig, m
     return 0
   }
 
-  const startMonth = dateToMonthKey(contractConfig.cltPaydayDate)
+  const competenceOffsetMonths = sanitizeCompetenceOffsetMonths(
+    contractConfig.cltCompetenceOffsetMonths
+  )
+  const startMonth = addMonths(
+    dateToMonthKey(contractConfig.cltPaydayDate),
+    -competenceOffsetMonths
+  )
   if (isMonthKeyAfter(startMonth, monthKey)) {
     return 0
   }
@@ -83,8 +101,12 @@ export function getCltProjectedRevenueForMonth(contractConfig: ContractConfig, m
 }
 
 export function getPjIncomeDateForMonth(contractConfig: ContractConfig, monthKey: string) {
+  const competenceOffsetMonths = sanitizeCompetenceOffsetMonths(
+    contractConfig.pjCompetenceOffsetMonths
+  )
+  const receiptMonth = addMonths(monthKey, competenceOffsetMonths)
   const payday = getDayFromDate(contractConfig.pjPaydayDate) || 5
-  return buildMonthDate(monthKey, payday)
+  return buildMonthDate(receiptMonth, payday)
 }
 
 export function getPjProjectedRevenueForMonth(input: {
@@ -92,7 +114,13 @@ export function getPjProjectedRevenueForMonth(input: {
   monthKey: string
   holidays: Holiday[]
 }) {
-  const startMonth = dateToMonthKey(input.contractConfig.pjPaydayDate)
+  const competenceOffsetMonths = sanitizeCompetenceOffsetMonths(
+    input.contractConfig.pjCompetenceOffsetMonths
+  )
+  const startMonth = addMonths(
+    dateToMonthKey(input.contractConfig.pjPaydayDate),
+    -competenceOffsetMonths
+  )
   if (isMonthKeyAfter(startMonth, input.monthKey)) {
     return 0
   }
@@ -264,19 +292,13 @@ export function getCommittedCostsForMonth(input: {
 
     const creditFixedCostsTotal = input.fixedCosts
       .filter((cost) => cost.paymentMethod === "credit" && cost.cardId === card.id)
-      .reduce((total, cost) => {
-        const sourceMonth = addMonths(input.monthKey, -1)
-        const chargeDate = buildMonthDate(sourceMonth, card.closeDay)
-        return getCreditTransactionDueMonth(chargeDate, card) === input.monthKey
-          ? total + cost.amount
-          : total
-      }, 0)
+      .reduce((total, cost) => total + cost.amount, 0)
 
     const creditInstallmentsTotal = getInstallmentTotalForMonth(
       input.installmentPlans.filter(
         (plan) => plan.paymentMethod === "credit" && plan.cardId === card.id
       ),
-      addMonths(input.monthKey, -1)
+      input.monthKey
     )
 
     const creditTransactionsTotal = (input.transactions || [])

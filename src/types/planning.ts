@@ -29,6 +29,8 @@ export type ContractConfig = {
   cltNetSalary: number
   cltPaydayDate: string
   pjPaydayDate: string
+  cltCompetenceOffsetMonths?: number
+  pjCompetenceOffsetMonths?: number
   localityState: string
   localityCity: string
   useHolidayApi: boolean

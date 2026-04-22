@@ -28,6 +28,10 @@ const paymentMethodOptions: Array<{ value: PaymentMethod; label: string }> = [
   { value: "cash-money", label: "Dinheiro" },
   { value: "credit", label: "Cartão de crédito" }
 ]
+const competenceOffsetOptions = [
+  { value: 0, label: "Mesmo mês do recebimento" },
+  { value: 1, label: "Mês anterior" }
+]
 
 type PlanningPageProps = {
   embedded?: boolean
@@ -484,6 +488,23 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     }
                   />
                 </label>
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
+                  Mês de competência PJ
+                  <SelectField
+                    value={String(contractConfig.pjCompetenceOffsetMonths || 0)}
+                    onChange={(event) =>
+                      updateContractConfig({
+                        pjCompetenceOffsetMonths: Number(event.target.value || 0)
+                      })
+                    }
+                  >
+                    {competenceOffsetOptions.map((option) => (
+                      <option key={`pj-competence-${option.value}`} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </SelectField>
+                </label>
               </>
             ) : (
               <>
@@ -512,6 +533,23 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                       updateContractConfig({ cltPaydayDate: event.target.value })
                     }
                   />
+                </label>
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
+                  Mês de competência CLT
+                  <SelectField
+                    value={String(contractConfig.cltCompetenceOffsetMonths || 0)}
+                    onChange={(event) =>
+                      updateContractConfig({
+                        cltCompetenceOffsetMonths: Number(event.target.value || 0)
+                      })
+                    }
+                  >
+                    {competenceOffsetOptions.map((option) => (
+                      <option key={`clt-competence-${option.value}`} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </SelectField>
                 </label>
               </>
             )}

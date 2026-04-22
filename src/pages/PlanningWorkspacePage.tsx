@@ -72,9 +72,12 @@ export const PlanningWorkspacePage = () => {
   }, [
     contractConfig.incomeMode,
     contractConfig.cltNetSalary,
+    contractConfig.cltPaydayDate,
+    contractConfig.cltCompetenceOffsetMonths,
     contractConfig.hoursPerWorkday,
     contractConfig.hourlyRate,
     contractConfig.pjPaydayDate,
+    contractConfig.pjCompetenceOffsetMonths,
     currentMonth,
     holidays
   ])
