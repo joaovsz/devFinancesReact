@@ -5,9 +5,11 @@ import Logo from "./icons/Logo"
 type HeaderProps = {
   theme: "dark" | "light"
   onToggleTheme: () => void
+  userEmail?: string
+  onSignOut?: () => void
 }
 
-export const Header = ({ theme, onToggleTheme }: HeaderProps) => {
+export const Header = ({ theme, onToggleTheme, userEmail, onSignOut }: HeaderProps) => {
   return (
     <header className="bg-zinc-950">
       <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-4 md:px-8 xl:max-w-7xl xl:px-10 2xl:max-w-[1500px] 2xl:px-12">
@@ -26,6 +28,18 @@ export const Header = ({ theme, onToggleTheme }: HeaderProps) => {
           {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
         </motion.button>
         <Logo className="text-zinc-100" />
+        {userEmail && (
+          <div className="ml-auto flex items-center gap-2">
+            <span className="hidden text-xs text-zinc-400 sm:inline">{userEmail}</span>
+            <button
+              type="button"
+              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 transition hover:border-zinc-500"
+              onClick={onSignOut}
+            >
+              Sair
+            </button>
+          </div>
+        )}
       </div>
     </header>
   )
