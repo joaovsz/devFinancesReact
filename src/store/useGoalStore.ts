@@ -11,7 +11,7 @@ import {
 } from "../utils/projections"
 import { useTransactionStore } from "./useTransactionStore"
 
-type GoalStore = {
+export type GoalStore = {
   goals: Goal[]
   addGoal: (goal: GoalInput) => void
   updateGoal: (goal: Goal) => void

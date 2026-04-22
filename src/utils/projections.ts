@@ -143,6 +143,16 @@ export function getCreditTransactionDueMonth(transactionDate: string, card: Cred
   return day <= card.closeDay ? addMonths(purchaseMonth, 1) : addMonths(purchaseMonth, 2)
 }
 
+export function getCreditTransactionStatementMonth(transactionDate: string, card: CreditCard) {
+  const [year, month, day] = transactionDate.split("-").map(Number)
+  if (!year || !month || !day) {
+    return dateToMonthKey(transactionDate)
+  }
+
+  const purchaseMonth = `${year}-${String(month).padStart(2, "0")}`
+  return day <= card.closeDay ? purchaseMonth : addMonths(purchaseMonth, 1)
+}
+
 export function getFixedCostsTotal(fixedCosts: FixedCost[]) {
   return fixedCosts.reduce((total, cost) => total + cost.amount, 0)
 }
