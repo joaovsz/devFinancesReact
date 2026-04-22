@@ -6,6 +6,7 @@ import { TransactionStore } from "../store/useTransactionStore"
 export const TRANSACTION_STORAGE_KEY = "devfinances-storage"
 export const GOALS_STORAGE_KEY = "devfinances-goals-storage"
 export const AUTH_USER_STORAGE_KEY = "devfinances-auth-user-id"
+const AUTH_BOOTSTRAP_RELOADED_PREFIX = "devfinances-auth-bootstrap-reloaded"
 const TRANSACTION_STORAGE_VERSION = 28
 const GOALS_STORAGE_VERSION = 1
 
@@ -44,13 +45,12 @@ function getArrayLength(value: unknown) {
   return Array.isArray(value) ? value.length : 0
 }
 
-function hasMeaningfulLocalData() {
-  const transactionStorage = parseStorageValue(localStorage.getItem(TRANSACTION_STORAGE_KEY)) as
-    | { state?: Record<string, unknown> }
-    | null
-  const goalsStorage = parseStorageValue(localStorage.getItem(GOALS_STORAGE_KEY)) as
-    | { state?: Record<string, unknown> }
-    | null
+function hasMeaningfulSnapshots(input: {
+  transactionStorage: unknown
+  goalsStorage: unknown
+}) {
+  const transactionStorage = input.transactionStorage as { state?: Record<string, unknown> } | null
+  const goalsStorage = input.goalsStorage as { state?: Record<string, unknown> } | null
 
   const transactionState = transactionStorage?.state || {}
   const goalsState = goalsStorage?.state || {}
@@ -65,6 +65,24 @@ function hasMeaningfulLocalData() {
   const goalItemsCount = getArrayLength(goalsState.goals)
 
   return transactionItemsCount > 0 || goalItemsCount > 0
+}
+
+function hasMeaningfulLocalData() {
+  const transactionStorage = parseStorageValue(localStorage.getItem(TRANSACTION_STORAGE_KEY)) as
+    | { state?: Record<string, unknown> }
+    | null
+  const goalsStorage = parseStorageValue(localStorage.getItem(GOALS_STORAGE_KEY)) as
+    | { state?: Record<string, unknown> }
+    | null
+
+  return hasMeaningfulSnapshots({
+    transactionStorage,
+    goalsStorage
+  })
+}
+
+function getBootstrapReloadKey(userId: string) {
+  return `${AUTH_BOOTSTRAP_RELOADED_PREFIX}:${userId}`
 }
 
 function buildTransactionStateSnapshot(state: TransactionStore) {
@@ -124,6 +142,7 @@ export async function syncFromSupabaseOnLogin(user: User) {
   const isSwitchingUser = Boolean(previousUserId && previousUserId !== user.id)
   if (isSwitchingUser) {
     clearLocalAppData()
+    sessionStorage.removeItem(getBootstrapReloadKey(previousUserId as string))
   }
   localStorage.setItem(AUTH_USER_STORAGE_KEY, user.id)
 
@@ -138,26 +157,45 @@ export async function syncFromSupabaseOnLogin(user: User) {
     return
   }
 
+  const remoteHasMeaningfulData = hasMeaningfulSnapshots({
+    transactionStorage: data?.transaction_storage || null,
+    goalsStorage: data?.goals_storage || null
+  })
+  const localHasMeaningfulData = hasMeaningfulLocalData()
+
   if (!data) {
-    if (hasMeaningfulLocalData()) {
+    if (localHasMeaningfulData) {
       await pushLocalStateToSupabase(user)
     }
     return
   }
 
-  if (!hasMeaningfulLocalData()) {
+  if (!localHasMeaningfulData && remoteHasMeaningfulData) {
     if (data.transaction_storage) {
       localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(data.transaction_storage))
     }
     if (data.goals_storage) {
       localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(data.goals_storage))
     }
-    window.location.reload()
+
+    const reloadKey = getBootstrapReloadKey(user.id)
+    const hasReloadedThisSession = sessionStorage.getItem(reloadKey) === "1"
+    if (!hasReloadedThisSession) {
+      sessionStorage.setItem(reloadKey, "1")
+      window.location.reload()
+    }
     return
   }
 
   // Keep backward compatibility for same-device usage where local state is intentionally ahead.
-  await pushLocalStateToSupabase(user)
+  if (localHasMeaningfulData && !remoteHasMeaningfulData) {
+    await pushLocalStateToSupabase(user)
+    return
+  }
+
+  if (localHasMeaningfulData) {
+    await pushLocalStateToSupabase(user)
+  }
 }
 
 export async function pushSnapshotsToSupabase(user: User, snapshots: AppStateSnapshots) {
