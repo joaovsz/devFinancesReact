@@ -27,6 +27,7 @@ import {
   addMonths,
   dateToMonthKey,
   getCreditTransactionDueMonth,
+  getCreditTransactionStatementMonth,
   getCurrentMonthKey,
   getInstallmentRemainingTotal,
   getInstallmentTotalForMonth,
@@ -238,7 +239,7 @@ export const Cards = () => {
               transaction.type === 2 &&
               transaction.paymentMethod === "credit" &&
               transaction.cardId === card.id &&
-              getCreditTransactionDueMonth(transaction.date, card) === monthKey &&
+              getCreditTransactionStatementMonth(transaction.date, card) === monthKey &&
               (!card.paidThroughMonth ||
                 isMonthKeyAfter(
                   getCreditTransactionDueMonth(transaction.date, card),
@@ -312,7 +313,7 @@ export const Cards = () => {
             transaction.type === 2 &&
             transaction.paymentMethod === "credit" &&
             transaction.cardId === invoiceCardId &&
-            getCreditTransactionDueMonth(transaction.date, selectedCard) === currentMonth
+            getCreditTransactionStatementMonth(transaction.date, selectedCard) === currentMonth
         )
         .sort((left, right) => right.date.localeCompare(left.date))
     },
