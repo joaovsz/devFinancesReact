@@ -9,9 +9,6 @@ import { ProjectionsPage } from "./pages/ProjectionsPage"
 import { PlanningPage } from "./pages/PlanningPage"
 import { GoalsPage } from "./pages/GoalsPage"
 import { SettingsPage } from "./pages/SettingsPage"
-import { useAuth } from "./context/AuthContext"
-import { LoginPage } from "./components/auth/LoginPage"
-import { useSupabaseSync } from "./hooks/useSupabaseSync"
 
 export type ColorTheme =
   | "indigo-calm"
@@ -30,8 +27,6 @@ const COLOR_THEME_CLASSNAMES: Record<ColorTheme, string> = {
 function App() {
   const location = useLocation()
   const isTransactionsRoute = location.pathname === "/transacoes"
-  const { user, loading, signOut } = useAuth()
-  useSupabaseSync(user)
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     const storedTheme = localStorage.getItem("devfinances-theme")
     return storedTheme === "light" ? "light" : "dark"
@@ -63,22 +58,6 @@ function App() {
     localStorage.setItem(COLOR_THEME_STORAGE_KEY, colorTheme)
   }, [colorTheme])
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-300">
-        Carregando sessão...
-      </div>
-    )
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100">
-        <LoginPage />
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <Header
@@ -86,8 +65,6 @@ function App() {
         onToggleTheme={() =>
           setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"))
         }
-        userEmail={user.email || undefined}
-        onSignOut={() => signOut()}
       />
       <main
         className={`mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pt-2 md:px-8 md:pt-4 xl:max-w-7xl xl:gap-10 xl:px-10 2xl:max-w-[1500px] 2xl:px-12 ${
