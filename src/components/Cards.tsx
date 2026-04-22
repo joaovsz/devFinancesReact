@@ -51,8 +51,6 @@ import { DismissibleInfoCard } from "./ui/DismissibleInfoCard"
 import { CardInvoiceModal } from "./cards/CardInvoiceModal"
 import { defaultCategories } from "../data/categories"
 import { echarts } from "../utils/echarts"
-import { useAuth } from "../context/AuthContext"
-import { pushLocalStateToSupabase } from "../services/supabase-sync"
 
 type InvoicePlannedItem = {
   id: string
@@ -69,7 +67,6 @@ type CategoryExpenseBucket = {
 
 export const Cards = () => {
   const navigate = useNavigate()
-  const { user } = useAuth()
   const cards = useTransactionStore((state) => state.cards)
   const transactions = useTransactionStore((state) => state.transactions)
   const fixedCosts = useTransactionStore((state) => state.fixedCosts)
@@ -755,11 +752,6 @@ export const Cards = () => {
       ...card,
       manualInvoiceAmount: Math.max(value, 0)
     })
-    if (user) {
-      window.setTimeout(() => {
-        pushLocalStateToSupabase(user)
-      }, 900)
-    }
   }
 
   function removeManualInvoiceAdjustment(cardId: string) {
@@ -775,11 +767,6 @@ export const Cards = () => {
     }
 
     markCardInvoiceAsPaid(card.id, currentMonth)
-    if (user) {
-      window.setTimeout(() => {
-        pushLocalStateToSupabase(user)
-      }, 900)
-    }
     closeCardInvoice()
   }
 
@@ -804,7 +791,7 @@ export const Cards = () => {
         </div>
       </article>
 
-      <article className="order-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:order-none lg:col-span-3">
+      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs uppercase tracking-wide text-zinc-400">Crédito usado</span>
           <CreditCard size={16} className="text-zinc-500" />
@@ -821,7 +808,7 @@ export const Cards = () => {
         </p>
       </article>
 
-      <article className="order-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:order-none lg:col-span-3">
+      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs uppercase tracking-wide text-zinc-400">Movimentação</span>
           <Wallet size={16} className="text-zinc-500" />
@@ -837,7 +824,7 @@ export const Cards = () => {
         </Link>
       </article>
 
-      <article className="order-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:order-none lg:col-span-8">
+      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-8">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">
@@ -958,7 +945,7 @@ export const Cards = () => {
         </div>
       </article>
 
-      <article className="order-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:order-none lg:col-span-8">
+      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-8">
         <DismissibleInfoCard
           storageKey="info-card-credit-cards"
           title="Como usar Meus Cartões"
