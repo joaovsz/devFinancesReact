@@ -9,8 +9,7 @@ import { formatCurrency } from "../Transactions"
 import { bankPresets, BankPreset } from "../../data/banks"
 import { NumberTicker } from "../magic/NumberTicker"
 import {
-  addMonths,
-  getCreditTransactionDueMonth,
+  getCreditTransactionStatementMonth,
   getCurrentMonthKey,
   getInstallmentRemainingTotal,
   getInstallmentTotalForMonth
@@ -130,7 +129,7 @@ export const CreditCardsPanel = ({
           transaction.type === 2 &&
           transaction.paymentMethod === "credit" &&
           transaction.cardId === currentCardId &&
-          getCreditTransactionDueMonth(transaction.date, selectedCard) === monthKey
+          getCreditTransactionStatementMonth(transaction.date, selectedCard) === monthKey
       )
       .reduce((totalValue, transaction) => totalValue + transaction.value, 0)
 
@@ -154,13 +153,12 @@ export const CreditCardsPanel = ({
           return false
         }
 
-        return getCreditTransactionDueMonth(transaction.date, card) === monthKey
+        return getCreditTransactionStatementMonth(transaction.date, card) === monthKey
       })
       .reduce((totalValue, transaction) => totalValue + transaction.value, 0)
 
     const plannedCardsTotal = cards.reduce(
-      (totalValue, card) =>
-        totalValue + calculatePlannedCardUsageForMonth(card.id, addMonths(monthKey, -1)),
+      (totalValue, card) => totalValue + calculatePlannedCardUsageForMonth(card.id, monthKey),
       0
     )
 

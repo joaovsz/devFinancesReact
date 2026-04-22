@@ -186,14 +186,8 @@ const Transactions = ({
   }
 
   function saveEditById(rowId: string) {
-    const transaction = transactions.find((item) => item.id === rowId)
-    if (!transaction) {
-      const manualEntry = manualInvoiceEntries.find((item) => item.id === rowId)
-      if (!manualEntry) {
-        setEditingId(null)
-        return
-      }
-
+    const manualEntry = manualInvoiceEntries.find((item) => item.id === rowId)
+    if (manualEntry) {
       const card = cards.find((item) => item.id === manualEntry.cardId)
       if (!card) {
         setEditingId(null)
@@ -224,6 +218,12 @@ const Transactions = ({
         name: draft.label.trim() || targetCost.name,
         amount: parsedValue > 0 ? parsedValue : targetCost.amount
       })
+      setEditingId(null)
+      return
+    }
+
+    const transaction = transactions.find((item) => item.id === rowId)
+    if (!transaction) {
       setEditingId(null)
       return
     }

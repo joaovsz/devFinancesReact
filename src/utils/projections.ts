@@ -317,7 +317,7 @@ export function getCommittedCostsForMonth(input: {
           transaction.type === 2 &&
           transaction.paymentMethod === "credit" &&
           transaction.cardId === card.id &&
-          getCreditTransactionDueMonth(transaction.date, card) === input.monthKey
+          getCreditTransactionStatementMonth(transaction.date, card) === input.monthKey
       )
       .reduce((total, transaction) => total + transaction.value, 0)
 
