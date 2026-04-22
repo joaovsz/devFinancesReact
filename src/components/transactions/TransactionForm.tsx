@@ -10,7 +10,6 @@ type TransactionFormProps = {
   categories: Category[]
   cards: CreditCard[]
   initialCreditCardId?: string
-  existingTransactions: Transaction[]
   onSubmitTransaction: (transaction: Transaction) => void
 }
 
@@ -69,7 +68,6 @@ export const TransactionForm = ({
   categories,
   cards,
   initialCreditCardId,
-  existingTransactions,
   onSubmitTransaction
 }: TransactionFormProps) => {
   const [label, setLabel] = useState("")
@@ -225,18 +223,6 @@ export const TransactionForm = ({
     const fallbackLabel =
       selectedCategory.subcategories.find((subcategory) => subcategory.id === subcategoryId)
         ?.name || selectedCategory.name
-
-    const duplicateTransaction = existingTransactions.some(
-      (transaction) =>
-        transaction.categoryId === categoryId &&
-        transaction.subcategoryId === subcategoryId &&
-        transaction.value === amountCents / 100
-    )
-
-    if (duplicateTransaction) {
-      alert("Já existe uma transação com a mesma categoria e o mesmo valor.")
-      return
-    }
 
     onSubmitTransaction({
       id: crypto.randomUUID(),

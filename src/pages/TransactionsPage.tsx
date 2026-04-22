@@ -135,7 +135,6 @@ export const TransactionsPage = () => {
           categories={defaultCategories}
           cards={cards}
           initialCreditCardId={quickAddCreditCardId}
-          existingTransactions={transactions}
           onSubmitTransaction={addTransaction}
         />
       </div>
