@@ -40,8 +40,31 @@ function parseStorageValue(raw: string | null) {
   }
 }
 
-function hasLocalData() {
-  return Boolean(localStorage.getItem(TRANSACTION_STORAGE_KEY))
+function getArrayLength(value: unknown) {
+  return Array.isArray(value) ? value.length : 0
+}
+
+function hasMeaningfulLocalData() {
+  const transactionStorage = parseStorageValue(localStorage.getItem(TRANSACTION_STORAGE_KEY)) as
+    | { state?: Record<string, unknown> }
+    | null
+  const goalsStorage = parseStorageValue(localStorage.getItem(GOALS_STORAGE_KEY)) as
+    | { state?: Record<string, unknown> }
+    | null
+
+  const transactionState = transactionStorage?.state || {}
+  const goalsState = goalsStorage?.state || {}
+
+  const transactionItemsCount =
+    getArrayLength(transactionState.transactions) +
+    getArrayLength(transactionState.fixedCosts) +
+    getArrayLength(transactionState.installmentPlans) +
+    getArrayLength(transactionState.cards) +
+    getArrayLength(transactionState.bankAccounts)
+
+  const goalItemsCount = getArrayLength(goalsState.goals)
+
+  return transactionItemsCount > 0 || goalItemsCount > 0
 }
 
 function buildTransactionStateSnapshot(state: TransactionStore) {
@@ -116,13 +139,13 @@ export async function syncFromSupabaseOnLogin(user: User) {
   }
 
   if (!data) {
-    if (hasLocalData()) {
+    if (hasMeaningfulLocalData()) {
       await pushLocalStateToSupabase(user)
     }
     return
   }
 
-  if (!hasLocalData()) {
+  if (!hasMeaningfulLocalData()) {
     if (data.transaction_storage) {
       localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(data.transaction_storage))
     }
@@ -133,6 +156,7 @@ export async function syncFromSupabaseOnLogin(user: User) {
     return
   }
 
+  // Keep backward compatibility for same-device usage where local state is intentionally ahead.
   await pushLocalStateToSupabase(user)
 }
 

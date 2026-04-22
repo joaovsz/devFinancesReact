@@ -14,13 +14,17 @@ import {
 export function useSupabaseSync(user: User | null) {
   const timerRef = useRef<number | null>(null)
   const pendingSnapshotsRef = useRef<AppStateSnapshots | null>(null)
+  const isBootstrappingRef = useRef(false)
 
   useEffect(() => {
     if (!user || !isSupabaseConfigured) {
       return
     }
 
-    void syncFromSupabaseOnLogin(user)
+    isBootstrappingRef.current = true
+    void syncFromSupabaseOnLogin(user).finally(() => {
+      isBootstrappingRef.current = false
+    })
 
     const getCurrentSnapshots = () =>
       buildAppStateSnapshots({
@@ -49,6 +53,10 @@ export function useSupabaseSync(user: User | null) {
     }
 
     const schedulePush = () => {
+      if (isBootstrappingRef.current) {
+        return
+      }
+
       queueSnapshots()
 
       if (timerRef.current) {
@@ -82,6 +90,7 @@ export function useSupabaseSync(user: User | null) {
     window.addEventListener("pagehide", handlePageHide)
 
     return () => {
+      isBootstrappingRef.current = false
       if (timerRef.current) {
         window.clearTimeout(timerRef.current)
       }
