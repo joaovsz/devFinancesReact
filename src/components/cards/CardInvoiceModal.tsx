@@ -130,7 +130,7 @@ export const CardInvoiceModal = ({
                     onClick={() => {
                       const totalInvoice = Math.max(parseCurrencyInput(manualAdjustmentInput), 0)
                       const nextManualAdjustment =
-                        totalInvoice - baseInvoiceWithoutManualAdjustment
+                        Math.max(totalInvoice - baseInvoiceWithoutManualAdjustment, 0)
                       onSaveManualAdjustment(nextManualAdjustment)
                     }}
                     type="button"

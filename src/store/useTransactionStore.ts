@@ -178,8 +178,8 @@ function sanitizeCard(card: CreditCard, fallback?: CreditCard): CreditCard {
     ? Math.min(Math.max(Math.round(card.dueDay), 1), 31)
     : fallback?.dueDay || 1
   const safeManualInvoiceAmount = Number.isFinite(card.manualInvoiceAmount)
-    ? card.manualInvoiceAmount
-    : fallback?.manualInvoiceAmount || 0
+    ? Math.max(card.manualInvoiceAmount, 0)
+    : Math.max(fallback?.manualInvoiceAmount || 0, 0)
 
   return {
     id: card.id || fallback?.id || crypto.randomUUID(),
@@ -864,7 +864,7 @@ export const useTransactionStore = create<TransactionStore>()(
     }),
     {
       name: "devfinances-storage",
-      version: 26,
+      version: 27,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState, version) => {
         if (!persistedState || typeof persistedState !== "object") {
@@ -1268,6 +1268,21 @@ export const useTransactionStore = create<TransactionStore>()(
               }),
               pjPaydayDate: sanitizePjPaydayDate(state.contractConfig?.pjPaydayDate)
             }
+          }
+        }
+
+        if (version < 27) {
+          const state = persistedState as TransactionStore
+          const cards = (state.cards || []).map((card) => sanitizeCard(card))
+          return {
+            ...state,
+            cards,
+            ...calculateTotals({
+              cards,
+              transactions: state.transactions || [],
+              fixedCosts: state.fixedCosts || [],
+              installmentPlans: state.installmentPlans || []
+            })
           }
         }
 

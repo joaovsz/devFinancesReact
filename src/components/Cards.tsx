@@ -679,7 +679,7 @@ export const Cards = () => {
 
     const totalInvoice = parseCurrencyInput(draftValue)
     const accountedWithoutManual = card.currentInvoice - (card.manualInvoiceAmount || 0)
-    const nextManualAdjustment = totalInvoice - accountedWithoutManual
+    const nextManualAdjustment = Math.max(totalInvoice - accountedWithoutManual, 0)
     updateCardField(card, "manualInvoiceAmount", String(nextManualAdjustment))
     clearInvoiceTotalDraft(card.id)
   }
@@ -744,7 +744,7 @@ export const Cards = () => {
 
     updateCard({
       ...card,
-      manualInvoiceAmount: value
+      manualInvoiceAmount: Math.max(value, 0)
     })
   }
 
