@@ -9,7 +9,8 @@ import { formatCurrency } from "../Transactions"
 import { bankPresets, BankPreset } from "../../data/banks"
 import { NumberTicker } from "../magic/NumberTicker"
 import {
-  dateToMonthKey,
+  addMonths,
+  getCreditTransactionDueMonth,
   getCurrentMonthKey,
   getInstallmentRemainingTotal,
   getInstallmentTotalForMonth
@@ -118,20 +119,23 @@ export const CreditCardsPanel = ({
   }
 
   function calculateCurrentMonthInvoiceForCard(currentCardId: string, monthKey: string) {
-    const monthStart = `${monthKey}-`
+    const selectedCard = cards.find((item) => item.id === currentCardId)
+    if (!selectedCard) {
+      return 0
+    }
+
     const transactionsCurrentMonth = transactions
       .filter(
         (transaction) =>
           transaction.type === 2 &&
           transaction.paymentMethod === "credit" &&
           transaction.cardId === currentCardId &&
-          transaction.date.startsWith(monthStart)
+          getCreditTransactionDueMonth(transaction.date, selectedCard) === monthKey
       )
       .reduce((totalValue, transaction) => totalValue + transaction.value, 0)
 
     const plannedMonth = calculatePlannedCardUsageForMonth(currentCardId, monthKey)
-    const card = cards.find((item) => item.id === currentCardId)
-    const manual = card?.manualInvoiceAmount || 0
+    const manual = selectedCard.manualInvoiceAmount || 0
 
     return transactionsCurrentMonth + plannedMonth + manual
   }
@@ -145,12 +149,18 @@ export const CreditCardsPanel = ({
           return false
         }
 
-        return dateToMonthKey(transaction.date) === monthKey
+        const card = cards.find((item) => item.id === transaction.cardId)
+        if (!card) {
+          return false
+        }
+
+        return getCreditTransactionDueMonth(transaction.date, card) === monthKey
       })
       .reduce((totalValue, transaction) => totalValue + transaction.value, 0)
 
     const plannedCardsTotal = cards.reduce(
-      (totalValue, card) => totalValue + calculatePlannedCardUsageForMonth(card.id, monthKey),
+      (totalValue, card) =>
+        totalValue + calculatePlannedCardUsageForMonth(card.id, addMonths(monthKey, -1)),
       0
     )
 

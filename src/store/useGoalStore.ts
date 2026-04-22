@@ -3,8 +3,12 @@ import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 import { Goal, GoalInput } from "../types/goal"
 import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
-import { getWorkingMonthMetrics } from "../utils/business-days"
-import { getCommittedCostsForMonth, getCurrentMonthKey } from "../utils/projections"
+import {
+  getCltProjectedRevenueForMonth,
+  getCommittedCostsForMonth,
+  getCurrentMonthKey,
+  getPjProjectedRevenueForMonth
+} from "../utils/projections"
 import { useTransactionStore } from "./useTransactionStore"
 
 type GoalStore = {
@@ -184,20 +188,20 @@ export function useGoalCashflowStatus(): GoalCashflowStatus {
 
   const projectedRevenue = useMemo(() => {
     if (contractConfig.incomeMode === "clt") {
-      return Math.max(contractConfig.cltNetSalary, 0)
+      return getCltProjectedRevenueForMonth(contractConfig, monthKey)
     }
 
-    return getWorkingMonthMetrics({
+    return getPjProjectedRevenueForMonth({
+      contractConfig,
       monthKey,
-      holidays: holidaysForMonth,
-      hoursPerWorkday: contractConfig.hoursPerWorkday,
-      hourlyRate: contractConfig.hourlyRate
-    }).projectedRevenue
+      holidays: holidaysForMonth
+    })
   }, [
     contractConfig.cltNetSalary,
     contractConfig.hourlyRate,
     contractConfig.hoursPerWorkday,
     contractConfig.incomeMode,
+    contractConfig.pjPaydayDate,
     holidaysForMonth,
     monthKey
   ])

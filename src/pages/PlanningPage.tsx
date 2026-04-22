@@ -473,23 +473,47 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     }
                   />
                 </label>
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
+                  Data do recebimento PJ
+                  <input
+                    className={inputClassName}
+                    type="date"
+                    value={contractConfig.pjPaydayDate}
+                    onChange={(event) =>
+                      updateContractConfig({ pjPaydayDate: event.target.value })
+                    }
+                  />
+                </label>
               </>
             ) : (
-              <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
-                Salário líquido CLT
-                <input
-                  className={inputClassName}
-                  type="text"
-                  inputMode="decimal"
-                  value={cltNetSalaryInput}
-                  onChange={(event) => setCltNetSalaryInput(formatCurrencyInput(event.target.value))}
-                  onBlur={() => {
-                    const parsed = parseCurrencyInput(cltNetSalaryInput)
-                    setCltNetSalaryInput(formatCurrencyFromNumber(parsed))
-                    updateContractConfig({ cltNetSalary: parsed })
-                  }}
-                />
-              </label>
+              <>
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
+                  Salário líquido CLT
+                  <input
+                    className={inputClassName}
+                    type="text"
+                    inputMode="decimal"
+                    value={cltNetSalaryInput}
+                    onChange={(event) => setCltNetSalaryInput(formatCurrencyInput(event.target.value))}
+                    onBlur={() => {
+                      const parsed = parseCurrencyInput(cltNetSalaryInput)
+                      setCltNetSalaryInput(formatCurrencyFromNumber(parsed))
+                      updateContractConfig({ cltNetSalary: parsed })
+                    }}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
+                  Data do recebimento
+                  <input
+                    className={inputClassName}
+                    type="date"
+                    value={contractConfig.cltPaydayDate}
+                    onChange={(event) =>
+                      updateContractConfig({ cltPaydayDate: event.target.value })
+                    }
+                  />
+                </label>
+              </>
             )}
 
           </div>

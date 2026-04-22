@@ -14,12 +14,13 @@ import {
 } from "../types/planning"
 import {
   addMonths,
+  getCltProjectedRevenueForMonth,
+  getPjProjectedRevenueForMonth,
   dateToMonthKey,
   getCurrentMonthKey,
   getCommittedCostsForMonth,
   isMonthKeyAfter
 } from "../utils/projections"
-import { getWorkingMonthMetrics } from "../utils/business-days"
 
 export type TransactionStore = {
   bankAccounts: BankAccount[]
@@ -100,15 +101,14 @@ function getProjectedRevenueForMonth(
   monthKey: string
 ) {
   if (contractConfig.incomeMode === "clt") {
-    return Math.max(contractConfig.cltNetSalary, 0)
+    return getCltProjectedRevenueForMonth(contractConfig, monthKey)
   }
 
-  return getWorkingMonthMetrics({
+  return getPjProjectedRevenueForMonth({
+    contractConfig,
     monthKey,
-    holidays: [],
-    hoursPerWorkday: contractConfig.hoursPerWorkday,
-    hourlyRate: contractConfig.hourlyRate
-  }).projectedRevenue
+    holidays: []
+  })
 }
 
 export function selectProjectedMonthlyLeftover(state: TransactionStore) {
@@ -216,6 +216,30 @@ function sanitizeInstallmentPlan(plan: InstallmentPlan): InstallmentPlan {
     totalInstallments,
     paidInstallments
   }
+}
+
+function getTodayIsoDate() {
+  const now = new Date()
+  const yyyy = now.getFullYear()
+  const mm = String(now.getMonth() + 1).padStart(2, "0")
+  const dd = String(now.getDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function sanitizeCltPaydayDate(value?: string) {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value
+  }
+
+  return getTodayIsoDate()
+}
+
+function sanitizePjPaydayDate(value?: string) {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value
+  }
+
+  return getTodayIsoDate()
 }
 
 function sanitizeBankAccount(account: BankAccount, fallback?: BankAccount): BankAccount {
@@ -457,6 +481,8 @@ function createMockTransactionState() {
     hourlyRate: 165,
     hoursPerWorkday: 6,
     cltNetSalary: 0,
+    cltPaydayDate: getTodayIsoDate(),
+    pjPaydayDate: getTodayIsoDate(),
     localityState: "SP",
     localityCity: "Sao Paulo",
     useHolidayApi: true
@@ -491,6 +517,8 @@ export const useTransactionStore = create<TransactionStore>()(
         hourlyRate: 0,
         hoursPerWorkday: 8,
         cltNetSalary: 0,
+        cltPaydayDate: getTodayIsoDate(),
+        pjPaydayDate: getTodayIsoDate(),
         localityState: "SP",
         localityCity: "Sao Paulo",
         useHolidayApi: true
@@ -765,7 +793,13 @@ export const useTransactionStore = create<TransactionStore>()(
         set((state) => ({
           contractConfig: {
             ...state.contractConfig,
-            ...config
+            ...config,
+            cltPaydayDate: sanitizeCltPaydayDate(
+              config.cltPaydayDate || state.contractConfig.cltPaydayDate
+            ),
+            pjPaydayDate: sanitizePjPaydayDate(
+              config.pjPaydayDate || state.contractConfig.pjPaydayDate
+            )
           }
         })),
       updateProjectionSettings: (settings) =>
@@ -800,6 +834,8 @@ export const useTransactionStore = create<TransactionStore>()(
             hourlyRate: 0,
             hoursPerWorkday: 8,
             cltNetSalary: 0,
+            cltPaydayDate: getTodayIsoDate(),
+            pjPaydayDate: getTodayIsoDate(),
             localityState: "SP",
             localityCity: "Sao Paulo",
             useHolidayApi: true
@@ -828,7 +864,7 @@ export const useTransactionStore = create<TransactionStore>()(
     }),
     {
       name: "devfinances-storage",
-      version: 23,
+      version: 26,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState, version) => {
         if (!persistedState || typeof persistedState !== "object") {
@@ -938,6 +974,8 @@ export const useTransactionStore = create<TransactionStore>()(
               hourlyRate: 0,
               hoursPerWorkday: 8,
               cltNetSalary: 0,
+              cltPaydayDate: getTodayIsoDate(),
+              pjPaydayDate: getTodayIsoDate(),
               localityState: "SP",
               localityCity: "Sao Paulo",
               useHolidayApi: true
@@ -972,13 +1010,17 @@ export const useTransactionStore = create<TransactionStore>()(
               ...(state.contractConfig || {
                 hourlyRate: 0,
                 hoursPerWorkday: 8,
+                cltPaydayDate: getTodayIsoDate(),
+                pjPaydayDate: getTodayIsoDate(),
                 localityState: "SP",
                 localityCity: "Sao Paulo",
                 useHolidayApi: true
               }),
               cltNetSalary: Number.isFinite(state.contractConfig?.cltNetSalary)
                 ? state.contractConfig.cltNetSalary
-                : 0
+                : 0,
+              cltPaydayDate: sanitizeCltPaydayDate(state.contractConfig?.cltPaydayDate),
+              pjPaydayDate: sanitizePjPaydayDate(state.contractConfig?.pjPaydayDate)
             }
           }
         }
@@ -992,6 +1034,8 @@ export const useTransactionStore = create<TransactionStore>()(
                 hourlyRate: 0,
                 hoursPerWorkday: 8,
                 cltNetSalary: 0,
+                cltPaydayDate: getTodayIsoDate(),
+                pjPaydayDate: getTodayIsoDate(),
                 localityState: "SP",
                 localityCity: "Sao Paulo",
                 useHolidayApi: true
@@ -1149,6 +1193,81 @@ export const useTransactionStore = create<TransactionStore>()(
             bankAccounts: Array.isArray(state.bankAccounts)
               ? state.bankAccounts.map((account) => sanitizeBankAccount(account))
               : []
+          }
+        }
+
+        if (version < 24) {
+          const state = persistedState as TransactionStore
+          const cltPayday = Number((state.contractConfig as { cltPayday?: number })?.cltPayday)
+          const now = new Date()
+          const fallbackFromLegacy = Number.isFinite(cltPayday)
+            ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+                Math.min(Math.max(Math.round(cltPayday), 1), 31)
+              ).padStart(2, "0")}`
+            : undefined
+
+          return {
+            ...state,
+            contractConfig: {
+              ...(state.contractConfig || {
+                incomeMode: "pj",
+                hourlyRate: 0,
+                hoursPerWorkday: 8,
+                cltNetSalary: 0,
+                cltPaydayDate: getTodayIsoDate(),
+                pjPaydayDate: getTodayIsoDate(),
+                localityState: "SP",
+                localityCity: "Sao Paulo",
+                useHolidayApi: true
+              }),
+              cltPaydayDate: sanitizeCltPaydayDate(
+                state.contractConfig?.cltPaydayDate || fallbackFromLegacy
+              ),
+              pjPaydayDate: sanitizePjPaydayDate(state.contractConfig?.pjPaydayDate)
+            }
+          }
+        }
+
+        if (version < 25) {
+          const state = persistedState as TransactionStore
+          return {
+            ...state,
+            contractConfig: {
+              ...(state.contractConfig || {
+                incomeMode: "pj",
+                hourlyRate: 0,
+                hoursPerWorkday: 8,
+                cltNetSalary: 0,
+                cltPaydayDate: getTodayIsoDate(),
+                pjPaydayDate: getTodayIsoDate(),
+                localityState: "SP",
+                localityCity: "Sao Paulo",
+                useHolidayApi: true
+              }),
+              cltPaydayDate: sanitizeCltPaydayDate(state.contractConfig?.cltPaydayDate),
+              pjPaydayDate: sanitizePjPaydayDate(state.contractConfig?.pjPaydayDate)
+            }
+          }
+        }
+
+        if (version < 26) {
+          const state = persistedState as TransactionStore
+          return {
+            ...state,
+            contractConfig: {
+              ...(state.contractConfig || {
+                incomeMode: "pj",
+                hourlyRate: 0,
+                hoursPerWorkday: 8,
+                cltNetSalary: 0,
+                cltPaydayDate: getTodayIsoDate(),
+                pjPaydayDate: getTodayIsoDate(),
+                localityState: "SP",
+                localityCity: "Sao Paulo",
+                useHolidayApi: true
+              }),
+              pjPaydayDate: sanitizePjPaydayDate(state.contractConfig?.pjPaydayDate)
+            }
           }
         }
 

@@ -13,8 +13,10 @@ import { getWorkingMonthMetrics } from "../utils/business-days"
 import {
   addMonths,
   buildProjectionTimeline,
+  getCltProjectedRevenueForMonth,
   getCurrentMonthKey,
-  getMonthLabel
+  getMonthLabel,
+  getPjProjectedRevenueForMonth
 } from "../utils/projections"
 
 const selectClassName =
@@ -146,11 +148,18 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
         monthlyWorkMetrics.map((metrics) => [
           metrics.monthKey,
           contractConfig.incomeMode === "pj"
-            ? metrics.projectedRevenue
-            : contractConfig.cltNetSalary
+            ? getPjProjectedRevenueForMonth({
+                contractConfig,
+                monthKey: metrics.monthKey,
+                holidays:
+                  (holidaysByYear[Number(metrics.monthKey.split("-")[0])] || [])
+                    .filter((date) => date.startsWith(metrics.monthKey))
+                    .map((date) => ({ date, name: "Feriado" }))
+              })
+            : getCltProjectedRevenueForMonth(contractConfig, metrics.monthKey)
         ])
       ),
-    [monthlyWorkMetrics, contractConfig.incomeMode, contractConfig.cltNetSalary]
+    [monthlyWorkMetrics, contractConfig, holidaysByYear]
   )
 
   const timeline = useMemo(

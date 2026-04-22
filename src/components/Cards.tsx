@@ -24,7 +24,9 @@ import ReactEChartsCore from "echarts-for-react/lib/core"
 import type { EChartsOption } from "echarts"
 import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
 import {
+  addMonths,
   dateToMonthKey,
+  getCreditTransactionDueMonth,
   getCurrentMonthKey,
   getInstallmentRemainingTotal,
   getInstallmentTotalForMonth,
@@ -213,7 +215,6 @@ export const Cards = () => {
   const cardUsage = useMemo(
     () => {
       const monthKey = getCurrentMonthKey()
-      const monthStart = `${monthKey}-`
 
       return cards.map((card) => {
         const isPaidForCurrentMonth = isCardInvoicePaidForMonth(card, monthKey)
@@ -234,7 +235,7 @@ export const Cards = () => {
               transaction.type === 2 &&
               transaction.paymentMethod === "credit" &&
               transaction.cardId === card.id &&
-              transaction.date.startsWith(monthStart) &&
+              getCreditTransactionDueMonth(transaction.date, card) === monthKey &&
               (!card.paidThroughMonth ||
                 isMonthKeyAfter(dateToMonthKey(transaction.date), card.paidThroughMonth))
           )
@@ -248,7 +249,7 @@ export const Cards = () => {
           .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === card.id)
           .reduce(
             (sum, plan) =>
-              sum + getInstallmentTotalForMonth([plan], monthKey),
+              sum + getInstallmentTotalForMonth([plan], addMonths(monthKey, -1)),
             0
           )
 
@@ -289,19 +290,27 @@ export const Cards = () => {
     [cardUsage, invoiceCardId]
   )
   const selectedInvoiceTransactions = useMemo(
-    () =>
-      invoiceCardId
-        ? transactions
-            .filter(
-              (transaction) =>
-                transaction.type === 2 &&
-                transaction.paymentMethod === "credit" &&
-                transaction.cardId === invoiceCardId &&
-                dateToMonthKey(transaction.date) === currentMonth
-            )
-            .sort((left, right) => right.date.localeCompare(left.date))
-        : [],
-    [transactions, invoiceCardId, currentMonth]
+    () => {
+      if (!invoiceCardId) {
+        return []
+      }
+
+      const selectedCard = cards.find((card) => card.id === invoiceCardId)
+      if (!selectedCard) {
+        return []
+      }
+
+      return transactions
+        .filter(
+          (transaction) =>
+            transaction.type === 2 &&
+            transaction.paymentMethod === "credit" &&
+            transaction.cardId === invoiceCardId &&
+            getCreditTransactionDueMonth(transaction.date, selectedCard) === currentMonth
+        )
+        .sort((left, right) => right.date.localeCompare(left.date))
+    },
+    [transactions, invoiceCardId, currentMonth, cards]
   )
   const selectedInvoicePlannedItems = useMemo<InvoicePlannedItem[]>(
     () => {

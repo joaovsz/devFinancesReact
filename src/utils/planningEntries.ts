@@ -1,8 +1,13 @@
 import { Holiday } from "../services/calendar"
 import { FixedCost, InstallmentPlan, ContractConfig } from "../types/planning"
 import { PaymentMethod } from "../types/transaction"
-import { getInstallmentProgress } from "./projections"
-import { getWorkingMonthMetrics } from "./business-days"
+import {
+  getCltIncomeDateForMonth,
+  getCltProjectedRevenueForMonth,
+  getPjIncomeDateForMonth,
+  getPjProjectedRevenueForMonth,
+  getInstallmentProgress
+} from "./projections"
 
 export type PlannedEntry = {
   id: string
@@ -66,12 +71,13 @@ export function buildPlannedEntriesForMonth(input: {
   })
 
   if (input.contractConfig.incomeMode === "clt") {
-    if (input.contractConfig.cltNetSalary > 0) {
+    const cltRevenue = getCltProjectedRevenueForMonth(input.contractConfig, input.monthKey)
+    if (cltRevenue > 0) {
       entries.push({
         id: `planned-clt-${input.monthKey}`,
         label: "Salário líquido CLT",
-        value: input.contractConfig.cltNetSalary,
-        date: monthKeyToDate(input.monthKey),
+        value: cltRevenue,
+        date: getCltIncomeDateForMonth(input.contractConfig, input.monthKey),
         type: 1,
         paymentMethod: "cash",
         isPlanned: true,
@@ -79,19 +85,18 @@ export function buildPlannedEntriesForMonth(input: {
       })
     }
   } else {
-    const pjRevenue = getWorkingMonthMetrics({
+    const pjRevenue = getPjProjectedRevenueForMonth({
+      contractConfig: input.contractConfig,
       monthKey: input.monthKey,
-      holidays: input.holidays,
-      hoursPerWorkday: input.contractConfig.hoursPerWorkday,
-      hourlyRate: input.contractConfig.hourlyRate
-    }).projectedRevenue
+      holidays: input.holidays
+    })
 
     if (pjRevenue > 0) {
       entries.push({
         id: `planned-pj-${input.monthKey}`,
         label: "Faturamento PJ",
         value: pjRevenue,
-        date: monthKeyToDate(input.monthKey),
+        date: getPjIncomeDateForMonth(input.contractConfig, input.monthKey),
         type: 1,
         paymentMethod: "cash",
         isPlanned: true,

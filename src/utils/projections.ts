@@ -1,6 +1,8 @@
 import { Transaction } from "../types/transaction"
-import { FixedCost, InstallmentPlan } from "../types/planning"
+import { ContractConfig, FixedCost, InstallmentPlan } from "../types/planning"
 import { CreditCard } from "../types/card"
+import { Holiday } from "../services/calendar"
+import { getWorkingMonthMetrics } from "./business-days"
 
 export function getCurrentMonthKey() {
   const now = new Date()
@@ -35,6 +37,82 @@ export function dateToMonthKey(dateString: string) {
 
   const [year, month] = dateString.split("-")
   return `${year}-${month}`
+}
+
+function getDaysInMonth(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number)
+  return new Date(year, month, 0).getDate()
+}
+
+function buildMonthDate(monthKey: string, day: number) {
+  const safeDay = Math.min(Math.max(day, 1), getDaysInMonth(monthKey))
+  return `${monthKey}-${String(safeDay).padStart(2, "0")}`
+}
+
+function getDayFromDate(dateString?: string) {
+  if (!dateString) {
+    return undefined
+  }
+
+  const [, , dayPart] = dateString.split("-")
+  const day = Number(dayPart)
+  if (!Number.isFinite(day) || day < 1 || day > 31) {
+    return undefined
+  }
+
+  return Math.round(day)
+}
+
+export function getCltIncomeDateForMonth(contractConfig: ContractConfig, monthKey: string) {
+  const payday = getDayFromDate(contractConfig.cltPaydayDate) || 5
+  return buildMonthDate(monthKey, payday)
+}
+
+export function getCltProjectedRevenueForMonth(contractConfig: ContractConfig, monthKey: string) {
+  const salary = Math.max(contractConfig.cltNetSalary, 0)
+  if (salary <= 0) {
+    return 0
+  }
+
+  const startMonth = dateToMonthKey(contractConfig.cltPaydayDate)
+  if (isMonthKeyAfter(startMonth, monthKey)) {
+    return 0
+  }
+
+  return salary
+}
+
+export function getPjIncomeDateForMonth(contractConfig: ContractConfig, monthKey: string) {
+  const payday = getDayFromDate(contractConfig.pjPaydayDate) || 5
+  return buildMonthDate(monthKey, payday)
+}
+
+export function getPjProjectedRevenueForMonth(input: {
+  contractConfig: ContractConfig
+  monthKey: string
+  holidays: Holiday[]
+}) {
+  const startMonth = dateToMonthKey(input.contractConfig.pjPaydayDate)
+  if (isMonthKeyAfter(startMonth, input.monthKey)) {
+    return 0
+  }
+
+  return getWorkingMonthMetrics({
+    monthKey: input.monthKey,
+    holidays: input.holidays,
+    hoursPerWorkday: input.contractConfig.hoursPerWorkday,
+    hourlyRate: input.contractConfig.hourlyRate
+  }).projectedRevenue
+}
+
+export function getCreditTransactionDueMonth(transactionDate: string, card: CreditCard) {
+  const [year, month, day] = transactionDate.split("-").map(Number)
+  if (!year || !month || !day) {
+    return dateToMonthKey(transactionDate)
+  }
+
+  const purchaseMonth = `${year}-${String(month).padStart(2, "0")}`
+  return day <= card.closeDay ? addMonths(purchaseMonth, 1) : addMonths(purchaseMonth, 2)
 }
 
 export function getFixedCostsTotal(fixedCosts: FixedCost[]) {
@@ -186,13 +264,19 @@ export function getCommittedCostsForMonth(input: {
 
     const creditFixedCostsTotal = input.fixedCosts
       .filter((cost) => cost.paymentMethod === "credit" && cost.cardId === card.id)
-      .reduce((total, cost) => total + cost.amount, 0)
+      .reduce((total, cost) => {
+        const sourceMonth = addMonths(input.monthKey, -1)
+        const chargeDate = buildMonthDate(sourceMonth, card.closeDay)
+        return getCreditTransactionDueMonth(chargeDate, card) === input.monthKey
+          ? total + cost.amount
+          : total
+      }, 0)
 
     const creditInstallmentsTotal = getInstallmentTotalForMonth(
       input.installmentPlans.filter(
         (plan) => plan.paymentMethod === "credit" && plan.cardId === card.id
       ),
-      input.monthKey
+      addMonths(input.monthKey, -1)
     )
 
     const creditTransactionsTotal = (input.transactions || [])
@@ -201,7 +285,7 @@ export function getCommittedCostsForMonth(input: {
           transaction.type === 2 &&
           transaction.paymentMethod === "credit" &&
           transaction.cardId === card.id &&
-          dateToMonthKey(transaction.date) === input.monthKey
+          getCreditTransactionDueMonth(transaction.date, card) === input.monthKey
       )
       .reduce((total, transaction) => total + transaction.value, 0)
 

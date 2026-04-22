@@ -27,6 +27,8 @@ export type ContractConfig = {
   hourlyRate: number
   hoursPerWorkday: number
   cltNetSalary: number
+  cltPaydayDate: string
+  pjPaydayDate: string
   localityState: string
   localityCity: string
   useHolidayApi: boolean

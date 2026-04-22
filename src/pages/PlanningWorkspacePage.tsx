@@ -4,8 +4,12 @@ import { useSearchParams } from "react-router-dom"
 import { formatCurrency } from "../components/Transactions"
 import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
 import { useTransactionStore } from "../store/useTransactionStore"
-import { getWorkingMonthMetrics } from "../utils/business-days"
-import { getCommittedCostsForMonth, getCurrentMonthKey } from "../utils/projections"
+import {
+  getCltProjectedRevenueForMonth,
+  getCommittedCostsForMonth,
+  getCurrentMonthKey,
+  getPjProjectedRevenueForMonth
+} from "../utils/projections"
 import { PlanningPage } from "./PlanningPage"
 import { ProjectionsPage } from "./ProjectionsPage"
 
@@ -57,20 +61,20 @@ export const PlanningWorkspacePage = () => {
 
   const projectedRevenueCurrentMonth = useMemo(() => {
     if (contractConfig.incomeMode === "clt") {
-      return Math.max(contractConfig.cltNetSalary, 0)
+      return getCltProjectedRevenueForMonth(contractConfig, currentMonth)
     }
 
-    return getWorkingMonthMetrics({
+    return getPjProjectedRevenueForMonth({
+      contractConfig,
       monthKey: currentMonth,
-      holidays,
-      hoursPerWorkday: contractConfig.hoursPerWorkday,
-      hourlyRate: contractConfig.hourlyRate
-    }).projectedRevenue
+      holidays
+    })
   }, [
     contractConfig.incomeMode,
     contractConfig.cltNetSalary,
     contractConfig.hoursPerWorkday,
     contractConfig.hourlyRate,
+    contractConfig.pjPaydayDate,
     currentMonth,
     holidays
   ])
@@ -223,4 +227,3 @@ export const PlanningWorkspacePage = () => {
     </section>
   )
 }
-
