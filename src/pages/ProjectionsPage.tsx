@@ -195,6 +195,58 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
     () => timeline.slice(0, visibleMonths),
     [timeline, visibleMonths]
   )
+  const installmentDropInsight = useMemo(() => {
+    let bestDrop = 0
+    let bestMonthKey = ""
+
+    for (let index = 1; index < timeline.length; index += 1) {
+      const previous = timeline[index - 1]
+      const current = timeline[index]
+      const drop = previous.installmentsTotal - current.installmentsTotal
+      if (drop > bestDrop) {
+        bestDrop = drop
+        bestMonthKey = current.monthKey
+      }
+    }
+
+    if (bestDrop <= 0 || !bestMonthKey) {
+      return null
+    }
+
+    return {
+      monthKey: bestMonthKey,
+      dropAmount: bestDrop
+    }
+  }, [timeline])
+  const commitmentsPressureInsight = useMemo(() => {
+    const monthsWithRevenue = timeline.filter((item) => item.projectedRevenue > 0)
+    if (monthsWithRevenue.length === 0) {
+      return null
+    }
+
+    const averageRatio =
+      monthsWithRevenue.reduce(
+        (sum, item) => sum + item.committedCosts / item.projectedRevenue,
+        0
+      ) / monthsWithRevenue.length
+
+    const peak = monthsWithRevenue.reduce((currentMax, item) => {
+      const ratio = item.committedCosts / item.projectedRevenue
+      if (!currentMax || ratio > currentMax.ratio) {
+        return {
+          monthKey: item.monthKey,
+          ratio
+        }
+      }
+
+      return currentMax
+    }, null as { monthKey: string; ratio: number } | null)
+
+    return {
+      averageRatio,
+      peak
+    }
+  }, [timeline])
 
   const chartOption = useMemo<EChartsOption>(
     () => ({
@@ -339,6 +391,59 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
           <div className="text-xs uppercase tracking-wide text-zinc-400">Resultado 12 meses</div>
           <NumberTicker className={`mt-1 text-xl font-semibold ${projectedYearTotal >= 0 ? "text-emerald-300" : "text-amber-300"}`} value={projectedYearTotal} format={formatCurrency} />
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
+          <div className="text-xs uppercase tracking-wide text-zinc-400">Virada dos parcelamentos</div>
+          {installmentDropInsight ? (
+            <p className="mt-1 text-sm text-zinc-200">
+              A partir de{" "}
+              <span className="font-semibold text-zinc-100">
+                {getMonthLabel(installmentDropInsight.monthKey)}
+              </span>
+              , seus parcelamentos caem{" "}
+              <span className="font-semibold text-emerald-300">
+                {formatCurrency(installmentDropInsight.dropAmount)}/mês
+              </span>
+              .
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-zinc-400">
+              Não há queda relevante de parcelamentos no horizonte atual.
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
+          <div className="text-xs uppercase tracking-wide text-zinc-400">Pressão de compromissos</div>
+          {commitmentsPressureInsight ? (
+            <p className="mt-1 text-sm text-zinc-200">
+              Em média, compromissos consomem{" "}
+              <span className="font-semibold text-zinc-100">
+                {(commitmentsPressureInsight.averageRatio * 100).toFixed(1)}%
+              </span>{" "}
+              da receita projetada. Pico em{" "}
+              <span className="font-semibold text-zinc-100">
+                {commitmentsPressureInsight.peak
+                  ? getMonthLabel(commitmentsPressureInsight.peak.monthKey)
+                  : "-"}
+              </span>{" "}
+              com{" "}
+              <span className="font-semibold text-amber-300">
+                {commitmentsPressureInsight.peak
+                  ? (commitmentsPressureInsight.peak.ratio * 100).toFixed(1)
+                  : "0.0"}
+                %
+              </span>
+              .
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-zinc-400">
+              Sem receita projetada para calcular pressão no período.
+            </p>
+          )}
         </div>
       </div>
 
