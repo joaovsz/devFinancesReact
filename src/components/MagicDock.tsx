@@ -6,13 +6,14 @@ import { NavLink } from "react-router-dom"
 type DockItem = {
   to: string
   label: string
+  shortLabel?: string
   icon: LucideIcon
 }
 
 const dockItems: DockItem[] = [
   { to: "/", label: "Overview", icon: Home },
   { to: "/transacoes", label: "Transações", icon: Wallet },
-  { to: "/planejamento", label: "Planejamento", icon: ClipboardList },
+  { to: "/planejamento", label: "Planejamento", shortLabel: "Planejar", icon: ClipboardList },
   { to: "/projecoes", label: "Projeções", icon: ChartLine },
   { to: "/metas", label: "Metas", icon: Target },
   { to: "/configuracoes", label: "Config", icon: Settings }
@@ -61,7 +62,7 @@ export const MagicDock = ({ theme }: MagicDockProps) => {
                   >
                     <Icon size={18} />
                     <span className="hidden max-w-20 truncate text-xs font-medium leading-none md:block">
-                      {item.label}
+                      {item.shortLabel || item.label}
                     </span>
                   </motion.div>
                 )}

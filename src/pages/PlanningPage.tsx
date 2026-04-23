@@ -95,10 +95,12 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   )
 
   const [wizardStep, setWizardStep] = useState<0 | 1>(0)
+  const [listModal, setListModal] = useState<"fixed" | "installment" | null>(null)
   const [highlightedSection, setHighlightedSection] = useState<"income" | "fixed" | "installment" | null>(null)
   const incomeSectionRef = useRef<HTMLDivElement | null>(null)
   const fixedSectionRef = useRef<HTMLDivElement | null>(null)
   const installmentSectionRef = useRef<HTMLDivElement | null>(null)
+  const highlightTimeoutRef = useRef<number | null>(null)
 
   const selectedFixedCategory = useMemo(
     () =>
@@ -106,6 +108,25 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
       defaultCategories[0],
     [fixedCategoryId]
   )
+
+  function flashSection(section: "income" | "fixed" | "installment") {
+    setHighlightedSection(section)
+    if (highlightTimeoutRef.current) {
+      window.clearTimeout(highlightTimeoutRef.current)
+    }
+    highlightTimeoutRef.current = window.setTimeout(() => {
+      setHighlightedSection((current) => (current === section ? null : current))
+      highlightTimeoutRef.current = null
+    }, 2200)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) {
+        window.clearTimeout(highlightTimeoutRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const editingId = searchParams.get("editFixedCostId")
@@ -136,16 +157,10 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
       return
     }
 
-    setHighlightedSection("income")
+    flashSection("income")
     requestAnimationFrame(() => {
       incomeSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
     })
-
-    const timer = window.setTimeout(() => {
-      setHighlightedSection((current) => (current === "income" ? null : current))
-    }, 2200)
-
-    return () => window.clearTimeout(timer)
   }, [searchParams])
 
   useEffect(() => {
@@ -154,16 +169,10 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
       return
     }
 
-    setHighlightedSection("fixed")
+    flashSection("fixed")
     requestAnimationFrame(() => {
       fixedSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
     })
-
-    const timer = window.setTimeout(() => {
-      setHighlightedSection((current) => (current === "fixed" ? null : current))
-    }, 2200)
-
-    return () => window.clearTimeout(timer)
   }, [searchParams, wizardStep])
 
   useEffect(() => {
@@ -195,16 +204,10 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
       return
     }
 
-    setHighlightedSection("installment")
+    flashSection("installment")
     requestAnimationFrame(() => {
       installmentSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
     })
-
-    const timer = window.setTimeout(() => {
-      setHighlightedSection((current) => (current === "installment" ? null : current))
-    }, 2200)
-
-    return () => window.clearTimeout(timer)
   }, [searchParams, wizardStep])
 
   function getPaymentLabel(paymentMethod: PaymentMethod, cardId?: string) {
@@ -297,6 +300,12 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setFixedDueDay(cost.dueDay ? String(cost.dueDay) : "")
     setFixedPaymentMethod(cost.paymentMethod)
     setFixedCardId(cost.cardId || firstCardId)
+    setWizardStep(0)
+    flashSection("fixed")
+    requestAnimationFrame(() => {
+      fixedSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+    })
+    setListModal(null)
   }
 
   function cancelEditingFixed() {
@@ -399,10 +408,11 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setInstallmentCardId(plan.cardId || firstCardId)
     setInstallmentStartMonth(plan.startMonth)
     setWizardStep(1)
-    setHighlightedSection("installment")
+    flashSection("installment")
     requestAnimationFrame(() => {
       installmentSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
     })
+    setListModal(null)
   }
 
   function cancelEditingInstallment() {
@@ -690,56 +700,13 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     Cancelar edição
                   </button>
                 )}
-              </div>
-              <div className="mt-3 space-y-2">
-                {fixedCosts.map((cost) => (
-                  <div
-                    key={cost.id}
-                    className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs text-zinc-300 ${
-                      editingFixedCostId === cost.id
-                        ? "border-emerald-500/60 bg-emerald-500/10"
-                        : "border-zinc-800"
-                    }`}
-                  >
-                    <span>
-                      {cost.name} · {formatCurrency(cost.amount)}
-                      <span className="ml-2 text-zinc-500">
-                        {(() => {
-                          const category = defaultCategories.find(
-                            (item) => item.id === cost.categoryId
-                          )
-                          if (!category) {
-                            return "Categoria não definida"
-                          }
-                          const subcategory = category.subcategories.find(
-                            (item) => item.id === cost.subcategoryId
-                          )
-                          return subcategory ? `${category.name} / ${subcategory.name}` : category.name
-                        })()}
-                      </span>
-                      <span className="ml-2 text-zinc-500">
-                        {getPaymentLabel(cost.paymentMethod, cost.cardId)}
-                      </span>
-                      {cost.paymentMethod !== "credit" && cost.dueDay && (
-                        <span className="ml-2 text-amber-300">Vence dia {cost.dueDay}</span>
-                      )}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="text-zinc-500 hover:text-zinc-200"
-                        onClick={() => startEditingFixed(cost.id)}
-                      >
-                        editar
-                      </button>
-                      <button
-                        className="text-zinc-500 hover:text-zinc-200"
-                        onClick={() => removeFixedCost(cost.id)}
-                      >
-                        remover
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                <button
+                  className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+                  onClick={() => setListModal("fixed")}
+                  type="button"
+                >
+                  Ver gastos ({fixedCosts.length})
+                </button>
               </div>
             </div>
           )}
@@ -748,7 +715,9 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
             <div
               ref={installmentSectionRef}
               className={`rounded-xl border border-zinc-800 bg-zinc-950 p-4 transition ${
-                highlightedSection === "installment" ? "ring-2 ring-emerald-500 animate-pulse" : ""
+                highlightedSection === "installment"
+                  ? "ring-2 ring-emerald-500 animate-pulse"
+                  : ""
               }`}
             >
               <h2 className="mb-3 text-sm font-semibold text-zinc-100">Parcelamentos</h2>
@@ -901,9 +870,96 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     Cancelar edição
                   </button>
                 )}
+                <button
+                  className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+                  onClick={() => setListModal("installment")}
+                  type="button"
+                >
+                  Ver parcelas ({installmentPlans.length})
+                </button>
               </div>
-              <div className="mt-3 space-y-2">
-                {installmentPlans.map((plan) => {
+            </div>
+          )}
+        </div>
+      </div>
+
+      {listModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 p-4"
+          onClick={() => setListModal(null)}
+        >
+          <div
+            className="w-full max-w-3xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-zinc-100">
+                {listModal === "fixed" ? "Lista de gastos fixos" : "Lista de parcelamentos"}
+              </h3>
+              <button
+                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+                onClick={() => setListModal(null)}
+                type="button"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+              {listModal === "fixed" &&
+                fixedCosts.map((cost) => (
+                  <div
+                    key={cost.id}
+                    className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs text-zinc-300 ${
+                      editingFixedCostId === cost.id
+                        ? "border-emerald-500/60 bg-emerald-500/10"
+                        : "border-zinc-800"
+                    }`}
+                  >
+                    <span>
+                      {cost.name} · {formatCurrency(cost.amount)}
+                      <span className="ml-2 text-zinc-500">
+                        {(() => {
+                          const category = defaultCategories.find(
+                            (item) => item.id === cost.categoryId
+                          )
+                          if (!category) {
+                            return "Categoria não definida"
+                          }
+                          const subcategory = category.subcategories.find(
+                            (item) => item.id === cost.subcategoryId
+                          )
+                          return subcategory ? `${category.name} / ${subcategory.name}` : category.name
+                        })()}
+                      </span>
+                      <span className="ml-2 text-zinc-500">
+                        {getPaymentLabel(cost.paymentMethod, cost.cardId)}
+                      </span>
+                      {cost.paymentMethod !== "credit" && cost.dueDay && (
+                        <span className="ml-2 text-amber-300">Vence dia {cost.dueDay}</span>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="text-zinc-500 hover:text-zinc-200"
+                        onClick={() => startEditingFixed(cost.id)}
+                        type="button"
+                      >
+                        editar
+                      </button>
+                      <button
+                        className="text-zinc-500 hover:text-zinc-200"
+                        onClick={() => removeFixedCost(cost.id)}
+                        type="button"
+                      >
+                        remover
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+              {listModal === "installment" &&
+                installmentPlans.map((plan) => {
                   const progress = getInstallmentProgress(plan, currentMonth)
                   return (
                     <div
@@ -928,12 +984,14 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                         <button
                           className="text-zinc-500 hover:text-zinc-200"
                           onClick={() => startEditingInstallment(plan.id)}
+                          type="button"
                         >
                           editar
                         </button>
                         <button
                           className="text-zinc-500 hover:text-zinc-200"
                           onClick={() => removeInstallmentPlan(plan.id)}
+                          type="button"
                         >
                           remover
                         </button>
@@ -941,11 +999,22 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     </div>
                   )
                 })}
-              </div>
+
+              {listModal === "fixed" && fixedCosts.length === 0 && (
+                <p className="rounded-lg border border-zinc-800 px-3 py-2 text-xs text-zinc-400">
+                  Nenhum gasto fixo cadastrado.
+                </p>
+              )}
+
+              {listModal === "installment" && installmentPlans.length === 0 && (
+                <p className="rounded-lg border border-zinc-800 px-3 py-2 text-xs text-zinc-400">
+                  Nenhum parcelamento cadastrado.
+                </p>
+              )}
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </section>
   )
 }

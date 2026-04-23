@@ -235,6 +235,21 @@ export function getMonthlyLeftoverFromTransactions(
     }, 0)
 }
 
+export function getIncomeTransactionsTotalForMonth(
+  transactions: Transaction[],
+  targetMonth: string
+) {
+  return transactions
+    .filter(
+      (transaction) =>
+        transaction.type === 1 &&
+        (transaction.competenceMonth
+          ? transaction.competenceMonth === targetMonth
+          : dateToMonthKey(transaction.date) === targetMonth)
+    )
+    .reduce((total, transaction) => total + transaction.value, 0)
+}
+
 export function getAverageMonthlyLeftover(
   transactions: Transaction[],
   targetMonth: string,
@@ -321,7 +336,9 @@ export function getCommittedCostsForMonth(input: {
       )
       .reduce((total, transaction) => total + transaction.value, 0)
 
-    const manualInvoiceAmount = card.manualInvoiceAmount || 0
+    // Manual invoice is treated as a one-off adjustment for the current month only.
+    const manualInvoiceAmount =
+      input.monthKey === getCurrentMonthKey() ? card.manualInvoiceAmount || 0 : 0
 
     return (
       sum +
@@ -359,7 +376,12 @@ export function buildProjectionTimeline(input: {
 
   return Array.from({ length: monthsForward }).map((_, index) => {
     const monthKey = addMonths(input.targetMonth, index)
-    const projectedRevenue = input.projectedRevenueByMonth?.[monthKey] || 0
+    const projectedRevenueBase = input.projectedRevenueByMonth?.[monthKey] || 0
+    const manualIncomesForMonth = getIncomeTransactionsTotalForMonth(
+      input.transactions,
+      monthKey
+    )
+    const projectedRevenue = projectedRevenueBase + manualIncomesForMonth
     const goalsMonthlyContribution = Math.max(input.goalsMonthlyContribution || 0, 0)
     const committed = getCommittedCostsForMonth({
       cards: input.cards,
