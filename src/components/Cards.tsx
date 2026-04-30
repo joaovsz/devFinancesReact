@@ -27,6 +27,8 @@ import {
   addMonths,
   dateToMonthKey,
   getCardManualInvoiceAmount,
+  getCreditFixedCostStatementMonth,
+  getCreditFixedCostTotalForMonth,
   getCreditTransactionDueMonth,
   getCreditTransactionStatementMonth,
   getInstallmentRemainingTotal,
@@ -34,6 +36,7 @@ import {
   getMonthLabel,
   isCreditChargeAlreadyPosted,
   isCardInvoicePaidForMonth,
+  isFixedCostActiveForMonth,
   isMonthKeyAfter
 } from "../utils/projections"
 import { buildPlannedEntriesForMonth } from "../utils/planningEntries"
@@ -256,14 +259,18 @@ export const Cards = () => {
           )
           .reduce((sum, transaction) => sum + transaction.value, 0)
 
-        const plannedFixedUsage = fixedCosts
-          .filter((cost) => cost.paymentMethod === "credit" && cost.cardId === card.id)
-          .reduce((sum, cost) => sum + cost.amount, 0)
+        const plannedFixedUsage = getCreditFixedCostTotalForMonth({
+          fixedCosts,
+          monthKey,
+          card,
+          mode: "statement"
+        })
         const postedFixedUsage = fixedCosts
           .filter(
             (cost) =>
               cost.paymentMethod === "credit" &&
               cost.cardId === card.id &&
+              getCreditFixedCostStatementMonth(cost, monthKey, card) === monthKey &&
               isCreditChargeAlreadyPosted({
                 monthKey,
                 chargeDay: cost.chargeDay
@@ -311,7 +318,14 @@ export const Cards = () => {
             manualInvoiceAmount
         const used =
           transactionUsage +
-          plannedFixedUsage +
+          fixedCosts
+            .filter(
+              (cost) =>
+                cost.paymentMethod === "credit" &&
+                cost.cardId === card.id &&
+                isFixedCostActiveForMonth(cost, monthKey)
+            )
+            .reduce((sum, cost) => sum + cost.amount, 0) +
           plannedInstallmentsLimitUsage +
           manualInvoiceAmount
         const available = Math.max(card.limitTotal - used, 0)
@@ -426,7 +440,7 @@ export const Cards = () => {
         addExpense(transaction.categoryId, transaction.subcategoryId, transaction.value)
       })
 
-    fixedCosts.forEach((cost) => {
+    fixedCosts.filter((cost) => isFixedCostActiveForMonth(cost, currentMonth)).forEach((cost) => {
       addExpense(cost.categoryId, cost.subcategoryId, cost.amount)
     })
 

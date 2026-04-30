@@ -4,6 +4,7 @@ export type FixedCost = {
   id: string
   name: string
   amount: number
+  startMonth?: string
   dueDay?: number
   chargeDay?: number
   categoryId: string

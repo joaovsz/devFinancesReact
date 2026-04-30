@@ -96,6 +96,10 @@ export function getMonthDateFromDay(monthKey: string, day?: number) {
   return buildMonthDate(monthKey, sanitizeChargeDay(day) || 1)
 }
 
+export function isFixedCostActiveForMonth(cost: FixedCost, monthKey: string) {
+  return !cost.startMonth || !isMonthKeyAfter(cost.startMonth, monthKey)
+}
+
 export function getOperationalDateForMonth(monthKey: string) {
   return buildMonthDate(monthKey, getTodayDayOfMonth())
 }
@@ -188,13 +192,12 @@ export function getPjProjectedRevenueForMonth(input: {
 }
 
 export function getCreditTransactionDueMonth(transactionDate: string, card: CreditCard) {
-  const [year, month, day] = transactionDate.split("-").map(Number)
-  if (!year || !month || !day) {
+  const statementMonth = getCreditTransactionStatementMonth(transactionDate, card)
+  if (!statementMonth) {
     return dateToMonthKey(transactionDate)
   }
 
-  const purchaseMonth = `${year}-${String(month).padStart(2, "0")}`
-  return day <= card.closeDay ? addMonths(purchaseMonth, 1) : addMonths(purchaseMonth, 2)
+  return card.dueDay > card.closeDay ? statementMonth : addMonths(statementMonth, 1)
 }
 
 export function getCreditTransactionStatementMonth(transactionDate: string, card: CreditCard) {
@@ -205,6 +208,63 @@ export function getCreditTransactionStatementMonth(transactionDate: string, card
 
   const purchaseMonth = `${year}-${String(month).padStart(2, "0")}`
   return day <= card.closeDay ? purchaseMonth : addMonths(purchaseMonth, 1)
+}
+
+export function getCreditFixedCostStatementMonth(
+  cost: FixedCost,
+  occurrenceMonth: string,
+  card: CreditCard
+) {
+  return getCreditTransactionStatementMonth(
+    getMonthDateFromDay(occurrenceMonth, cost.chargeDay),
+    card
+  )
+}
+
+export function getCreditFixedCostDueMonth(
+  cost: FixedCost,
+  occurrenceMonth: string,
+  card: CreditCard
+) {
+  return getCreditTransactionDueMonth(
+    getMonthDateFromDay(occurrenceMonth, cost.chargeDay),
+    card
+  )
+}
+
+export function getCreditFixedCostTotalForMonth(input: {
+  fixedCosts: FixedCost[]
+  monthKey: string
+  card: CreditCard
+  mode?: "statement" | "due"
+}) {
+  const mode = input.mode || "due"
+  const occurrenceMonths = [
+    addMonths(input.monthKey, -2),
+    addMonths(input.monthKey, -1),
+    input.monthKey
+  ]
+
+  return occurrenceMonths.reduce((sum, occurrenceMonth) => {
+    const totalForOccurrence = input.fixedCosts
+      .filter(
+        (cost) =>
+          cost.paymentMethod === "credit" &&
+          cost.cardId === input.card.id &&
+          isFixedCostActiveForMonth(cost, occurrenceMonth)
+      )
+      .filter((cost) => {
+        const invoiceMonth =
+          mode === "statement"
+            ? getCreditFixedCostStatementMonth(cost, occurrenceMonth, input.card)
+            : getCreditFixedCostDueMonth(cost, occurrenceMonth, input.card)
+
+        return invoiceMonth === input.monthKey
+      })
+      .reduce((total, cost) => total + cost.amount, 0)
+
+    return sum + totalForOccurrence
+  }, 0)
 }
 
 export function getFixedCostsTotal(fixedCosts: FixedCost[]) {
@@ -341,15 +401,35 @@ export function getCommittedCostsForMonth(input: {
   installmentPlans: InstallmentPlan[]
   monthKey: string
 }) {
-  const fixedCostsTotal = getFixedCostsTotal(input.fixedCosts)
+  const cards = input.cards || []
+  const fixedCostsTotal =
+    input.fixedCosts
+      .filter(
+        (cost) =>
+          cost.paymentMethod !== "credit" && isFixedCostActiveForMonth(cost, input.monthKey)
+      )
+      .reduce((total, cost) => total + cost.amount, 0) +
+    cards.reduce(
+      (total, card) =>
+        total +
+        getCreditFixedCostTotalForMonth({
+          fixedCosts: input.fixedCosts,
+          monthKey: input.monthKey,
+          card,
+          mode: "due"
+        }),
+      0
+    )
   const installmentsTotal = getInstallmentTotalForMonth(input.installmentPlans, input.monthKey)
 
   // Business rule: total outflows should include cash expenses PLUS the full credit card invoices.
   // A credit card invoice for a month is:
   // active installments + credit fixed costs + ad-hoc credit transactions + manualInvoiceAmount.
-  const cards = input.cards || []
   const cashFixedCostsTotal = input.fixedCosts
-    .filter((cost) => cost.paymentMethod !== "credit")
+    .filter(
+      (cost) =>
+        cost.paymentMethod !== "credit" && isFixedCostActiveForMonth(cost, input.monthKey)
+    )
     .reduce((total, cost) => total + cost.amount, 0)
   const cashInstallmentsTotal = getInstallmentTotalForMonth(
     input.installmentPlans.filter((plan) => plan.paymentMethod !== "credit"),
@@ -369,9 +449,12 @@ export function getCommittedCostsForMonth(input: {
       return sum
     }
 
-    const creditFixedCostsTotal = input.fixedCosts
-      .filter((cost) => cost.paymentMethod === "credit" && cost.cardId === card.id)
-      .reduce((total, cost) => total + cost.amount, 0)
+    const creditFixedCostsTotal = getCreditFixedCostTotalForMonth({
+      fixedCosts: input.fixedCosts,
+      monthKey: input.monthKey,
+      card,
+      mode: "due"
+    })
 
     const creditInstallmentsTotal = getInstallmentTotalForMonth(
       input.installmentPlans.filter(
@@ -386,7 +469,7 @@ export function getCommittedCostsForMonth(input: {
           transaction.type === 2 &&
           transaction.paymentMethod === "credit" &&
           transaction.cardId === card.id &&
-          getCreditTransactionStatementMonth(transaction.date, card) === input.monthKey
+          getCreditTransactionDueMonth(transaction.date, card) === input.monthKey
       )
       .reduce((total, transaction) => total + transaction.value, 0)
 
@@ -410,6 +493,72 @@ export function getCommittedCostsForMonth(input: {
       cashInstallmentsTotal +
       cashTransactionsTotal +
       creditInvoicesTotal
+  }
+}
+
+export function getOperationalCostsForMonth(input: {
+  cards?: CreditCard[]
+  transactions?: Transaction[]
+  fixedCosts: FixedCost[]
+  installmentPlans: InstallmentPlan[]
+  monthKey: string
+}) {
+  const cashFixedCostsTotal = input.fixedCosts
+    .filter(
+      (cost) =>
+        cost.paymentMethod !== "credit" && isFixedCostActiveForMonth(cost, input.monthKey)
+    )
+    .reduce((total, cost) => total + cost.amount, 0)
+
+  const creditFixedCostsTotal = input.fixedCosts
+    .filter(
+      (cost) =>
+        cost.paymentMethod === "credit" && isFixedCostActiveForMonth(cost, input.monthKey)
+    )
+    .reduce((total, cost) => total + cost.amount, 0)
+
+  const cashInstallmentsTotal = getInstallmentTotalForMonth(
+    input.installmentPlans.filter((plan) => plan.paymentMethod !== "credit"),
+    input.monthKey
+  )
+
+  const creditInstallmentsTotal = getInstallmentTotalForMonth(
+    input.installmentPlans.filter((plan) => plan.paymentMethod === "credit"),
+    input.monthKey
+  )
+
+  const cashTransactionsTotal = (input.transactions || [])
+    .filter(
+      (transaction) =>
+        transaction.type === 2 &&
+        transaction.paymentMethod !== "credit" &&
+        dateToMonthKey(transaction.date) === input.monthKey
+    )
+    .reduce((total, transaction) => total + transaction.value, 0)
+
+  const creditTransactionsTotal = (input.transactions || [])
+    .filter(
+      (transaction) =>
+        transaction.type === 2 &&
+        transaction.paymentMethod === "credit" &&
+        dateToMonthKey(transaction.date) === input.monthKey
+    )
+    .reduce((total, transaction) => total + transaction.value, 0)
+
+  const manualInvoiceAmount = (input.cards || []).reduce(
+    (total, card) => total + getCardManualInvoiceAmount(card, input.monthKey),
+    0
+  )
+
+  return {
+    total:
+      cashFixedCostsTotal +
+      creditFixedCostsTotal +
+      cashInstallmentsTotal +
+      creditInstallmentsTotal +
+      cashTransactionsTotal +
+      creditTransactionsTotal +
+      manualInvoiceAmount
   }
 }
 

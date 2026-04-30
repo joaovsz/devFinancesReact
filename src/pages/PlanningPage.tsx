@@ -287,6 +287,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         id: crypto.randomUUID(),
         name: fixedName,
         amount: parseCurrencyInput(fixedAmount),
+        startMonth: activeMonthKey,
         dueDay:
           fixedPaymentMethod === "credit"
             ? undefined

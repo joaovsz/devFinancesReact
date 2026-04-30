@@ -9,10 +9,12 @@ import { formatCurrency } from "../Transactions"
 import { bankPresets, BankPreset } from "../../data/banks"
 import { NumberTicker } from "../magic/NumberTicker"
 import {
+  getCreditFixedCostTotalForMonth,
   getCreditTransactionStatementMonth,
   getCurrentMonthKey,
   getInstallmentRemainingTotal,
-  getInstallmentTotalForMonth
+  getInstallmentTotalForMonth,
+  isFixedCostActiveForMonth
 } from "../../utils/projections"
 import {
   formatCurrencyFromNumber,
@@ -88,7 +90,12 @@ export const CreditCardsPanel = ({
       .reduce((totalValue, transaction) => totalValue + transaction.value, 0)
 
     const plannedFixedUsage = fixedCosts
-      .filter((cost) => cost.paymentMethod === "credit" && cost.cardId === currentCardId)
+      .filter(
+        (cost) =>
+          cost.paymentMethod === "credit" &&
+          cost.cardId === currentCardId &&
+          isFixedCostActiveForMonth(cost, getCurrentMonthKey())
+      )
       .reduce((totalValue, cost) => totalValue + cost.amount, 0)
 
     const plannedInstallmentsLimitUsage = installmentPlans
@@ -103,9 +110,15 @@ export const CreditCardsPanel = ({
   }
 
   function calculatePlannedCardUsageForMonth(currentCardId: string, monthKey: string) {
-    const plannedFixedUsage = fixedCosts
-      .filter((cost) => cost.paymentMethod === "credit" && cost.cardId === currentCardId)
-      .reduce((totalValue, cost) => totalValue + cost.amount, 0)
+    const selectedCard = cards.find((card) => card.id === currentCardId)
+    const plannedFixedUsage = selectedCard
+      ? getCreditFixedCostTotalForMonth({
+          fixedCosts,
+          monthKey,
+          card: selectedCard,
+          mode: "statement"
+        })
+      : 0
 
     const plannedInstallmentsUsage = getInstallmentTotalForMonth(
       installmentPlans.filter(

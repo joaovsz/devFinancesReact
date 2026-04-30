@@ -7,7 +7,8 @@ import {
   getMonthDateFromDay,
   getPjIncomeDateForMonth,
   getPjProjectedRevenueForMonth,
-  getInstallmentProgress
+  getInstallmentProgress,
+  isFixedCostActiveForMonth
 } from "./projections"
 
 export type PlannedEntry = {
@@ -36,7 +37,7 @@ export function buildPlannedEntriesForMonth(input: {
 }) {
   const entries: PlannedEntry[] = []
 
-  input.fixedCosts.forEach((cost) => {
+  input.fixedCosts.filter((cost) => isFixedCostActiveForMonth(cost, input.monthKey)).forEach((cost) => {
     entries.push({
       id: `planned-fixed-${cost.id}-${input.monthKey}`,
       label: cost.name,
