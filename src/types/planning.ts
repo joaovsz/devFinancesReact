@@ -5,6 +5,7 @@ export type FixedCost = {
   name: string
   amount: number
   dueDay?: number
+  chargeDay?: number
   categoryId: string
   subcategoryId: string
   paymentMethod: PaymentMethod
@@ -18,6 +19,7 @@ export type InstallmentPlan = {
   totalInstallments: number
   paidInstallments: number
   startMonth: string // YYYY-MM
+  chargeDay?: number
   paymentMethod: PaymentMethod
   cardId?: string
 }

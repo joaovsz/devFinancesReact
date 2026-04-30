@@ -4,6 +4,7 @@ import { PaymentMethod } from "../types/transaction"
 import {
   getCltIncomeDateForMonth,
   getCltProjectedRevenueForMonth,
+  getMonthDateFromDay,
   getPjIncomeDateForMonth,
   getPjProjectedRevenueForMonth,
   getInstallmentProgress
@@ -40,7 +41,10 @@ export function buildPlannedEntriesForMonth(input: {
       id: `planned-fixed-${cost.id}-${input.monthKey}`,
       label: cost.name,
       value: cost.amount,
-      date: monthKeyToDate(input.monthKey),
+      date:
+        cost.paymentMethod === "credit"
+          ? getMonthDateFromDay(input.monthKey, cost.chargeDay)
+          : getMonthDateFromDay(input.monthKey, cost.dueDay),
       type: 2,
       paymentMethod: cost.paymentMethod,
       cardId: cost.cardId,
@@ -60,7 +64,7 @@ export function buildPlannedEntriesForMonth(input: {
       id: `planned-installment-${plan.id}-${input.monthKey}`,
       label: `${plan.name} (${progress.currentInstallment}/${plan.totalInstallments})`,
       value: plan.installmentValue,
-      date: monthKeyToDate(input.monthKey),
+      date: getMonthDateFromDay(input.monthKey, plan.chargeDay),
       type: 2,
       paymentMethod: plan.paymentMethod,
       cardId: plan.cardId,

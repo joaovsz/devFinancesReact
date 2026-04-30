@@ -9,6 +9,10 @@ export function getCurrentMonthKey() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
 }
 
+export function getTodayDayOfMonth() {
+  return new Date().getDate()
+}
+
 export function monthKeyToIndex(monthKey: string) {
   const [year, month] = monthKey.split("-").map(Number)
   return year * 12 + (month - 1)
@@ -20,6 +24,15 @@ export function isMonthKeyOnOrBefore(monthKey: string, referenceMonthKey: string
 
 export function isMonthKeyAfter(monthKey: string, referenceMonthKey: string) {
   return monthKeyToIndex(monthKey) > monthKeyToIndex(referenceMonthKey)
+}
+
+export function getCardManualInvoiceAmount(card: CreditCard, monthKey: string) {
+  const valueFromMap = card.manualInvoiceByMonth?.[monthKey]
+  if (Number.isFinite(valueFromMap)) {
+    return Math.max(valueFromMap || 0, 0)
+  }
+
+  return monthKey === getCurrentMonthKey() ? Math.max(card.manualInvoiceAmount || 0, 0) : 0
 }
 
 export function isCardInvoicePaidForMonth(card: CreditCard, monthKey: string) {
@@ -69,6 +82,47 @@ function sanitizeCompetenceOffsetMonths(value?: number) {
   }
 
   return Math.min(Math.max(Math.round(value || 0), 0), 12)
+}
+
+export function sanitizeChargeDay(value?: number) {
+  if (!Number.isFinite(value)) {
+    return undefined
+  }
+
+  return Math.min(Math.max(Math.round(value || 0), 1), 31)
+}
+
+export function getMonthDateFromDay(monthKey: string, day?: number) {
+  return buildMonthDate(monthKey, sanitizeChargeDay(day) || 1)
+}
+
+export function getOperationalDateForMonth(monthKey: string) {
+  return buildMonthDate(monthKey, getTodayDayOfMonth())
+}
+
+export function isCreditChargeAlreadyPosted(input: {
+  monthKey: string
+  chargeDay?: number
+  referenceMonthKey?: string
+  referenceDay?: number
+}) {
+  const referenceMonthKey = input.referenceMonthKey || getCurrentMonthKey()
+  const referenceDay = input.referenceDay || getTodayDayOfMonth()
+
+  if (isMonthKeyAfter(input.monthKey, referenceMonthKey)) {
+    return false
+  }
+
+  if (isMonthKeyAfter(referenceMonthKey, input.monthKey)) {
+    return true
+  }
+
+  const chargeDay = sanitizeChargeDay(input.chargeDay)
+  if (!chargeDay) {
+    return true
+  }
+
+  return chargeDay <= referenceDay
 }
 
 export function getCltIncomeDateForMonth(contractConfig: ContractConfig, monthKey: string) {
@@ -337,8 +391,7 @@ export function getCommittedCostsForMonth(input: {
       .reduce((total, transaction) => total + transaction.value, 0)
 
     // Manual invoice is treated as a one-off adjustment for the current month only.
-    const manualInvoiceAmount =
-      input.monthKey === getCurrentMonthKey() ? card.manualInvoiceAmount || 0 : 0
+    const manualInvoiceAmount = getCardManualInvoiceAmount(card, input.monthKey)
 
     return (
       sum +

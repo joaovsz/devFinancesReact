@@ -12,6 +12,7 @@ type CardInvoiceModalProps = {
   cardName: string
   monthKey: string
   currentInvoice: number
+  postedInvoice: number
   manualAdjustmentValue: number
   transactions: Transaction[]
   plannedItems: Array<{
@@ -50,6 +51,7 @@ export const CardInvoiceModal = ({
   cardName,
   monthKey,
   currentInvoice,
+  postedInvoice,
   manualAdjustmentValue,
   transactions,
   plannedItems,
@@ -61,7 +63,7 @@ export const CardInvoiceModal = ({
   onAddExpense
 }: CardInvoiceModalProps) => {
   const [manualAdjustmentInput, setManualAdjustmentInput] = useState("")
-  const baseInvoiceWithoutManualAdjustment = currentInvoice - manualAdjustmentValue
+  const baseInvoiceWithoutManualAdjustment = postedInvoice - manualAdjustmentValue
 
   useEffect(() => {
     if (!isOpen) {
@@ -69,9 +71,9 @@ export const CardInvoiceModal = ({
     }
 
     setManualAdjustmentInput(
-      formatCurrencyFromNumber(currentInvoice)
+      formatCurrencyFromNumber(postedInvoice)
     )
-  }, [isOpen, currentInvoice])
+  }, [isOpen, postedInvoice])
 
   if (!isOpen) {
     return null
@@ -90,7 +92,10 @@ export const CardInvoiceModal = ({
           <div>
             <h2 className="text-base font-semibold text-zinc-100">Fatura de {cardName}</h2>
             <p className="mt-1 text-xs text-zinc-400">
-              {getMonthLabel(monthKey)} · Total: {formatCurrencyFromNumber(currentInvoice)}
+              {getMonthLabel(monthKey)} · Prevista: {formatCurrencyFromNumber(currentInvoice)}
+            </p>
+            <p className="mt-1 text-[11px] text-zinc-500">
+              Lançada no banco: {formatCurrencyFromNumber(postedInvoice)}
             </p>
           </div>
           <button
@@ -110,8 +115,8 @@ export const CardInvoiceModal = ({
             </h3>
             <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
               <p className="mb-2 text-[11px] text-zinc-500">
-                O sistema calcula o ajuste automaticamente, descontando gastos fixos,
-                parcelamentos e transações do mês.
+                O ajuste usa apenas o que já foi lançado pelo banco. Cobranças futuras do ciclo
+                continuam projetadas, mas não entram nessa base.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input

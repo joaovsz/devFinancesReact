@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom"
 import { Transaction } from "../types/transaction"
 import { useTransactionStore } from '../store/useTransactionStore'
 import { defaultCategories } from "../data/categories"
-import { getCurrentMonthKey } from "../utils/projections"
+import { getCardManualInvoiceAmount } from "../utils/projections"
 import { buildPlannedEntriesForMonth, PlannedEntry } from "../utils/planningEntries"
 import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
 import { formatCurrencyFromNumber, formatCurrencyInput, parseCurrencyInput } from "../utils/currency-input"
@@ -71,14 +71,19 @@ const Transactions = ({
   const updateFixedCost = useTransactionStore((state) => state.updateFixedCost)
   const removeFixedCost = useTransactionStore((state) => state.removeFixedCost)
   const removeInstallmentPlan = useTransactionStore((state) => state.removeInstallmentPlan)
-  const updateCard = useTransactionStore((state) => state.updateCard)
+  const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
+  const setCardManualInvoiceAmountForMonth = useTransactionStore(
+    (state) => state.setCardManualInvoiceAmountForMonth
+  )
+  const clearCardManualInvoiceAmountForMonth = useTransactionStore(
+    (state) => state.clearCardManualInvoiceAmountForMonth
+  )
   const navigate = useNavigate()
-  const currentMonth = getCurrentMonthKey()
   const [holidays, setHolidays] = useState<Holiday[]>([])
 
   useEffect(() => {
     let ignore = false
-    const year = Number(currentMonth.split("-")[0])
+    const year = Number(activeMonthKey.split("-")[0])
 
     if (!(contractConfig.incomeMode === "pj" && contractConfig.useHolidayApi)) {
       setHolidays([])
@@ -102,36 +107,36 @@ const Transactions = ({
     return () => {
       ignore = true
     }
-  }, [currentMonth, contractConfig.incomeMode, contractConfig.useHolidayApi])
+  }, [activeMonthKey, contractConfig.incomeMode, contractConfig.useHolidayApi])
 
   const plannedEntries = useMemo(
     () =>
       buildPlannedEntriesForMonth({
-        monthKey: currentMonth,
+        monthKey: activeMonthKey,
         fixedCosts,
         installmentPlans,
         contractConfig,
         holidays
       }),
-    [currentMonth, fixedCosts, installmentPlans, contractConfig, holidays]
+    [activeMonthKey, fixedCosts, installmentPlans, contractConfig, holidays]
   )
 
   const manualInvoiceEntries = useMemo<ManualInvoiceEntry[]>(
     () =>
       cards
-        .filter((card) => (card.manualInvoiceAmount || 0) > 0)
+        .filter((card) => getCardManualInvoiceAmount(card, activeMonthKey) > 0)
         .map((card) => ({
-          id: `planned-manual-invoice-${card.id}-${currentMonth}`,
+          id: `planned-manual-invoice-${card.id}-${activeMonthKey}`,
           label: "Ajuste manual de fatura",
-          value: card.manualInvoiceAmount || 0,
-          date: `${currentMonth}-01`,
+          value: getCardManualInvoiceAmount(card, activeMonthKey),
+          date: `${activeMonthKey}-01`,
           type: 2 as const,
           paymentMethod: "credit" as const,
           cardId: card.id,
           isPlanned: true as const,
           plannedSourceType: "manualInvoice" as const
         })),
-    [cards, currentMonth]
+    [cards, activeMonthKey]
   )
   const allRows: TransactionRow[] = useMemo(
     () => [...plannedEntries, ...manualInvoiceEntries, ...transactions],
@@ -194,10 +199,11 @@ const Transactions = ({
         return
       }
 
-      updateCard({
-        ...card,
-        manualInvoiceAmount: Math.max(parseCurrencyInput(draft.value), 0)
-      })
+      setCardManualInvoiceAmountForMonth(
+        card.id,
+        activeMonthKey,
+        Math.max(parseCurrencyInput(draft.value), 0)
+      )
       setEditingId(null)
       return
     }
@@ -247,10 +253,7 @@ const Transactions = ({
       return
     }
 
-    updateCard({
-      ...card,
-      manualInvoiceAmount: 0
-    })
+    clearCardManualInvoiceAmountForMonth(card.id, activeMonthKey)
     setEditingId((current) => (current === entry.id ? null : current))
   }
 

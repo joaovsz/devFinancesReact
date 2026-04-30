@@ -14,7 +14,6 @@ import {
   addMonths,
   buildProjectionTimeline,
   getCltProjectedRevenueForMonth,
-  getCurrentMonthKey,
   getMonthLabel,
   getPjProjectedRevenueForMonth
 } from "../utils/projections"
@@ -44,8 +43,9 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
   const fixedCosts = useTransactionStore((state) => state.fixedCosts)
   const installmentPlans = useTransactionStore((state) => state.installmentPlans)
   const contractConfig = useTransactionStore((state) => state.contractConfig)
+  const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
   const goalsMonthlyContribution = useGoalStore(selectTotalMonthlyContribution)
-  const [targetMonth, setTargetMonth] = useState(getCurrentMonthKey())
+  const [targetMonth, setTargetMonth] = useState(activeMonthKey)
   const [visibleMonths, setVisibleMonths] = useState(6)
   const [isMobile, setIsMobile] = useState(false)
   const [holidaysByYear, setHolidaysByYear] = useState<Record<number, string[]>>({})
@@ -60,6 +60,10 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
       Array.from(new Set(monthKeys.map((monthKey) => Number(monthKey.split("-")[0])))),
     [monthKeys]
   )
+
+  useEffect(() => {
+    setTargetMonth(activeMonthKey)
+  }, [activeMonthKey])
 
   useEffect(() => {
     if (typeof window === "undefined") {

@@ -17,7 +17,7 @@ type WorkspaceTab = "planejar" | "impacto"
 
 export const PlanningWorkspacePage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const currentMonth = getCurrentMonthKey()
+  const currentMonth = useTransactionStore((state) => state.activeMonthKey)
   const fixedCosts = useTransactionStore((state) => state.fixedCosts)
   const installmentPlans = useTransactionStore((state) => state.installmentPlans)
   const transactions = useTransactionStore((state) => state.transactions)
@@ -97,6 +97,10 @@ export const PlanningWorkspacePage = () => {
     projectedRevenueCurrentMonth - committedCostsCurrentMonth
 
   const nonCreditDueAlerts = useMemo(() => {
+    if (currentMonth !== getCurrentMonthKey()) {
+      return []
+    }
+
     const today = new Date()
     const todayDay = today.getDate()
     return fixedCosts

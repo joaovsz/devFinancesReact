@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom"
 import { defaultCategories } from "../data/categories"
 import { useTransactionStore } from "../store/useTransactionStore"
 import { formatCurrency } from "../components/Transactions"
-import { getCurrentMonthKey, getInstallmentProgress } from "../utils/projections"
+import { getInstallmentProgress } from "../utils/projections"
 import { PaymentMethod } from "../types/transaction"
 import {
   formatCurrencyFromNumber,
@@ -55,6 +55,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   const fixedCosts = useTransactionStore((state) => state.fixedCosts)
   const installmentPlans = useTransactionStore((state) => state.installmentPlans)
   const contractConfig = useTransactionStore((state) => state.contractConfig)
+  const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
   const addFixedCost = useTransactionStore((state) => state.addFixedCost)
   const updateFixedCost = useTransactionStore((state) => state.updateFixedCost)
   const removeFixedCost = useTransactionStore((state) => state.removeFixedCost)
@@ -63,7 +64,6 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   const removeInstallmentPlan = useTransactionStore((state) => state.removeInstallmentPlan)
   const updateContractConfig = useTransactionStore((state) => state.updateContractConfig)
 
-  const currentMonth = getCurrentMonthKey()
   const firstCardId = cards[0]?.id || ""
 
   const [fixedName, setFixedName] = useState("")
@@ -73,6 +73,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     defaultCategories[0].subcategories[0].id
   )
   const [fixedDueDay, setFixedDueDay] = useState("")
+  const [fixedChargeDay, setFixedChargeDay] = useState("")
   const [fixedPaymentMethod, setFixedPaymentMethod] = useState<PaymentMethod>("cash")
   const [fixedCardId, setFixedCardId] = useState(firstCardId)
   const [editingFixedCostId, setEditingFixedCostId] = useState("")
@@ -84,7 +85,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   const [installmentPaymentMethod, setInstallmentPaymentMethod] =
     useState<PaymentMethod>("cash")
   const [installmentCardId, setInstallmentCardId] = useState(firstCardId)
-  const [installmentStartMonth, setInstallmentStartMonth] = useState(currentMonth)
+  const [installmentChargeDay, setInstallmentChargeDay] = useState("")
+  const [installmentStartMonth, setInstallmentStartMonth] = useState(activeMonthKey)
   const [editingInstallmentId, setEditingInstallmentId] = useState("")
 
   const [hourlyRateInput, setHourlyRateInput] = useState(
@@ -129,6 +131,19 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   }, [])
 
   useEffect(() => {
+    if (!editingFixedCostId) {
+      setFixedChargeDay("")
+    }
+  }, [editingFixedCostId, activeMonthKey])
+
+  useEffect(() => {
+    if (!editingInstallmentId) {
+      setInstallmentStartMonth(activeMonthKey)
+      setInstallmentChargeDay("")
+    }
+  }, [editingInstallmentId, activeMonthKey])
+
+  useEffect(() => {
     const editingId = searchParams.get("editFixedCostId")
     if (!editingId) {
       return
@@ -147,6 +162,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setFixedCategoryId(cost.categoryId)
     setFixedSubcategoryId(cost.subcategoryId)
     setFixedDueDay(cost.dueDay ? String(cost.dueDay) : "")
+    setFixedChargeDay(cost.chargeDay ? String(cost.chargeDay) : "")
     setFixedPaymentMethod(cost.paymentMethod)
     setFixedCardId(cost.cardId || firstCardId)
   }, [searchParams, fixedCosts, firstCardId])
@@ -195,6 +211,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setInstallmentPaid(String(plan.paidInstallments || 0))
     setInstallmentPaymentMethod(plan.paymentMethod)
     setInstallmentCardId(plan.cardId || firstCardId)
+    setInstallmentChargeDay(plan.chargeDay ? String(plan.chargeDay) : "")
     setInstallmentStartMonth(plan.startMonth)
   }, [searchParams, installmentPlans, firstCardId])
 
@@ -249,6 +266,10 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
             : fixedDueDay
               ? Number(fixedDueDay)
               : undefined,
+        chargeDay:
+          fixedPaymentMethod === "credit" && fixedChargeDay
+            ? Number(fixedChargeDay)
+            : undefined,
         categoryId: fixedCategoryId,
         subcategoryId: fixedSubcategoryId,
         paymentMethod: fixedPaymentMethod,
@@ -272,6 +293,10 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
             : fixedDueDay
               ? Number(fixedDueDay)
               : undefined,
+        chargeDay:
+          fixedPaymentMethod === "credit" && fixedChargeDay
+            ? Number(fixedChargeDay)
+            : undefined,
         categoryId: fixedCategoryId,
         subcategoryId: fixedSubcategoryId,
         paymentMethod: fixedPaymentMethod,
@@ -298,6 +323,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setFixedCategoryId(cost.categoryId)
     setFixedSubcategoryId(cost.subcategoryId)
     setFixedDueDay(cost.dueDay ? String(cost.dueDay) : "")
+    setFixedChargeDay(cost.chargeDay ? String(cost.chargeDay) : "")
     setFixedPaymentMethod(cost.paymentMethod)
     setFixedCardId(cost.cardId || firstCardId)
     setWizardStep(0)
@@ -315,6 +341,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setFixedCategoryId(defaultCategories[0].id)
     setFixedSubcategoryId(defaultCategories[0].subcategories[0].id)
     setFixedDueDay("")
+    setFixedChargeDay("")
     setSearchParams((currentParams) => {
       const nextParams = new URLSearchParams(currentParams)
       nextParams.delete("editFixedCostId")
@@ -365,6 +392,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         totalInstallments,
         paidInstallments,
         startMonth: installmentStartMonth,
+        chargeDay: installmentChargeDay ? Number(installmentChargeDay) : undefined,
         paymentMethod: installmentPaymentMethod,
         cardId: installmentPaymentMethod === "credit" ? installmentCardId : undefined
       })
@@ -382,6 +410,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         totalInstallments,
         paidInstallments,
         startMonth: installmentStartMonth,
+        chargeDay: installmentChargeDay ? Number(installmentChargeDay) : undefined,
         paymentMethod: installmentPaymentMethod,
         cardId: installmentPaymentMethod === "credit" ? installmentCardId : undefined
       })
@@ -391,6 +420,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setInstallmentValue("")
     setInstallmentTotal("")
     setInstallmentPaid("0")
+    setInstallmentChargeDay("")
+    setInstallmentStartMonth(activeMonthKey)
   }
 
   function startEditingInstallment(planId: string) {
@@ -406,6 +437,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setInstallmentPaid(String(plan.paidInstallments || 0))
     setInstallmentPaymentMethod(plan.paymentMethod)
     setInstallmentCardId(plan.cardId || firstCardId)
+    setInstallmentChargeDay(plan.chargeDay ? String(plan.chargeDay) : "")
     setInstallmentStartMonth(plan.startMonth)
     setWizardStep(1)
     flashSection("installment")
@@ -421,6 +453,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setInstallmentValue("")
     setInstallmentTotal("")
     setInstallmentPaid("0")
+    setInstallmentChargeDay("")
+    setInstallmentStartMonth(activeMonthKey)
     setSearchParams((currentParams) => {
       const nextParams = new URLSearchParams(currentParams)
       nextParams.delete("editInstallmentId")
@@ -663,15 +697,34 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                   ))}
                 </SelectField>
                 {fixedPaymentMethod === "credit" && (
-                  <SelectField value={fixedCardId} onChange={(event) => setFixedCardId(event.target.value)}>
-                    <option value="">Selecionar cartão</option>
-                    <option value="other">Outros</option>
-                    {cards.map((card) => (
-                      <option key={card.id} value={card.id}>
-                        {card.name}
-                      </option>
-                    ))}
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <SelectField
+                      value={fixedCardId}
+                      onChange={(event) => setFixedCardId(event.target.value)}
+                    >
+                      <option value="">Selecionar cartão</option>
+                      <option value="other">Outros</option>
+                      {cards.map((card) => (
+                        <option key={card.id} value={card.id}>
+                          {card.name}
+                        </option>
+                      ))}
                     </SelectField>
+                    <SelectField
+                      value={fixedChargeDay}
+                      onChange={(event) => setFixedChargeDay(event.target.value)}
+                    >
+                      <option value="">Cobrança imediata</option>
+                      {Array.from({ length: 31 }).map((_, index) => {
+                        const day = String(index + 1)
+                        return (
+                          <option key={`fixed-charge-day-${day}`} value={day}>
+                            Cobra dia {day}
+                          </option>
+                        )
+                      })}
+                    </SelectField>
+                  </div>
                 )}
                 {fixedPaymentMethod !== "credit" && (
                   <SelectField value={fixedDueDay} onChange={(event) => setFixedDueDay(event.target.value)}>
@@ -800,21 +853,40 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                   </label>
                 </div>
                 {installmentPaymentMethod === "credit" && (
-                  <label className="grid gap-1 text-xs font-medium text-zinc-400">
-                    Cartão
-                    <SelectField
-                      value={installmentCardId}
-                      onChange={(event) => setInstallmentCardId(event.target.value)}
-                    >
-                      <option value="">Selecionar cartão</option>
-                      <option value="other">Outros</option>
-                      {cards.map((card) => (
-                        <option key={card.id} value={card.id}>
-                          {card.name}
-                        </option>
-                      ))}
-                    </SelectField>
-                  </label>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <label className="grid gap-1 text-xs font-medium text-zinc-400">
+                      Cartão
+                      <SelectField
+                        value={installmentCardId}
+                        onChange={(event) => setInstallmentCardId(event.target.value)}
+                      >
+                        <option value="">Selecionar cartão</option>
+                        <option value="other">Outros</option>
+                        {cards.map((card) => (
+                          <option key={card.id} value={card.id}>
+                            {card.name}
+                          </option>
+                        ))}
+                      </SelectField>
+                    </label>
+                    <label className="grid gap-1 text-xs font-medium text-zinc-400">
+                      Dia da cobrança
+                      <SelectField
+                        value={installmentChargeDay}
+                        onChange={(event) => setInstallmentChargeDay(event.target.value)}
+                      >
+                        <option value="">Cobrança imediata</option>
+                        {Array.from({ length: 31 }).map((_, index) => {
+                          const day = String(index + 1)
+                          return (
+                            <option key={`installment-charge-day-${day}`} value={day}>
+                              Cobra dia {day}
+                            </option>
+                          )
+                        })}
+                      </SelectField>
+                    </label>
+                  </div>
                 )}
                 <div className="grid gap-2 md:grid-cols-2">
                   <label className="grid gap-1 text-xs font-medium text-zinc-400">
@@ -938,6 +1010,9 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                       {cost.paymentMethod !== "credit" && cost.dueDay && (
                         <span className="ml-2 text-amber-300">Vence dia {cost.dueDay}</span>
                       )}
+                      {cost.paymentMethod === "credit" && cost.chargeDay && (
+                        <span className="ml-2 text-sky-300">Cobra dia {cost.chargeDay}</span>
+                      )}
                     </span>
                     <div className="flex items-center gap-2">
                       <button
@@ -960,7 +1035,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
 
               {listModal === "installment" &&
                 installmentPlans.map((plan) => {
-                  const progress = getInstallmentProgress(plan, currentMonth)
+                  const progress = getInstallmentProgress(plan, activeMonthKey)
                   return (
                     <div
                       key={plan.id}
@@ -979,6 +1054,9 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                         <span className="ml-2 text-zinc-500">
                           {getPaymentLabel(plan.paymentMethod, plan.cardId)}
                         </span>
+                        {plan.paymentMethod === "credit" && plan.chargeDay && (
+                          <span className="ml-2 text-sky-300">Cobra dia {plan.chargeDay}</span>
+                        )}
                       </span>
                       <div className="flex items-center gap-2">
                         <button

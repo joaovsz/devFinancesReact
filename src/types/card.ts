@@ -8,5 +8,6 @@ export type CreditCard = {
   closeDay: number
   dueDay: number
   manualInvoiceAmount: number
+  manualInvoiceByMonth?: Record<string, number>
   paidThroughMonth?: string
 }

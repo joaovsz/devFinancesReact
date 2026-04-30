@@ -5,6 +5,8 @@ import { Category } from "../../types/finance"
 import { CreditCard } from "../../types/card"
 import { PaymentMethod, Transaction } from "../../types/transaction"
 import { parseCurrencyInput } from "../../utils/currency-input"
+import { useTransactionStore } from "../../store/useTransactionStore"
+import { getOperationalDateForMonth } from "../../utils/projections"
 
 type TransactionFormProps = {
   categories: Category[]
@@ -30,14 +32,6 @@ const selectClassName =
 const inputClassName =
   "w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
 const labelClassName = "grid gap-1 text-xs font-medium text-zinc-400"
-
-function getTodayDate() {
-  const now = new Date()
-  const yyyy = now.getFullYear()
-  const mm = String(now.getMonth() + 1).padStart(2, "0")
-  const dd = String(now.getDate()).padStart(2, "0")
-  return `${yyyy}-${mm}-${dd}`
-}
 
 function formatDateLabel(dateValue: string) {
   const date = new Date(`${dateValue}T00:00:00`)
@@ -72,9 +66,10 @@ export const TransactionForm = ({
   existingTransactions,
   onSubmitTransaction
 }: TransactionFormProps) => {
+  const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
   const [label, setLabel] = useState("")
   const [amountCents, setAmountCents] = useState(0)
-  const [date, setDate] = useState(getTodayDate())
+  const [date, setDate] = useState(getOperationalDateForMonth(activeMonthKey))
   const [option, setOption] = useState(2)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
     getInitialPaymentMethod(cards, initialCreditCardId)
@@ -121,6 +116,11 @@ export const TransactionForm = ({
     setCardId(initialCreditCardId)
   }, [initialCreditCardId, cards])
 
+  useEffect(() => {
+    setDate(getOperationalDateForMonth(activeMonthKey))
+    setCompetenceMonth((current) => (current ? activeMonthKey : current))
+  }, [activeMonthKey])
+
   function formatCents(cents: number) {
     return (cents / 100).toLocaleString("pt-BR", {
       style: "currency",
@@ -140,7 +140,7 @@ export const TransactionForm = ({
   function resetValues() {
     setLabel("")
     setAmountCents(0)
-    setDate(getTodayDate())
+    setDate(getOperationalDateForMonth(activeMonthKey))
     setOption(2)
     setPaymentMethod(getInitialPaymentMethod(cards, initialCreditCardId))
     setCardId(getInitialCardId(cards, initialCreditCardId))

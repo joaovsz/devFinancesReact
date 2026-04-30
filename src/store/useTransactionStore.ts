@@ -17,12 +17,15 @@ import {
   getCltProjectedRevenueForMonth,
   getPjProjectedRevenueForMonth,
   dateToMonthKey,
+  getCardManualInvoiceAmount,
   getCurrentMonthKey,
   getCommittedCostsForMonth,
-  isMonthKeyAfter
+  isMonthKeyAfter,
+  sanitizeChargeDay
 } from "../utils/projections"
 
 export type TransactionStore = {
+  activeMonthKey: string
   bankAccounts: BankAccount[]
   cards: CreditCard[]
   transactions: Transaction[]
@@ -33,6 +36,8 @@ export type TransactionStore = {
   totalIncomes: number
   totalExpenses: number
   totalAmount: number
+  setActiveMonthKey: (monthKey: string) => void
+  resetActiveMonthKey: () => void
   addCard: (card: CreditCard) => void
   addBankAccount: (account: BankAccount) => void
   updateBankAccount: (account: BankAccount) => void
@@ -50,6 +55,8 @@ export type TransactionStore = {
   updateInstallmentPlan: (plan: InstallmentPlan) => void
   removeInstallmentPlan: (id: string) => void
   markCardInvoiceAsPaid: (cardId: string, monthKey: string) => void
+  setCardManualInvoiceAmountForMonth: (cardId: string, monthKey: string, amount: number) => void
+  clearCardManualInvoiceAmountForMonth: (cardId: string, monthKey: string) => void
   updateContractConfig: (config: Partial<ContractConfig>) => void
   updateProjectionSettings: (settings: Partial<ProjectionSettings>) => void
   loadMockData: () => void
@@ -57,12 +64,13 @@ export type TransactionStore = {
 }
 
 function calculateTotals(input: {
+  activeMonthKey?: string
   transactions: Transaction[]
   cards: CreditCard[]
   fixedCosts: FixedCost[]
   installmentPlans: InstallmentPlan[]
 }) {
-  const monthKey = getCurrentMonthKey()
+  const monthKey = input.activeMonthKey || getCurrentMonthKey()
   const totalIncomes = input.transactions
     .filter(
       (transaction) =>
@@ -112,7 +120,7 @@ function getProjectedRevenueForMonth(
 }
 
 export function selectProjectedMonthlyLeftover(state: TransactionStore) {
-  const monthKey = getCurrentMonthKey()
+  const monthKey = state.activeMonthKey
   const projectedRevenue = getProjectedRevenueForMonth(state.contractConfig, monthKey)
   const committedCosts = getCommittedCostsForMonth({
     cards: state.cards,
@@ -167,6 +175,42 @@ function normalizePaidThroughMonth(value?: string) {
   return undefined
 }
 
+function sanitizeManualInvoiceByMonth(value?: Record<string, number>) {
+  if (!value || typeof value !== "object") {
+    return undefined
+  }
+
+  const entries = Object.entries(value).filter(
+    ([monthKey, amount]) => /^\d{4}-\d{2}$/.test(monthKey) && Number.isFinite(amount)
+  )
+
+  if (entries.length === 0) {
+    return undefined
+  }
+
+  return Object.fromEntries(entries.map(([monthKey, amount]) => [monthKey, Math.max(amount, 0)]))
+}
+
+function setManualInvoiceAmountForMonth(card: CreditCard, monthKey: string, amount: number) {
+  const safeAmount = Math.max(amount, 0)
+  const manualInvoiceByMonth = {
+    ...(sanitizeManualInvoiceByMonth(card.manualInvoiceByMonth) || {})
+  }
+
+  if (safeAmount > 0) {
+    manualInvoiceByMonth[monthKey] = safeAmount
+  } else {
+    delete manualInvoiceByMonth[monthKey]
+  }
+
+  return {
+    ...card,
+    manualInvoiceAmount: monthKey === getCurrentMonthKey() ? safeAmount : card.manualInvoiceAmount,
+    manualInvoiceByMonth:
+      Object.keys(manualInvoiceByMonth).length > 0 ? manualInvoiceByMonth : undefined
+  }
+}
+
 function sanitizeCard(card: CreditCard, fallback?: CreditCard): CreditCard {
   const safeLimit = Number.isFinite(card.limitTotal)
     ? card.limitTotal
@@ -197,6 +241,9 @@ function sanitizeCard(card: CreditCard, fallback?: CreditCard): CreditCard {
     closeDay: safeCloseDay,
     dueDay: safeDueDay,
     manualInvoiceAmount: safeManualInvoiceAmount,
+    manualInvoiceByMonth: sanitizeManualInvoiceByMonth(
+      card.manualInvoiceByMonth ?? fallback?.manualInvoiceByMonth
+    ),
     paidThroughMonth: normalizePaidThroughMonth(
       card.paidThroughMonth ?? fallback?.paidThroughMonth
     )
@@ -214,7 +261,16 @@ function sanitizeInstallmentPlan(plan: InstallmentPlan): InstallmentPlan {
   return {
     ...plan,
     totalInstallments,
-    paidInstallments
+    paidInstallments,
+    chargeDay: sanitizeChargeDay(plan.chargeDay)
+  }
+}
+
+function sanitizeFixedCost(cost: FixedCost): FixedCost {
+  return {
+    ...cost,
+    dueDay: cost.paymentMethod === "credit" ? undefined : sanitizeChargeDay(cost.dueDay),
+    chargeDay: cost.paymentMethod === "credit" ? sanitizeChargeDay(cost.chargeDay) : undefined
   }
 }
 
@@ -261,6 +317,14 @@ function sanitizeBankAccount(account: BankAccount, fallback?: BankAccount): Bank
     type: account.type || fallback?.type || "checking",
     balance: safeBalance
   }
+}
+
+function sanitizeActiveMonthKey(value?: string) {
+  if (typeof value === "string" && /^\d{4}-\d{2}$/.test(value)) {
+    return value
+  }
+
+  return getCurrentMonthKey()
 }
 
 function createMockTransactionState() {
@@ -502,6 +566,7 @@ function createMockTransactionState() {
   }
 
   return {
+    activeMonthKey: currentMonth,
     bankAccounts,
     cards,
     transactions,
@@ -515,6 +580,7 @@ function createMockTransactionState() {
 export const useTransactionStore = create<TransactionStore>()(
   persist(
     (set) => ({
+      activeMonthKey: getCurrentMonthKey(),
       bankAccounts: [],
       cards: defaultCreditCards,
       transactions: [],
@@ -538,6 +604,34 @@ export const useTransactionStore = create<TransactionStore>()(
       totalIncomes: 0,
       totalExpenses: 0,
       totalAmount: 0,
+      setActiveMonthKey: (monthKey) =>
+        set((state) => {
+          const activeMonthKey = sanitizeActiveMonthKey(monthKey)
+          return {
+            activeMonthKey,
+            ...calculateTotals({
+              activeMonthKey,
+              transactions: state.transactions,
+              cards: state.cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
+        }),
+      resetActiveMonthKey: () =>
+        set((state) => {
+          const activeMonthKey = getCurrentMonthKey()
+          return {
+            activeMonthKey,
+            ...calculateTotals({
+              activeMonthKey,
+              transactions: state.transactions,
+              cards: state.cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
+        }),
       addBankAccount: (account) =>
         set((state) => ({
           bankAccounts: [...state.bankAccounts, sanitizeBankAccount(account)]
@@ -595,6 +689,7 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             cards,
             ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
               transactions: state.transactions,
               cards,
               fixedCosts: state.fixedCosts,
@@ -612,6 +707,7 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             cards,
             ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
               transactions: state.transactions,
               cards,
               fixedCosts: state.fixedCosts,
@@ -643,6 +739,7 @@ export const useTransactionStore = create<TransactionStore>()(
             fixedCosts,
             installmentPlans,
             ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
               transactions,
               cards,
               fixedCosts,
@@ -656,6 +753,7 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             transactions,
             ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
               transactions,
               cards: state.cards,
               fixedCosts: state.fixedCosts,
@@ -671,6 +769,7 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             transactions,
             ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
               transactions,
               cards: state.cards,
               fixedCosts: state.fixedCosts,
@@ -686,6 +785,7 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             transactions,
             ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
               transactions,
               cards: state.cards,
               fixedCosts: state.fixedCosts,
@@ -695,10 +795,11 @@ export const useTransactionStore = create<TransactionStore>()(
         }),
       addFixedCost: (cost) =>
         set((state) => {
-          const fixedCosts = [...state.fixedCosts, cost]
+          const fixedCosts = [...state.fixedCosts, sanitizeFixedCost(cost)]
           return {
             fixedCosts,
             ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
               transactions: state.transactions,
               cards: state.cards,
               fixedCosts,
@@ -709,11 +810,12 @@ export const useTransactionStore = create<TransactionStore>()(
       updateFixedCost: (cost) =>
         set((state) => {
           const fixedCosts = state.fixedCosts.map((currentCost) =>
-            currentCost.id === cost.id ? cost : currentCost
+            currentCost.id === cost.id ? sanitizeFixedCost(cost) : currentCost
           )
           return {
             fixedCosts,
             ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
               transactions: state.transactions,
               cards: state.cards,
               fixedCosts,
@@ -727,6 +829,7 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             fixedCosts,
             ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
               transactions: state.transactions,
               cards: state.cards,
               fixedCosts,
@@ -740,6 +843,7 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             installmentPlans,
             ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
               transactions: state.transactions,
               cards: state.cards,
               fixedCosts: state.fixedCosts,
@@ -755,6 +859,7 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             installmentPlans,
             ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
               transactions: state.transactions,
               cards: state.cards,
               fixedCosts: state.fixedCosts,
@@ -768,6 +873,7 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             installmentPlans,
             ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
               transactions: state.transactions,
               cards: state.cards,
               fixedCosts: state.fixedCosts,
@@ -780,7 +886,7 @@ export const useTransactionStore = create<TransactionStore>()(
           const cards = state.cards.map((card) =>
             card.id === cardId
               ? {
-                  ...card,
+                  ...setManualInvoiceAmountForMonth(card, monthKey, 0),
                   paidThroughMonth: getLatestPaidThroughMonth(card.paidThroughMonth, monthKey),
                   manualInvoiceAmount: 0
                 }
@@ -790,6 +896,41 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             cards,
             ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
+              transactions: state.transactions,
+              cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
+        }),
+      setCardManualInvoiceAmountForMonth: (cardId, monthKey, amount) =>
+        set((state) => {
+          const cards = state.cards.map((card) =>
+            card.id === cardId ? setManualInvoiceAmountForMonth(card, monthKey, amount) : card
+          )
+
+          return {
+            cards,
+            ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
+              transactions: state.transactions,
+              cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
+        }),
+      clearCardManualInvoiceAmountForMonth: (cardId, monthKey) =>
+        set((state) => {
+          const cards = state.cards.map((card) =>
+            card.id === cardId ? setManualInvoiceAmountForMonth(card, monthKey, 0) : card
+          )
+
+          return {
+            cards,
+            ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
               transactions: state.transactions,
               cards,
               fixedCosts: state.fixedCosts,
@@ -829,6 +970,7 @@ export const useTransactionStore = create<TransactionStore>()(
           return {
             ...mock,
             ...calculateTotals({
+              activeMonthKey: mock.activeMonthKey,
               cards: mock.cards,
               transactions: mock.transactions,
               fixedCosts: mock.fixedCosts,
@@ -861,6 +1003,7 @@ export const useTransactionStore = create<TransactionStore>()(
 
           return {
             bankAccounts,
+            activeMonthKey: getCurrentMonthKey(),
             cards,
             transactions,
             fixedCosts,
@@ -868,6 +1011,7 @@ export const useTransactionStore = create<TransactionStore>()(
             contractConfig,
             projectionSettings,
             ...calculateTotals({
+              activeMonthKey: getCurrentMonthKey(),
               cards,
               transactions,
               fixedCosts,
@@ -878,7 +1022,7 @@ export const useTransactionStore = create<TransactionStore>()(
     }),
     {
       name: "devfinances-storage",
-      version: 28,
+      version: 29,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState, version) => {
         if (!persistedState || typeof persistedState !== "object") {
@@ -1315,6 +1459,52 @@ export const useTransactionStore = create<TransactionStore>()(
             fixedCosts,
             installmentPlans,
             ...calculateTotals({
+              cards,
+              transactions,
+              fixedCosts,
+              installmentPlans
+            })
+          }
+        }
+
+        if (version < 29) {
+          const state = persistedState as TransactionStore
+          const activeMonthKey = sanitizeActiveMonthKey(state.activeMonthKey)
+          const cards = (state.cards || []).map((card) => {
+            const sanitizedCard = sanitizeCard(card)
+            const manualInvoiceByMonth = {
+              ...(sanitizedCard.manualInvoiceByMonth || {})
+            }
+
+            if (
+              Number.isFinite(sanitizedCard.manualInvoiceAmount) &&
+              sanitizedCard.manualInvoiceAmount > 0 &&
+              !Number.isFinite(manualInvoiceByMonth[getCurrentMonthKey()])
+            ) {
+              manualInvoiceByMonth[getCurrentMonthKey()] = sanitizedCard.manualInvoiceAmount
+            }
+
+            return {
+              ...sanitizedCard,
+              manualInvoiceByMonth:
+                Object.keys(manualInvoiceByMonth).length > 0 ? manualInvoiceByMonth : undefined
+            }
+          })
+          const transactions = state.transactions || []
+          const fixedCosts = (state.fixedCosts || []).map((cost) => sanitizeFixedCost(cost))
+          const installmentPlans = (state.installmentPlans || []).map((plan) =>
+            sanitizeInstallmentPlan(plan)
+          )
+
+          return {
+            ...state,
+            activeMonthKey,
+            cards,
+            transactions,
+            fixedCosts,
+            installmentPlans,
+            ...calculateTotals({
+              activeMonthKey,
               cards,
               transactions,
               fixedCosts,
