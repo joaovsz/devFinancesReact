@@ -1,5 +1,6 @@
+import { useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
-import { Moon, Sun } from "lucide-react"
+import { Moon, Sun, User } from "lucide-react"
 import Logo from "./icons/Logo"
 import { useTransactionStore } from "../store/useTransactionStore"
 import { getCurrentMonthKey, getMonthLabel } from "../utils/projections"
@@ -16,6 +17,21 @@ export const Header = ({ theme, onToggleTheme, userEmail, onSignOut }: HeaderPro
   const setActiveMonthKey = useTransactionStore((state) => state.setActiveMonthKey)
   const resetActiveMonthKey = useTransactionStore((state) => state.resetActiveMonthKey)
   const isCurrentOperationalMonth = activeMonthKey === getCurrentMonthKey()
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
+  const accountMenuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setIsAccountMenuOpen(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown)
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown)
+    }
+  }, [])
 
   return (
     <header className="bg-zinc-950">
@@ -36,7 +52,7 @@ export const Header = ({ theme, onToggleTheme, userEmail, onSignOut }: HeaderPro
         </motion.button>
         <Logo className="text-zinc-100" />
 
-        <div className="flex w-full flex-wrap items-center justify-end gap-2 md:ml-auto md:w-auto">
+        <div className="flex w-full items-center gap-2 md:ml-auto md:w-auto">
           <div className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 md:w-auto">
             <div className="text-[10px] uppercase tracking-wide text-zinc-500">
               Mês operacional
@@ -57,22 +73,46 @@ export const Header = ({ theme, onToggleTheme, userEmail, onSignOut }: HeaderPro
                 Hoje
               </button>
             </div>
-            <div className="mt-1 text-[11px] text-zinc-500">{getMonthLabel(activeMonthKey)}</div>
           </div>
-          {userEmail && (
-            <span className="hidden max-w-[18rem] truncate text-sm text-zinc-400 md:block">
-              {userEmail}
-            </span>
-          )}
-          {onSignOut && (
+
+          <div className="relative shrink-0" ref={accountMenuRef}>
             <button
               type="button"
-              onClick={onSignOut}
-              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+              onClick={() => setIsAccountMenuOpen((current) => !current)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+              aria-label="Abrir menu da conta"
+              title="Conta"
             >
-              Sair
+              <User size={18} />
             </button>
-          )}
+
+            {isAccountMenuOpen && (
+              <div className="absolute right-0 top-full z-20 mt-2 min-w-[220px] rounded-xl border border-zinc-800 bg-zinc-900 p-2 shadow-2xl shadow-zinc-950/40">
+                <div className="border-b border-zinc-800 px-2 py-2">
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-500">Conta</div>
+                  <div className="mt-1 break-all text-sm text-zinc-200">
+                    {userEmail || "Sem sessao ativa"}
+                  </div>
+                </div>
+                {onSignOut ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAccountMenuOpen(false)
+                      onSignOut()
+                    }}
+                    className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-left text-sm text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+                  >
+                    Sair
+                  </button>
+                ) : (
+                  <div className="mt-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-400">
+                    Menu local para teste
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>
