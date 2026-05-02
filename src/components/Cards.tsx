@@ -29,10 +29,14 @@ import {
   getCardManualInvoiceAmount,
   getCreditFixedCostStatementMonth,
   getCreditFixedCostTotalForMonth,
+  getCreditInstallmentStatementMonth,
+  getCreditInstallmentTotalForMonth,
   getCreditTransactionDueMonth,
   getCreditTransactionStatementMonth,
-  getInstallmentRemainingTotal,
+  getInstallmentRemainingTotalAfterPaidThrough,
+  getInstallmentProgress,
   getInstallmentTotalForMonth,
+  getMonthDateFromDay,
   getMonthLabel,
   isCreditChargeAlreadyPosted,
   isCardInvoicePaidForMonth,
@@ -228,7 +232,6 @@ export const Cards = () => {
       const monthKey = currentMonth
 
       return cards.map((card) => {
-        const isPaidForCurrentMonth = isCardInvoicePaidForMonth(card, monthKey)
         const manualInvoiceAmount = getCardManualInvoiceAmount(card, monthKey)
         const transactionUsage = transactions
           .filter(
@@ -278,18 +281,18 @@ export const Cards = () => {
           )
           .reduce((sum, cost) => sum + cost.amount, 0)
 
-        const plannedInstallmentsCurrentMonth = installmentPlans
-          .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === card.id)
-          .reduce(
-            (sum, plan) =>
-              sum + getInstallmentTotalForMonth([plan], monthKey),
-            0
-          )
+        const plannedInstallmentsCurrentMonth = getCreditInstallmentTotalForMonth({
+          installmentPlans,
+          monthKey,
+          card,
+          mode: "statement"
+        })
         const postedInstallmentsCurrentMonth = installmentPlans
           .filter(
             (plan) =>
               plan.paymentMethod === "credit" &&
               plan.cardId === card.id &&
+              getCreditInstallmentStatementMonth(plan, monthKey, card) === monthKey &&
               isCreditChargeAlreadyPosted({
                 monthKey,
                 chargeDay: plan.chargeDay
@@ -300,22 +303,26 @@ export const Cards = () => {
         const plannedInstallmentsLimitUsage = installmentPlans
           .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === card.id)
           .reduce(
-            (sum, plan) => sum + getInstallmentRemainingTotal(plan, monthKey),
+            (sum, plan) =>
+              sum +
+              getInstallmentRemainingTotalAfterPaidThrough(
+                plan,
+                monthKey,
+                card.paidThroughMonth
+              ),
             0
           )
 
-        const postedInvoice = isPaidForCurrentMonth
-          ? 0
-          : currentMonthInvoiceTransactions +
-            postedFixedUsage +
-            postedInstallmentsCurrentMonth +
-            manualInvoiceAmount
-        const projectedInvoice = isPaidForCurrentMonth
-          ? 0
-          : currentMonthInvoiceTransactions +
-            plannedFixedUsage +
-            plannedInstallmentsCurrentMonth +
-            manualInvoiceAmount
+        const postedInvoice =
+          currentMonthInvoiceTransactions +
+          postedFixedUsage +
+          postedInstallmentsCurrentMonth +
+          manualInvoiceAmount
+        const projectedInvoice =
+          currentMonthInvoiceTransactions +
+          plannedFixedUsage +
+          plannedInstallmentsCurrentMonth +
+          manualInvoiceAmount
         const used =
           transactionUsage +
           fixedCosts
@@ -349,6 +356,9 @@ export const Cards = () => {
     () => cardUsage.find((card) => card.id === invoiceCardId) || null,
     [cardUsage, invoiceCardId]
   )
+  const isSelectedInvoicePaid = selectedInvoiceCard
+    ? isCardInvoicePaidForMonth(selectedInvoiceCard, currentMonth)
+    : false
   const selectedInvoiceTransactions = useMemo(
     () => {
       if (!invoiceCardId) {
@@ -378,28 +388,72 @@ export const Cards = () => {
         return []
       }
 
-      const items = plannedEntries
-        .filter(
-          (entry) =>
-            entry.type === 2 &&
-            entry.paymentMethod === "credit" &&
-            entry.cardId === invoiceCardId
-        )
-        .map((entry) => ({
-          id: entry.id,
-          label: entry.label,
-          value: entry.value,
-          sourceLabel: `${entry.plannedSourceType === "fixed" ? "Gasto fixo planejado" : "Parcelamento planejado"}${
-            isCreditChargeAlreadyPosted({
-              monthKey: currentMonth,
-              chargeDay: Number(entry.date.slice(-2))
-            })
-              ? ""
-              : ` · cobra dia ${entry.date.slice(-2)}`
-          }`
-        }))
+      const selectedCard = cards.find((card) => card.id === invoiceCardId)
+      if (!selectedCard) {
+        return []
+      }
 
-      if ((selectedInvoiceCard?.manualInvoiceAmount || 0) > 0) {
+      const occurrenceMonths = [
+        addMonths(currentMonth, -2),
+        addMonths(currentMonth, -1),
+        currentMonth
+      ]
+      const items: InvoicePlannedItem[] = []
+
+      occurrenceMonths.forEach((occurrenceMonth) => {
+        fixedCosts
+          .filter(
+            (cost) =>
+              cost.paymentMethod === "credit" &&
+              cost.cardId === invoiceCardId &&
+              isFixedCostActiveForMonth(cost, occurrenceMonth) &&
+              getCreditFixedCostStatementMonth(cost, occurrenceMonth, selectedCard) === currentMonth
+          )
+          .forEach((cost) => {
+            const date = getMonthDateFromDay(occurrenceMonth, cost.chargeDay)
+            items.push({
+              id: `planned-fixed-${cost.id}-${occurrenceMonth}`,
+              label: cost.name,
+              value: cost.amount,
+              sourceLabel: `Gasto fixo planejado${
+                isCreditChargeAlreadyPosted({
+                  monthKey: occurrenceMonth,
+                  chargeDay: Number(date.slice(-2))
+                })
+                  ? ""
+                  : ` · cobra dia ${date.slice(-2)}`
+              }`
+            })
+          })
+
+        installmentPlans
+          .filter(
+            (plan) =>
+              plan.paymentMethod === "credit" &&
+              plan.cardId === invoiceCardId &&
+              getInstallmentProgress(plan, occurrenceMonth).isActive &&
+              getCreditInstallmentStatementMonth(plan, occurrenceMonth, selectedCard) === currentMonth
+          )
+          .forEach((plan) => {
+            const progress = getInstallmentProgress(plan, occurrenceMonth)
+            const date = getMonthDateFromDay(occurrenceMonth, plan.chargeDay)
+            items.push({
+              id: `planned-installment-${plan.id}-${occurrenceMonth}`,
+              label: `${plan.name} (${progress.currentInstallment}/${plan.totalInstallments})`,
+              value: plan.installmentValue,
+              sourceLabel: `Parcelamento planejado${
+                isCreditChargeAlreadyPosted({
+                  monthKey: occurrenceMonth,
+                  chargeDay: Number(date.slice(-2))
+                })
+                  ? ""
+                  : ` · cobra dia ${date.slice(-2)}`
+              }`
+            })
+          })
+      })
+
+      if (Math.abs(selectedInvoiceCard?.manualInvoiceAmount || 0) >= 0.01) {
         items.push({
           id: `planned-manual-invoice-${selectedInvoiceCard?.id}-${currentMonth}`,
           label: "Ajuste manual de fatura",
@@ -410,7 +464,14 @@ export const Cards = () => {
 
       return items
     },
-    [plannedEntries, invoiceCardId, selectedInvoiceCard, currentMonth]
+    [
+      cards,
+      fixedCosts,
+      installmentPlans,
+      invoiceCardId,
+      selectedInvoiceCard,
+      currentMonth
+    ]
   )
 
   const categoryExpenseBuckets = useMemo<CategoryExpenseBucket[]>(() => {
@@ -432,10 +493,22 @@ export const Cards = () => {
     }
 
     transactions
-      .filter(
-        (transaction) =>
-          transaction.type === 2 && dateToMonthKey(transaction.date) === currentMonth
-      )
+      .filter((transaction) => {
+        if (transaction.type !== 2) {
+          return false
+        }
+
+        if (transaction.paymentMethod !== "credit") {
+          return dateToMonthKey(transaction.date) === currentMonth
+        }
+
+        const card = cards.find((item) => item.id === transaction.cardId)
+        const transactionMonth = card
+          ? getCreditTransactionStatementMonth(transaction.date, card)
+          : dateToMonthKey(transaction.date)
+
+        return transactionMonth === currentMonth
+      })
       .forEach((transaction) => {
         addExpense(transaction.categoryId, transaction.subcategoryId, transaction.value)
       })
@@ -744,8 +817,8 @@ export const Cards = () => {
     }
 
     const totalInvoice = parseCurrencyInput(draftValue)
-    const accountedWithoutManual = card.postedInvoice - (card.manualInvoiceAmount || 0)
-    const nextManualAdjustment = Math.max(totalInvoice - accountedWithoutManual, 0)
+    const accountedWithoutManual = card.currentInvoice - (card.manualInvoiceAmount || 0)
+    const nextManualAdjustment = totalInvoice - accountedWithoutManual
     setCardManualInvoiceAmountForMonth(card.id, currentMonth, nextManualAdjustment)
     clearInvoiceTotalDraft(card.id)
   }
@@ -803,7 +876,7 @@ export const Cards = () => {
   }
 
   function saveManualInvoiceAdjustment(cardId: string, value: number) {
-    setCardManualInvoiceAmountForMonth(cardId, currentMonth, Math.max(value, 0))
+    setCardManualInvoiceAmountForMonth(cardId, currentMonth, value)
   }
 
   function removeManualInvoiceAdjustment(cardId: string) {
@@ -811,6 +884,10 @@ export const Cards = () => {
   }
 
   function markInvoiceAsPaid(card: CardType) {
+    if (isCardInvoicePaidForMonth(card, currentMonth)) {
+      return
+    }
+
     const confirmed = window.confirm(
       `Confirmar pagamento da fatura de ${card.name} deste mês?`
     )
@@ -1084,19 +1161,19 @@ export const Cards = () => {
                       />
                     </label>
                     <label className="grid gap-1 text-[11px] uppercase tracking-wide text-zinc-400">
-                      Fatura lançada no banco
+                      Valor total da fatura
                       <input
                         className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs normal-case text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
                         type="text"
                         inputMode="decimal"
                         value={
                           getInvoiceTotalDraft(card.id) ??
-                          formatCurrencyFromNumber(card.postedInvoice)
+                          formatCurrencyFromNumber(card.currentInvoice)
                         }
                         onFocus={() =>
                           setInvoiceTotalDraft(
                             card.id,
-                            formatCurrencyFromNumber(card.postedInvoice)
+                            formatCurrencyFromNumber(card.currentInvoice)
                           )
                         }
                         onChange={(event) =>
@@ -1332,6 +1409,7 @@ export const Cards = () => {
         currentInvoice={selectedInvoiceCard?.currentInvoice || 0}
         postedInvoice={selectedInvoiceCard?.postedInvoice || 0}
         manualAdjustmentValue={selectedInvoiceCard?.manualInvoiceAmount || 0}
+        isPaid={isSelectedInvoicePaid}
         transactions={selectedInvoiceTransactions}
         plannedItems={selectedInvoicePlannedItems}
         onClose={closeCardInvoice}

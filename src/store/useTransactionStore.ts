@@ -20,6 +20,7 @@ import {
   getCardManualInvoiceAmount,
   getCurrentMonthKey,
   getCommittedCostsForMonth,
+  getInstallmentProgress,
   getOperationalCostsForMonth,
   isMonthKeyAfter,
   sanitizeChargeDay
@@ -189,16 +190,18 @@ function sanitizeManualInvoiceByMonth(value?: Record<string, number>) {
     return undefined
   }
 
-  return Object.fromEntries(entries.map(([monthKey, amount]) => [monthKey, Math.max(amount, 0)]))
+  return Object.fromEntries(entries.map(([monthKey, amount]) => [monthKey, amount]))
 }
 
 function setManualInvoiceAmountForMonth(card: CreditCard, monthKey: string, amount: number) {
-  const safeAmount = Math.max(amount, 0)
+  // O ajuste manual representa diferenca entre total real e total calculado.
+  // Pode ser negativo quando o banco fechou menor que a previsao local.
+  const safeAmount = Number.isFinite(amount) ? amount : 0
   const manualInvoiceByMonth = {
     ...(sanitizeManualInvoiceByMonth(card.manualInvoiceByMonth) || {})
   }
 
-  if (safeAmount > 0) {
+  if (Math.abs(safeAmount) >= 0.01) {
     manualInvoiceByMonth[monthKey] = safeAmount
   } else {
     delete manualInvoiceByMonth[monthKey]
@@ -223,8 +226,8 @@ function sanitizeCard(card: CreditCard, fallback?: CreditCard): CreditCard {
     ? Math.min(Math.max(Math.round(card.dueDay), 1), 31)
     : fallback?.dueDay || 1
   const safeManualInvoiceAmount = Number.isFinite(card.manualInvoiceAmount)
-    ? Math.max(card.manualInvoiceAmount, 0)
-    : Math.max(fallback?.manualInvoiceAmount || 0, 0)
+    ? card.manualInvoiceAmount
+    : fallback?.manualInvoiceAmount || 0
 
   return {
     id: card.id || fallback?.id || crypto.randomUUID(),
@@ -256,7 +259,7 @@ function sanitizeInstallmentPlan(plan: InstallmentPlan): InstallmentPlan {
     ? Math.max(Math.round(plan.totalInstallments), 1)
     : 1
   const paidInstallments = Number.isFinite(plan.paidInstallments)
-    ? Math.min(Math.max(Math.floor(plan.paidInstallments), 0), totalInstallments - 1)
+    ? Math.min(Math.max(Math.floor(plan.paidInstallments), 0), totalInstallments)
     : 0
 
   return {
@@ -888,24 +891,56 @@ export const useTransactionStore = create<TransactionStore>()(
         }),
       markCardInvoiceAsPaid: (cardId, monthKey) =>
         set((state) => {
+          // Pagar fatura e uma mudanca de estado, nao um novo lancamento.
+          // Nao pode remover ajuste manual nem recalcular saldo/saidas do mes.
+          const targetCard = state.cards.find((card) => card.id === cardId)
+          if (
+            targetCard?.paidThroughMonth &&
+            !isMonthKeyAfter(monthKey, targetCard.paidThroughMonth)
+          ) {
+            return state
+          }
+
           const cards = state.cards.map((card) =>
             card.id === cardId
               ? {
-                  ...setManualInvoiceAmountForMonth(card, monthKey, 0),
+                  ...card,
                   paidThroughMonth: getLatestPaidThroughMonth(card.paidThroughMonth, monthKey),
-                  manualInvoiceAmount: 0
+                  manualInvoiceAmount:
+                    monthKey === getCurrentMonthKey() ? card.manualInvoiceAmount : 0
                 }
               : card
           )
+          const installmentPlans = state.installmentPlans.map((plan) => {
+            if (!(plan.paymentMethod === "credit" && plan.cardId === cardId)) {
+              return plan
+            }
+
+            const progress = getInstallmentProgress(plan, monthKey)
+            if (!progress.isActive) {
+              return plan
+            }
+
+            // Avanca apenas o estado usado para liberar limite. A linha do tempo
+            // visual continua cronologica em getInstallmentProgress.
+            return sanitizeInstallmentPlan({
+              ...plan,
+              paidInstallments: Math.min(
+                Math.max(plan.paidInstallments || 0, progress.currentInstallment),
+                plan.totalInstallments
+              )
+            })
+          })
 
           return {
             cards,
+            installmentPlans,
             ...calculateTotals({
               activeMonthKey: state.activeMonthKey,
               transactions: state.transactions,
               cards,
               fixedCosts: state.fixedCosts,
-              installmentPlans: state.installmentPlans
+              installmentPlans
             })
           }
         }),

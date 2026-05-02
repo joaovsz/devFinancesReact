@@ -29,10 +29,10 @@ export function isMonthKeyAfter(monthKey: string, referenceMonthKey: string) {
 export function getCardManualInvoiceAmount(card: CreditCard, monthKey: string) {
   const valueFromMap = card.manualInvoiceByMonth?.[monthKey]
   if (Number.isFinite(valueFromMap)) {
-    return Math.max(valueFromMap || 0, 0)
+    return valueFromMap || 0
   }
 
-  return monthKey === getCurrentMonthKey() ? Math.max(card.manualInvoiceAmount || 0, 0) : 0
+  return 0
 }
 
 export function isCardInvoicePaidForMonth(card: CreditCard, monthKey: string) {
@@ -192,15 +192,17 @@ export function getPjProjectedRevenueForMonth(input: {
 }
 
 export function getCreditTransactionDueMonth(transactionDate: string, card: CreditCard) {
-  const statementMonth = getCreditTransactionStatementMonth(transactionDate, card)
-  if (!statementMonth) {
+  const closingMonth = getCreditTransactionClosingMonth(transactionDate, card)
+  if (!closingMonth) {
     return dateToMonthKey(transactionDate)
   }
 
-  return card.dueDay > card.closeDay ? statementMonth : addMonths(statementMonth, 1)
+  return card.dueDay > card.closeDay ? closingMonth : addMonths(closingMonth, 1)
 }
 
-export function getCreditTransactionStatementMonth(transactionDate: string, card: CreditCard) {
+// Mes de fechamento fisico do ciclo. Ex.: Mercado Pago fecha em 09/06 para
+// compras feitas depois de 09/05, mas essa ainda e a fatura operacional de maio.
+function getCreditTransactionClosingMonth(transactionDate: string, card: CreditCard) {
   const [year, month, day] = transactionDate.split("-").map(Number)
   if (!year || !month || !day) {
     return dateToMonthKey(transactionDate)
@@ -210,13 +212,19 @@ export function getCreditTransactionStatementMonth(transactionDate: string, card
   return day <= card.closeDay ? purchaseMonth : addMonths(purchaseMonth, 1)
 }
 
+// Mes operacional da fatura mostrado no dashboard. A fatura e nomeada pelo mes
+// anterior ao vencimento: compra 15/05 no ciclo que vence em 06 => fatura 05.
+export function getCreditTransactionStatementMonth(transactionDate: string, card: CreditCard) {
+  return addMonths(getCreditTransactionDueMonth(transactionDate, card), -1)
+}
+
 export function getCreditFixedCostStatementMonth(
   cost: FixedCost,
   occurrenceMonth: string,
   card: CreditCard
 ) {
   return getCreditTransactionStatementMonth(
-    getMonthDateFromDay(occurrenceMonth, cost.chargeDay),
+    getMonthDateFromDay(occurrenceMonth, getCreditFixedCostChargeDay(cost, card)),
     card
   )
 }
@@ -227,9 +235,20 @@ export function getCreditFixedCostDueMonth(
   card: CreditCard
 ) {
   return getCreditTransactionDueMonth(
-    getMonthDateFromDay(occurrenceMonth, cost.chargeDay),
+    getMonthDateFromDay(occurrenceMonth, getCreditFixedCostChargeDay(cost, card)),
     card
   )
+}
+
+function getCreditFixedCostChargeDay(cost: FixedCost, card: CreditCard) {
+  const chargeDay = sanitizeChargeDay(cost.chargeDay)
+  if (chargeDay) {
+    return chargeDay
+  }
+
+  // Compatibilidade com dados antigos: fixos de credito criados antes do campo
+  // chargeDay nao podem cair no dia 01, pois isso desloca a fatura para o mes anterior.
+  return getLegacyCreditCycleChargeDay(card)
 }
 
 export function getCreditFixedCostTotalForMonth(input: {
@@ -267,6 +286,74 @@ export function getCreditFixedCostTotalForMonth(input: {
   }, 0)
 }
 
+export function getCreditInstallmentStatementMonth(
+  plan: InstallmentPlan,
+  occurrenceMonth: string,
+  card: CreditCard
+) {
+  return getCreditTransactionStatementMonth(
+    getMonthDateFromDay(occurrenceMonth, getCreditInstallmentChargeDay(plan, card)),
+    card
+  )
+}
+
+export function getCreditInstallmentDueMonth(
+  plan: InstallmentPlan,
+  occurrenceMonth: string,
+  card: CreditCard
+) {
+  return getCreditTransactionDueMonth(
+    getMonthDateFromDay(occurrenceMonth, getCreditInstallmentChargeDay(plan, card)),
+    card
+  )
+}
+
+function getCreditInstallmentChargeDay(plan: InstallmentPlan, card: CreditCard) {
+  const chargeDay = sanitizeChargeDay(plan.chargeDay)
+  if (chargeDay) {
+    return chargeDay
+  }
+
+  // Compatibilidade com parcelamentos antigos sem dia de cobranca. Mantem a
+  // parcela no proprio mes operacional em vez de assumir dia 01.
+  return getLegacyCreditCycleChargeDay(card)
+}
+
+function getLegacyCreditCycleChargeDay(card: CreditCard) {
+  return card.dueDay > card.closeDay ? card.closeDay + 1 : card.closeDay
+}
+
+export function getCreditInstallmentTotalForMonth(input: {
+  installmentPlans: InstallmentPlan[]
+  monthKey: string
+  card: CreditCard
+  mode?: "statement" | "due"
+}) {
+  const mode = input.mode || "due"
+  const occurrenceMonths = [
+    addMonths(input.monthKey, -2),
+    addMonths(input.monthKey, -1),
+    input.monthKey
+  ]
+
+  return occurrenceMonths.reduce((sum, occurrenceMonth) => {
+    const totalForOccurrence = input.installmentPlans
+      .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === input.card.id)
+      .filter((plan) => getInstallmentProgress(plan, occurrenceMonth).isActive)
+      .filter((plan) => {
+        const invoiceMonth =
+          mode === "statement"
+            ? getCreditInstallmentStatementMonth(plan, occurrenceMonth, input.card)
+            : getCreditInstallmentDueMonth(plan, occurrenceMonth, input.card)
+
+        return invoiceMonth === input.monthKey
+      })
+      .reduce((total, plan) => total + plan.installmentValue, 0)
+
+    return sum + totalForOccurrence
+  }, 0)
+}
+
 export function getFixedCostsTotal(fixedCosts: FixedCost[]) {
   return fixedCosts.reduce((total, cost) => total + cost.amount, 0)
 }
@@ -285,10 +372,10 @@ export function getInstallmentProgress(
 ) {
   const start = monthKeyToIndex(installmentPlan.startMonth)
   const target = monthKeyToIndex(targetMonth)
-  const paidInstallments = getInstallmentPaidCount(installmentPlan)
-  const currentInstallment = paidInstallments + target - start + 1
+  // A numeracao exibida e cronologica e nao deve depender de paidInstallments.
+  // Pagar uma fatura libera limite, mas nao reescreve o historico da parcela.
+  const currentInstallment = target - start + 1
   const isActive =
-    currentInstallment > paidInstallments &&
     currentInstallment >= 1 &&
     currentInstallment <= installmentPlan.totalInstallments
 
@@ -315,7 +402,10 @@ export function getInstallmentRemainingCount(
     return 0
   }
 
-  return installmentPlan.totalInstallments - progress.currentInstallment + 1
+  const scheduledRemaining = installmentPlan.totalInstallments - progress.currentInstallment + 1
+  const unpaidRemaining = installmentPlan.totalInstallments - paidInstallments
+
+  return Math.min(scheduledRemaining, unpaidRemaining)
 }
 
 export function getInstallmentRemainingTotal(
@@ -323,6 +413,23 @@ export function getInstallmentRemainingTotal(
   targetMonth: string
 ) {
   return installmentPlan.installmentValue * getInstallmentRemainingCount(installmentPlan, targetMonth)
+}
+
+export function getInstallmentRemainingTotalAfterPaidThrough(
+  installmentPlan: InstallmentPlan,
+  targetMonth: string,
+  paidThroughMonth?: string
+) {
+  if (!paidThroughMonth) {
+    return getInstallmentRemainingTotal(installmentPlan, targetMonth)
+  }
+
+  const firstUnpaidMonth = addMonths(paidThroughMonth, 1)
+  const referenceMonth = isMonthKeyAfter(firstUnpaidMonth, targetMonth)
+    ? firstUnpaidMonth
+    : targetMonth
+
+  return getInstallmentRemainingTotal(installmentPlan, referenceMonth)
 }
 
 export function getInstallmentTotalForMonth(
@@ -445,10 +552,6 @@ export function getCommittedCostsForMonth(input: {
     .reduce((total, transaction) => total + transaction.value, 0)
 
   const creditInvoicesTotal = cards.reduce((sum, card) => {
-    if (isCardInvoicePaidForMonth(card, input.monthKey)) {
-      return sum
-    }
-
     const creditFixedCostsTotal = getCreditFixedCostTotalForMonth({
       fixedCosts: input.fixedCosts,
       monthKey: input.monthKey,
@@ -456,12 +559,12 @@ export function getCommittedCostsForMonth(input: {
       mode: "due"
     })
 
-    const creditInstallmentsTotal = getInstallmentTotalForMonth(
-      input.installmentPlans.filter(
-        (plan) => plan.paymentMethod === "credit" && plan.cardId === card.id
-      ),
-      input.monthKey
-    )
+    const creditInstallmentsTotal = getCreditInstallmentTotalForMonth({
+      installmentPlans: input.installmentPlans,
+      monthKey: input.monthKey,
+      card,
+      mode: "due"
+    })
 
     const creditTransactionsTotal = (input.transactions || [])
       .filter(
@@ -510,21 +613,33 @@ export function getOperationalCostsForMonth(input: {
     )
     .reduce((total, cost) => total + cost.amount, 0)
 
-  const creditFixedCostsTotal = input.fixedCosts
-    .filter(
-      (cost) =>
-        cost.paymentMethod === "credit" && isFixedCostActiveForMonth(cost, input.monthKey)
-    )
-    .reduce((total, cost) => total + cost.amount, 0)
+  const creditFixedCostsTotal = (input.cards || []).reduce(
+    (total, card) =>
+      total +
+      getCreditFixedCostTotalForMonth({
+        fixedCosts: input.fixedCosts,
+        monthKey: input.monthKey,
+        card,
+        mode: "statement"
+      }),
+    0
+  )
 
   const cashInstallmentsTotal = getInstallmentTotalForMonth(
     input.installmentPlans.filter((plan) => plan.paymentMethod !== "credit"),
     input.monthKey
   )
 
-  const creditInstallmentsTotal = getInstallmentTotalForMonth(
-    input.installmentPlans.filter((plan) => plan.paymentMethod === "credit"),
-    input.monthKey
+  const creditInstallmentsTotal = (input.cards || []).reduce(
+    (total, card) =>
+      total +
+      getCreditInstallmentTotalForMonth({
+        installmentPlans: input.installmentPlans,
+        monthKey: input.monthKey,
+        card,
+        mode: "statement"
+      }),
+    0
   )
 
   const cashTransactionsTotal = (input.transactions || [])
@@ -537,12 +652,18 @@ export function getOperationalCostsForMonth(input: {
     .reduce((total, transaction) => total + transaction.value, 0)
 
   const creditTransactionsTotal = (input.transactions || [])
-    .filter(
-      (transaction) =>
-        transaction.type === 2 &&
-        transaction.paymentMethod === "credit" &&
-        dateToMonthKey(transaction.date) === input.monthKey
-    )
+    .filter((transaction) => {
+      if (!(transaction.type === 2 && transaction.paymentMethod === "credit")) {
+        return false
+      }
+
+      const card = (input.cards || []).find((item) => item.id === transaction.cardId)
+      const transactionMonth = card
+        ? getCreditTransactionStatementMonth(transaction.date, card)
+        : dateToMonthKey(transaction.date)
+
+      return transactionMonth === input.monthKey
+    })
     .reduce((total, transaction) => total + transaction.value, 0)
 
   const manualInvoiceAmount = (input.cards || []).reduce(

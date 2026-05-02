@@ -4,7 +4,11 @@ import { useNavigate } from "react-router-dom"
 import { Transaction } from "../types/transaction"
 import { useTransactionStore } from '../store/useTransactionStore'
 import { defaultCategories } from "../data/categories"
-import { getCardManualInvoiceAmount } from "../utils/projections"
+import {
+  dateToMonthKey,
+  getCardManualInvoiceAmount,
+  getCreditTransactionStatementMonth
+} from "../utils/projections"
 import { buildPlannedEntriesForMonth, PlannedEntry } from "../utils/planningEntries"
 import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
 import { formatCurrencyFromNumber, formatCurrencyInput, parseCurrencyInput } from "../utils/currency-input"
@@ -124,7 +128,7 @@ const Transactions = ({
   const manualInvoiceEntries = useMemo<ManualInvoiceEntry[]>(
     () =>
       cards
-        .filter((card) => getCardManualInvoiceAmount(card, activeMonthKey) > 0)
+        .filter((card) => Math.abs(getCardManualInvoiceAmount(card, activeMonthKey)) >= 0.01)
         .map((card) => ({
           id: `planned-manual-invoice-${card.id}-${activeMonthKey}`,
           label: "Ajuste manual de fatura",
@@ -138,9 +142,31 @@ const Transactions = ({
         })),
     [cards, activeMonthKey]
   )
+  const monthTransactions = useMemo(
+    () =>
+      transactions.filter((transaction) => {
+        if (transaction.type === 1) {
+          return transaction.competenceMonth
+            ? transaction.competenceMonth === activeMonthKey
+            : dateToMonthKey(transaction.date) === activeMonthKey
+        }
+
+        if (transaction.paymentMethod !== "credit") {
+          return dateToMonthKey(transaction.date) === activeMonthKey
+        }
+
+        const card = cards.find((item) => item.id === transaction.cardId)
+        const transactionMonth = card
+          ? getCreditTransactionStatementMonth(transaction.date, card)
+          : dateToMonthKey(transaction.date)
+
+        return transactionMonth === activeMonthKey
+      }),
+    [transactions, cards, activeMonthKey]
+  )
   const allRows: TransactionRow[] = useMemo(
-    () => [...plannedEntries, ...manualInvoiceEntries, ...transactions],
-    [plannedEntries, manualInvoiceEntries, transactions]
+    () => [...plannedEntries, ...manualInvoiceEntries, ...monthTransactions],
+    [plannedEntries, manualInvoiceEntries, monthTransactions]
   )
   const normalizedSearch = searchQuery.trim().toLowerCase()
   const [editingId, setEditingId] = useState<string | null>(null)

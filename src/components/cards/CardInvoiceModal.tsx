@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { X } from "lucide-react"
+import { Check, X } from "lucide-react"
 import { Transaction } from "../../types/transaction"
 import {
   formatCurrencyFromNumber,
@@ -14,6 +14,7 @@ type CardInvoiceModalProps = {
   currentInvoice: number
   postedInvoice: number
   manualAdjustmentValue: number
+  isPaid: boolean
   transactions: Transaction[]
   plannedItems: Array<{
     id: string
@@ -53,6 +54,7 @@ export const CardInvoiceModal = ({
   currentInvoice,
   postedInvoice,
   manualAdjustmentValue,
+  isPaid,
   transactions,
   plannedItems,
   onClose,
@@ -63,7 +65,9 @@ export const CardInvoiceModal = ({
   onAddExpense
 }: CardInvoiceModalProps) => {
   const [manualAdjustmentInput, setManualAdjustmentInput] = useState("")
-  const baseInvoiceWithoutManualAdjustment = postedInvoice - manualAdjustmentValue
+  // O input recebe o total real da fatura. Persistimos somente a diferenca
+  // contra a fatura calculada sem ajuste, para nao somar fixos/parcelas duas vezes.
+  const baseInvoiceWithoutManualAdjustment = currentInvoice - manualAdjustmentValue
 
   useEffect(() => {
     if (!isOpen) {
@@ -71,9 +75,9 @@ export const CardInvoiceModal = ({
     }
 
     setManualAdjustmentInput(
-      formatCurrencyFromNumber(postedInvoice)
+      formatCurrencyFromNumber(currentInvoice)
     )
-  }, [isOpen, postedInvoice])
+  }, [isOpen, currentInvoice])
 
   if (!isOpen) {
     return null
@@ -135,7 +139,7 @@ export const CardInvoiceModal = ({
                     onClick={() => {
                       const totalInvoice = Math.max(parseCurrencyInput(manualAdjustmentInput), 0)
                       const nextManualAdjustment =
-                        Math.max(totalInvoice - baseInvoiceWithoutManualAdjustment, 0)
+                        totalInvoice - baseInvoiceWithoutManualAdjustment
                       onSaveManualAdjustment(nextManualAdjustment)
                     }}
                     type="button"
@@ -227,11 +231,17 @@ export const CardInvoiceModal = ({
             Adicionar gasto
           </button>
           <button
-            className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-medium text-zinc-950 transition hover:bg-emerald-400"
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition ${
+              isPaid
+                ? "cursor-default border border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                : "bg-emerald-500 text-zinc-950 hover:bg-emerald-400"
+            }`}
             onClick={onMarkAsPaid}
             type="button"
+            disabled={isPaid}
           >
-            Marcar como paga
+            {isPaid && <Check size={14} />}
+            {isPaid ? "Fatura já paga" : "Marcar como paga"}
           </button>
           <button
             className="rounded-xl border border-emerald-500/60 bg-emerald-500/15 px-3 py-2 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20"

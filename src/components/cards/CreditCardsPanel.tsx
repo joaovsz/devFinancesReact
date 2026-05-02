@@ -9,11 +9,12 @@ import { formatCurrency } from "../Transactions"
 import { bankPresets, BankPreset } from "../../data/banks"
 import { NumberTicker } from "../magic/NumberTicker"
 import {
+  getCardManualInvoiceAmount,
   getCreditFixedCostTotalForMonth,
+  getCreditInstallmentTotalForMonth,
   getCreditTransactionStatementMonth,
   getCurrentMonthKey,
-  getInstallmentRemainingTotal,
-  getInstallmentTotalForMonth,
+  getInstallmentRemainingTotalAfterPaidThrough,
   isFixedCostActiveForMonth
 } from "../../utils/projections"
 import {
@@ -102,7 +103,12 @@ export const CreditCardsPanel = ({
       .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === currentCardId)
       .reduce(
         (totalValue, plan) =>
-          totalValue + getInstallmentRemainingTotal(plan, getCurrentMonthKey()),
+          totalValue +
+          getInstallmentRemainingTotalAfterPaidThrough(
+            plan,
+            getCurrentMonthKey(),
+            cards.find((card) => card.id === currentCardId)?.paidThroughMonth
+          ),
         0
       )
 
@@ -120,12 +126,14 @@ export const CreditCardsPanel = ({
         })
       : 0
 
-    const plannedInstallmentsUsage = getInstallmentTotalForMonth(
-      installmentPlans.filter(
-        (plan) => plan.paymentMethod === "credit" && plan.cardId === currentCardId
-      ),
-      monthKey
-    )
+    const plannedInstallmentsUsage = selectedCard
+      ? getCreditInstallmentTotalForMonth({
+          installmentPlans,
+          monthKey,
+          card: selectedCard,
+          mode: "statement"
+        })
+      : 0
 
     return plannedFixedUsage + plannedInstallmentsUsage
   }
@@ -147,7 +155,7 @@ export const CreditCardsPanel = ({
       .reduce((totalValue, transaction) => totalValue + transaction.value, 0)
 
     const plannedMonth = calculatePlannedCardUsageForMonth(currentCardId, monthKey)
-    const manual = selectedCard.manualInvoiceAmount || 0
+    const manual = getCardManualInvoiceAmount(selectedCard, monthKey)
 
     return transactionsCurrentMonth + plannedMonth + manual
   }
@@ -176,7 +184,7 @@ export const CreditCardsPanel = ({
     )
 
     const manualTotal = cards.reduce(
-      (totalValue, card) => totalValue + (card.manualInvoiceAmount || 0),
+      (totalValue, card) => totalValue + getCardManualInvoiceAmount(card, monthKey),
       0
     )
 
@@ -293,7 +301,8 @@ export const CreditCardsPanel = ({
           const currentMonth = getCurrentMonthKey()
           const plannedCardUsage = calculatePlannedCardUsageForMonth(card.id, currentMonth)
           const currentInvoice = calculateCurrentMonthInvoiceForCard(card.id, currentMonth)
-          const usedLimit = calculateCardUsage(card.id) + (card.manualInvoiceAmount || 0)
+          const currentManualInvoiceAmount = getCardManualInvoiceAmount(card, currentMonth)
+          const usedLimit = calculateCardUsage(card.id) + currentManualInvoiceAmount
           const usagePercentage = Math.min((usedLimit / card.limitTotal) * 100, 100)
           const availableLimit = card.limitTotal - usedLimit
           const isExpanded = expandedCardId === card.id
@@ -424,14 +433,16 @@ export const CreditCardsPanel = ({
                         onChange={(event) => {
                           const totalInvoice = parseCurrencyInput(event.target.value)
                           const accountedWithoutManual =
-                            currentInvoice - (card.manualInvoiceAmount || 0)
-                          const safeTotalInvoice = Math.max(totalInvoice, accountedWithoutManual)
-                          const manualAdjustment = safeTotalInvoice - accountedWithoutManual
-                          updateCardField(
-                            card,
-                            "manualInvoiceAmount",
-                            String(manualAdjustment)
-                          )
+                            currentInvoice - currentManualInvoiceAmount
+                          const manualAdjustment = totalInvoice - accountedWithoutManual
+                          onUpdateCard({
+                            ...card,
+                            manualInvoiceAmount: manualAdjustment,
+                            manualInvoiceByMonth: {
+                              ...(card.manualInvoiceByMonth || {}),
+                              [currentMonth]: manualAdjustment
+                            }
+                          })
                         }}
                       />
                     </label>
