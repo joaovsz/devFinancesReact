@@ -59,6 +59,14 @@ function getInitialPaymentMethod(cards: CreditCard[], initialCreditCardId?: stri
   return getInitialCardId(cards, initialCreditCardId) ? "credit" : "cash"
 }
 
+function normalizeDuplicateText(value: string) {
+  return value.trim().toLocaleLowerCase("pt-BR")
+}
+
+function toCents(value: number) {
+  return Math.round(value * 100)
+}
+
 export const TransactionForm = ({
   categories,
   cards,
@@ -225,27 +233,35 @@ export const TransactionForm = ({
     const fallbackLabel =
       selectedCategory.subcategories.find((subcategory) => subcategory.id === subcategoryId)
         ?.name || selectedCategory.name
+    const transactionLabel = label.trim() || fallbackLabel
+    const transactionPaymentMethod = option === 1 ? "cash" : paymentMethod
+    const transactionCardId = isCreditExpense ? cardId : undefined
 
     const duplicateTransaction = existingTransactions.some(
       (transaction) =>
+        transaction.date === date.toString() &&
+        transaction.type === option &&
+        transaction.paymentMethod === transactionPaymentMethod &&
+        (transaction.cardId || undefined) === transactionCardId &&
         transaction.categoryId === categoryId &&
         transaction.subcategoryId === subcategoryId &&
-        transaction.value === amountCents / 100
+        toCents(transaction.value) === amountCents &&
+        normalizeDuplicateText(transaction.label) === normalizeDuplicateText(transactionLabel)
     )
 
     if (duplicateTransaction) {
-      alert("Já existe uma transação com a mesma categoria e o mesmo valor.")
+      alert("Já existe uma transação idêntica nessa data, cartão, categoria e valor.")
       return
     }
 
     onSubmitTransaction({
       id: crypto.randomUUID(),
-      label: label.trim() || fallbackLabel,
+      label: transactionLabel,
       value: amountCents / 100,
       date: date.toString(),
       type: option,
-      paymentMethod: option === 1 ? "cash" : paymentMethod,
-      cardId: isCreditExpense ? cardId : undefined,
+      paymentMethod: transactionPaymentMethod,
+      cardId: transactionCardId,
       categoryId,
       subcategoryId,
       tags: parseTags(),
