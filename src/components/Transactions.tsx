@@ -11,7 +11,13 @@ import {
 } from "../utils/projections"
 import { buildPlannedEntriesForMonth, PlannedEntry } from "../utils/planningEntries"
 import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
-import { formatCurrencyFromNumber, formatCurrencyInput, parseCurrencyInput } from "../utils/currency-input"
+import {
+  formatCurrencyFromNumber,
+  formatCurrencyInput,
+  formatSignedCurrencyInput,
+  parseCurrencyInput,
+  parseSignedCurrencyInput
+} from "../utils/currency-input"
 
 export const formatCurrency = (value: number | string) => {
   const signal = Number(value) < 0 ? "-" : "";
@@ -228,7 +234,7 @@ const Transactions = ({
       setCardManualInvoiceAmountForMonth(
         card.id,
         activeMonthKey,
-        Math.max(parseCurrencyInput(draft.value), 0)
+        parseSignedCurrencyInput(draft.value)
       )
       setEditingId(null)
       return
@@ -565,7 +571,9 @@ const Transactions = ({
                   onChange={(event) =>
                     setDraft((currentDraft) => ({
                       ...currentDraft,
-                      value: formatCurrencyInput(event.target.value)
+                      value: isManualInvoice
+                        ? formatSignedCurrencyInput(event.target.value)
+                        : formatCurrencyInput(event.target.value)
                     }))
                   }
                 />

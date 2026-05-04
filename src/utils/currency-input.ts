@@ -23,3 +23,18 @@ export function parseCurrencyInput(value: string) {
 
   return Number(digitsOnly) / 100
 }
+
+export function formatSignedCurrencyInput(value: string) {
+  const isNegative = value.trim().startsWith("-")
+  const formatted = formatCurrencyInput(value)
+  if (!formatted) {
+    return isNegative ? "-" : ""
+  }
+
+  return isNegative ? `-${formatted}` : formatted
+}
+
+export function parseSignedCurrencyInput(value: string) {
+  const parsed = parseCurrencyInput(value)
+  return value.trim().startsWith("-") ? -parsed : parsed
+}

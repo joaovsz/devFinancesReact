@@ -6,6 +6,7 @@ import {
   formatCurrencyInput,
   parseCurrencyInput
 } from "../../utils/currency-input"
+import { calculateManualInvoiceAdjustment } from "../../utils/domain/creditCards"
 
 type CardInvoiceModalProps = {
   isOpen: boolean
@@ -65,10 +66,6 @@ export const CardInvoiceModal = ({
   onAddExpense
 }: CardInvoiceModalProps) => {
   const [manualAdjustmentInput, setManualAdjustmentInput] = useState("")
-  // O input recebe o total real da fatura. Persistimos somente a diferenca
-  // contra a fatura calculada sem ajuste, para nao somar fixos/parcelas duas vezes.
-  const baseInvoiceWithoutManualAdjustment = currentInvoice - manualAdjustmentValue
-
   useEffect(() => {
     if (!isOpen) {
       return
@@ -138,9 +135,13 @@ export const CardInvoiceModal = ({
                     className="rounded-xl border border-emerald-500/60 bg-emerald-500/15 px-3 py-2 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20"
                     onClick={() => {
                       const totalInvoice = Math.max(parseCurrencyInput(manualAdjustmentInput), 0)
-                      const nextManualAdjustment =
-                        totalInvoice - baseInvoiceWithoutManualAdjustment
-                      onSaveManualAdjustment(nextManualAdjustment)
+                      onSaveManualAdjustment(
+                        calculateManualInvoiceAdjustment({
+                          realInvoiceTotal: totalInvoice,
+                          currentInvoice,
+                          manualAdjustmentValue
+                        })
+                      )
                     }}
                     type="button"
                   >
