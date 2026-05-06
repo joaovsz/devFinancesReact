@@ -23,7 +23,6 @@ export const Header = ({ theme, onToggleTheme, userEmail, onSignOut }: HeaderPro
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false)
   const accountMenuRef = useRef<HTMLDivElement | null>(null)
   const navMenuRef = useRef<HTMLDivElement | null>(null)
-  const mobileOverflowItems = dockItems.slice(4)
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -75,12 +74,23 @@ export const Header = ({ theme, onToggleTheme, userEmail, onSignOut }: HeaderPro
             </button>
 
             {isNavMenuOpen && (
-              <div className="absolute left-0 top-full z-20 mt-2 min-w-[220px] rounded-xl border border-zinc-800 bg-zinc-900 p-2 shadow-2xl shadow-zinc-950/40">
-                <div className="border-b border-zinc-800 px-2 py-2 text-[10px] uppercase tracking-wide text-zinc-500">
-                  Mais opções
-                </div>
-                <div className="mt-2 space-y-1">
-                  {mobileOverflowItems.map((item) => {
+              <div className="fixed inset-0 z-20 bg-zinc-950/80 backdrop-blur-sm md:absolute md:left-0 md:top-full md:mt-2 md:bg-transparent md:backdrop-blur-none">
+                <div className="fixed inset-x-4 top-20 bottom-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-3 shadow-2xl shadow-zinc-950/40 md:static md:w-[220px] md:rounded-xl md:p-2">
+                  <div className="flex items-center justify-between border-b border-zinc-800 px-2 py-3 md:block md:px-2 md:py-2">
+                    <div className="text-xs uppercase tracking-wide text-zinc-500 md:text-[10px]">
+                      Navegação
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsNavMenuOpen(false)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-950 text-zinc-200 md:hidden"
+                      aria-label="Fechar menu"
+                    >
+                      <Menu size={16} />
+                    </button>
+                  </div>
+                  <div className="mt-3 grid gap-2 overflow-y-auto md:mt-2 md:space-y-1">
+                    {dockItems.map((item) => {
                     const Icon = item.icon
                     return (
                       <NavLink
@@ -90,19 +100,20 @@ export const Header = ({ theme, onToggleTheme, userEmail, onSignOut }: HeaderPro
                       >
                         {({ isActive }) => (
                           <div
-                            className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition ${
+                            className={`flex min-h-14 items-center gap-3 rounded-xl border px-4 py-3 text-base transition md:min-h-0 md:rounded-lg md:px-3 md:py-2 md:text-sm ${
                               isActive
                                 ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
                                 : "border-zinc-800 bg-zinc-950 text-zinc-200 hover:border-zinc-700 hover:text-zinc-100"
                             }`}
                           >
-                            <Icon size={16} />
+                            <Icon size={20} className="md:h-4 md:w-4" />
                             <span>{item.label}</span>
                           </div>
                         )}
                       </NavLink>
                     )
                   })}
+                  </div>
                 </div>
               </div>
             )}
