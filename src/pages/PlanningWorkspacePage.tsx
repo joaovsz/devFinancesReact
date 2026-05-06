@@ -439,11 +439,7 @@ export const PlanningWorkspacePage = () => {
                   }`}
                 >
                   {item.status === "paid" ? <CheckCircle2 size={14} /> : <Circle size={14} />}
-                  {item.kind === "cardInvoice"
-                    ? item.status === "paid"
-                      ? "Desmarcar fatura"
-                      : "Marcar fatura"
-                    : item.status === "paid"
+                  { item.status === "paid"
                       ? "Desmarcar pago"
                       : "Marcar pago"}
                 </button>
