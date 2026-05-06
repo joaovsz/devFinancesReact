@@ -1,5 +1,22 @@
-import { SelectHTMLAttributes, useEffect, useMemo, useRef, useState } from "react"
-import { ChevronDown } from "lucide-react"
+import { InputHTMLAttributes, SelectHTMLAttributes, useEffect, useMemo, useRef, useState } from "react"
+import {
+  BadgeDollarSign,
+  CalendarClock,
+  CalendarDays,
+  ChevronDown,
+  CreditCard,
+  FolderTree,
+  Hash,
+  List,
+  LucideIcon,
+  Pencil,
+  Plus,
+  Save,
+  Tag,
+  Trash2,
+  Wallet,
+  X
+} from "lucide-react"
 import { useSearchParams } from "react-router-dom"
 import { defaultCategories } from "../data/categories"
 import { useTransactionStore } from "../store/useTransactionStore"
@@ -37,13 +54,46 @@ type PlanningPageProps = {
   embedded?: boolean
 }
 
-function SelectField(props: SelectHTMLAttributes<HTMLSelectElement>) {
+type IconFieldProps = {
+  icon?: LucideIcon
+}
+
+type SelectFieldProps = SelectHTMLAttributes<HTMLSelectElement> & IconFieldProps
+type InputFieldProps = InputHTMLAttributes<HTMLInputElement> & IconFieldProps
+
+function SelectField({ icon: Icon, ...props }: SelectFieldProps) {
   return (
     <div className="relative w-full min-w-0">
-      <select {...props} className={`${selectClassName} ${props.className || ""}`.trim()} />
+      {Icon && (
+        <Icon
+          size={16}
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
+        />
+      )}
+      <select
+        {...props}
+        className={`${selectClassName} ${Icon ? "pl-10" : ""} ${props.className || ""}`.trim()}
+      />
       <ChevronDown
         size={16}
         className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500"
+      />
+    </div>
+  )
+}
+
+function InputField({ icon: Icon, ...props }: InputFieldProps) {
+  return (
+    <div className="relative w-full min-w-0">
+      {Icon && (
+        <Icon
+          size={16}
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
+        />
+      )}
+      <input
+        {...props}
+        className={`${props.className || inputClassName} ${Icon ? "pl-10" : ""}`.trim()}
       />
     </div>
   )
@@ -73,6 +123,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     defaultCategories[0].subcategories[0].id
   )
   const [fixedDueDay, setFixedDueDay] = useState("")
+  const [fixedDueOffsetMonths, setFixedDueOffsetMonths] = useState("0")
   const [fixedChargeDay, setFixedChargeDay] = useState("")
   const [fixedPaymentMethod, setFixedPaymentMethod] = useState<PaymentMethod>("cash")
   const [fixedCardId, setFixedCardId] = useState(firstCardId)
@@ -86,6 +137,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     useState<PaymentMethod>("cash")
   const [installmentCardId, setInstallmentCardId] = useState(firstCardId)
   const [installmentChargeDay, setInstallmentChargeDay] = useState("")
+  const [installmentDueOffsetMonths, setInstallmentDueOffsetMonths] = useState("0")
   const [installmentStartMonth, setInstallmentStartMonth] = useState(activeMonthKey)
   const [editingInstallmentId, setEditingInstallmentId] = useState("")
 
@@ -98,6 +150,11 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
 
   const [wizardStep, setWizardStep] = useState<0 | 1>(0)
   const [listModal, setListModal] = useState<"fixed" | "installment" | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<
+    | { kind: "fixed"; id: string; label: string }
+    | { kind: "installment"; id: string; label: string }
+    | null
+  >(null)
   const [highlightedSection, setHighlightedSection] = useState<"income" | "fixed" | "installment" | null>(null)
   const incomeSectionRef = useRef<HTMLDivElement | null>(null)
   const fixedSectionRef = useRef<HTMLDivElement | null>(null)
@@ -109,6 +166,35 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
       defaultCategories.find((category) => category.id === fixedCategoryId) ||
       defaultCategories[0],
     [fixedCategoryId]
+  )
+  const installmentProgressPreview = useMemo(
+    () =>
+      getInstallmentProgress(
+        {
+          id: editingInstallmentId || "preview-installment",
+          name: installmentName || "Parcelamento",
+          installmentValue: parseCurrencyInput(installmentValue) || 0,
+          totalInstallments: Math.max(Number(installmentTotal || 1), 1),
+          paidInstallments: Math.max(Number(installmentPaid || 0), 0),
+          startMonth: installmentStartMonth,
+          chargeDay: installmentChargeDay ? Number(installmentChargeDay) : undefined,
+          paymentMethod: installmentPaymentMethod,
+          cardId: installmentPaymentMethod === "credit" ? installmentCardId || undefined : undefined
+        },
+        activeMonthKey
+      ),
+    [
+      activeMonthKey,
+      editingInstallmentId,
+      installmentName,
+      installmentValue,
+      installmentTotal,
+      installmentPaid,
+      installmentStartMonth,
+      installmentChargeDay,
+      installmentPaymentMethod,
+      installmentCardId
+    ]
   )
 
   function flashSection(section: "income" | "fixed" | "installment") {
@@ -162,6 +248,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setFixedCategoryId(cost.categoryId)
     setFixedSubcategoryId(cost.subcategoryId)
     setFixedDueDay(cost.dueDay ? String(cost.dueDay) : "")
+    setFixedDueOffsetMonths(String(cost.dueOffsetMonths || 0))
     setFixedChargeDay(cost.chargeDay ? String(cost.chargeDay) : "")
     setFixedPaymentMethod(cost.paymentMethod)
     setFixedCardId(cost.cardId || firstCardId)
@@ -212,6 +299,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setInstallmentPaymentMethod(plan.paymentMethod)
     setInstallmentCardId(plan.cardId || firstCardId)
     setInstallmentChargeDay(plan.chargeDay ? String(plan.chargeDay) : "")
+    setInstallmentDueOffsetMonths(String(plan.dueOffsetMonths || 0))
     setInstallmentStartMonth(plan.startMonth)
   }, [searchParams, installmentPlans, firstCardId])
 
@@ -260,6 +348,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         ...target,
         name: fixedName,
         amount: parseCurrencyInput(fixedAmount),
+        dueOffsetMonths:
+          fixedPaymentMethod === "credit" ? undefined : Number(fixedDueOffsetMonths || 0),
         dueDay:
           fixedPaymentMethod === "credit"
             ? undefined
@@ -288,6 +378,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         name: fixedName,
         amount: parseCurrencyInput(fixedAmount),
         startMonth: activeMonthKey,
+        dueOffsetMonths:
+          fixedPaymentMethod === "credit" ? undefined : Number(fixedDueOffsetMonths || 0),
         dueDay:
           fixedPaymentMethod === "credit"
             ? undefined
@@ -310,6 +402,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setFixedCategoryId(defaultCategories[0].id)
     setFixedSubcategoryId(defaultCategories[0].subcategories[0].id)
     setFixedDueDay("")
+    setFixedDueOffsetMonths("0")
   }
 
   function startEditingFixed(costId: string) {
@@ -324,6 +417,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setFixedCategoryId(cost.categoryId)
     setFixedSubcategoryId(cost.subcategoryId)
     setFixedDueDay(cost.dueDay ? String(cost.dueDay) : "")
+    setFixedDueOffsetMonths(String(cost.dueOffsetMonths || 0))
     setFixedChargeDay(cost.chargeDay ? String(cost.chargeDay) : "")
     setFixedPaymentMethod(cost.paymentMethod)
     setFixedCardId(cost.cardId || firstCardId)
@@ -393,6 +487,10 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         totalInstallments,
         paidInstallments,
         startMonth: installmentStartMonth,
+        dueOffsetMonths:
+          installmentPaymentMethod === "credit"
+            ? undefined
+            : Number(installmentDueOffsetMonths || 0),
         chargeDay: installmentChargeDay ? Number(installmentChargeDay) : undefined,
         paymentMethod: installmentPaymentMethod,
         cardId: installmentPaymentMethod === "credit" ? installmentCardId : undefined
@@ -411,6 +509,10 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         totalInstallments,
         paidInstallments,
         startMonth: installmentStartMonth,
+        dueOffsetMonths:
+          installmentPaymentMethod === "credit"
+            ? undefined
+            : Number(installmentDueOffsetMonths || 0),
         chargeDay: installmentChargeDay ? Number(installmentChargeDay) : undefined,
         paymentMethod: installmentPaymentMethod,
         cardId: installmentPaymentMethod === "credit" ? installmentCardId : undefined
@@ -422,6 +524,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setInstallmentTotal("")
     setInstallmentPaid("0")
     setInstallmentChargeDay("")
+    setInstallmentDueOffsetMonths("0")
     setInstallmentStartMonth(activeMonthKey)
   }
 
@@ -439,6 +542,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setInstallmentPaymentMethod(plan.paymentMethod)
     setInstallmentCardId(plan.cardId || firstCardId)
     setInstallmentChargeDay(plan.chargeDay ? String(plan.chargeDay) : "")
+    setInstallmentDueOffsetMonths(String(plan.dueOffsetMonths || 0))
     setInstallmentStartMonth(plan.startMonth)
     setWizardStep(1)
     flashSection("installment")
@@ -461,6 +565,26 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
       nextParams.delete("editInstallmentId")
       return nextParams
     })
+  }
+
+  function confirmDeleteTarget() {
+    if (!deleteTarget) {
+      return
+    }
+
+    if (deleteTarget.kind === "fixed") {
+      removeFixedCost(deleteTarget.id)
+      if (editingFixedCostId === deleteTarget.id) {
+        cancelEditingFixed()
+      }
+    } else {
+      removeInstallmentPlan(deleteTarget.id)
+      if (editingInstallmentId === deleteTarget.id) {
+        cancelEditingInstallment()
+      }
+    }
+
+    setDeleteTarget(null)
   }
 
   return (
@@ -534,6 +658,17 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
+                  Primeiro mês de competência
+                  <input
+                    className={inputClassName}
+                    type="month"
+                    value={contractConfig.incomeStartMonth || ""}
+                    onChange={(event) =>
+                      updateContractConfig({ incomeStartMonth: event.target.value || undefined })
+                    }
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
                   Mês de competência PJ
                   <SelectField
                     value={String(contractConfig.pjCompetenceOffsetMonths || 0)}
@@ -580,6 +715,17 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
+                  Primeiro mês de competência
+                  <input
+                    className={inputClassName}
+                    type="month"
+                    value={contractConfig.incomeStartMonth || ""}
+                    onChange={(event) =>
+                      updateContractConfig({ incomeStartMonth: event.target.value || undefined })
+                    }
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
                   Mês de competência CLT
                   <SelectField
                     value={String(contractConfig.cltCompetenceOffsetMonths || 0)}
@@ -612,6 +758,10 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
               Usar API de feriados nacionais (BrasilAPI)
             </label>
           )}
+          <p className="mt-3 text-xs leading-5 text-zinc-500">
+            O mês inicial de competência define quando a recorrência começa. A data de
+            recebimento define quando o dinheiro entra.
+          </p>
         </div>
 
         <div className="flex flex-col gap-3">
@@ -644,14 +794,16 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
               <h2 className="mb-3 text-sm font-semibold text-zinc-100">Gastos fixos</h2>
               <div className="grid gap-2">
                 <div className="grid gap-2 md:grid-cols-2">
-                  <input
+                  <InputField
                     className={inputClassName}
+                    icon={Tag}
                     placeholder="Nome"
                     value={fixedName}
                     onChange={(event) => setFixedName(event.target.value)}
                   />
-                  <input
+                  <InputField
                     className={inputClassName}
+                    icon={BadgeDollarSign}
                     type="text"
                     inputMode="decimal"
                     placeholder="Valor"
@@ -661,6 +813,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
                   <SelectField
+                    icon={FolderTree}
                     value={fixedCategoryId}
                     onChange={(event) => {
                       const nextCategory =
@@ -677,6 +830,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     ))}
                   </SelectField>
                   <SelectField
+                    icon={FolderTree}
                     value={fixedSubcategoryId}
                     onChange={(event) => setFixedSubcategoryId(event.target.value)}
                   >
@@ -688,6 +842,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                   </SelectField>
                 </div>
                 <SelectField
+                  icon={Wallet}
                   value={fixedPaymentMethod}
                   onChange={(event) => setFixedPaymentMethod(event.target.value as PaymentMethod)}
                 >
@@ -697,9 +852,20 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     </option>
                   ))}
                 </SelectField>
+                {fixedPaymentMethod !== "credit" && (
+                  <SelectField
+                    icon={CalendarClock}
+                    value={fixedDueOffsetMonths}
+                    onChange={(event) => setFixedDueOffsetMonths(event.target.value)}
+                  >
+                    <option value="0">Vence no mesmo mês</option>
+                    <option value="1">Vence no mês seguinte</option>
+                  </SelectField>
+                )}
                 {fixedPaymentMethod === "credit" && (
                   <div className="grid gap-2 md:grid-cols-2">
                     <SelectField
+                      icon={CreditCard}
                       value={fixedCardId}
                       onChange={(event) => setFixedCardId(event.target.value)}
                     >
@@ -712,6 +878,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                       ))}
                     </SelectField>
                     <SelectField
+                      icon={CalendarDays}
                       value={fixedChargeDay}
                       onChange={(event) => setFixedChargeDay(event.target.value)}
                     >
@@ -728,8 +895,12 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                   </div>
                 )}
                 {fixedPaymentMethod !== "credit" && (
-                  <SelectField value={fixedDueDay} onChange={(event) => setFixedDueDay(event.target.value)}>
-                    <option value="">Sem vencimento</option>
+                  <SelectField
+                    icon={CalendarDays}
+                    value={fixedDueDay}
+                    onChange={(event) => setFixedDueDay(event.target.value)}
+                  >
+                    <option value="">Sem dia de vencimento</option>
                     {Array.from({ length: 31 }).map((_, index) => {
                       const day = String(index + 1)
                       return (
@@ -740,27 +911,35 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     })}
                   </SelectField>
                 )}
-                <button
-                  className="rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
-                  onClick={addFixed}
+                <div
+                  className={`grid gap-2 ${editingFixedCostId ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
                 >
-                  {editingFixedCostId ? "Salvar edição" : "Adicionar"}
-                </button>
-                {editingFixedCostId && (
+                 
                   <button
-                    className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
-                    onClick={cancelEditingFixed}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+                    onClick={() => setListModal("fixed")}
+                    type="button"
                   >
-                    Cancelar edição
+                    <List size={16} />
+                    Ver gastos ({fixedCosts.length})
                   </button>
-                )}
-                <button
-                  className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
-                  onClick={() => setListModal("fixed")}
-                  type="button"
-                >
-                  Ver gastos ({fixedCosts.length})
-                </button>
+                   <button
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
+                    onClick={addFixed}
+                  >
+                    {editingFixedCostId ? <Save size={16} /> : <Plus size={16} />}
+                    {editingFixedCostId ? "Salvar edição" : "Adicionar"}
+                  </button>
+                  {editingFixedCostId && (
+                    <button
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+                      onClick={cancelEditingFixed}
+                    >
+                      <X size={16} />
+                      Cancelar edição
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -775,12 +954,13 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
               }`}
             >
               <h2 className="mb-3 text-sm font-semibold text-zinc-100">Parcelamentos</h2>
-              <div className="grid gap-2">
-                <div className="grid gap-2 md:grid-cols-2">
+              <div className="grid gap-4">
+                <div className="grid gap-3 xl:grid-cols-2">
                   <label className="grid gap-1 text-xs font-medium text-zinc-400">
                     Nome
-                    <input
+                    <InputField
                       className={inputClassName}
+                      icon={Tag}
                       placeholder="Notebook"
                       value={installmentName}
                       onChange={(event) => setInstallmentName(event.target.value)}
@@ -788,8 +968,9 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                   </label>
                   <label className="grid gap-1 text-xs font-medium text-zinc-400">
                     Valor da parcela
-                    <input
+                    <InputField
                       className={inputClassName}
+                      icon={BadgeDollarSign}
                       type="text"
                       inputMode="decimal"
                       placeholder="R$ 0,00"
@@ -800,20 +981,19 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     />
                   </label>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="flex flex-wrap items-end gap-2">
-                    <label className="grid w-24 shrink-0 gap-1 text-xs font-medium text-zinc-400">
-                      Total de parcelas
-                      <input
-                        className={numberInputClassName}
-                        type="number"
-                        min="1"
-                        placeholder="0"
-                        value={installmentTotal}
-                        onChange={(event) => setInstallmentTotal(event.target.value)}
-                      />
-                    </label>
-                    <div className="flex shrink-0 items-center gap-1 self-end">
+                <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(280px,1fr)] xl:items-start">
+                  <label className="grid gap-1 text-xs font-medium text-zinc-400">
+                    Total de parcelas
+                    <InputField
+                      className={numberInputClassName}
+                      icon={Hash}
+                      type="number"
+                      min="1"
+                      placeholder="0"
+                      value={installmentTotal}
+                      onChange={(event) => setInstallmentTotal(event.target.value)}
+                    />
+                    <div className="flex flex-wrap gap-2 pt-1">
                       {installmentTotalChips.map((amount) => (
                         <button
                           key={`installment-chip-${amount}`}
@@ -825,21 +1005,23 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                         </button>
                       ))}
                     </div>
-                    <label className="grid min-w-0 flex-1 gap-1 text-xs font-medium text-zinc-400">
-                      Parcelas pagas
-                      <input
-                        className={inputClassName}
-                        type="number"
-                        min="0"
-                        placeholder="0"
-                        value={installmentPaid}
-                        onChange={(event) => setInstallmentPaid(event.target.value)}
-                      />
-                    </label>
-                  </div>
+                  </label>
                   <label className="grid gap-1 text-xs font-medium text-zinc-400">
+                    Parcelas pagas
+                    <InputField
+                      className={numberInputClassName}
+                      icon={Hash}
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={installmentPaid}
+                      onChange={(event) => setInstallmentPaid(event.target.value)}
+                    />
+                  </label>
+                  <label className="grid min-w-0 gap-1 text-xs font-medium text-zinc-400">
                     Forma de pagamento
                     <SelectField
+                      icon={Wallet}
                       value={installmentPaymentMethod}
                       onChange={(event) =>
                         setInstallmentPaymentMethod(event.target.value as PaymentMethod)
@@ -853,11 +1035,25 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     </SelectField>
                   </label>
                 </div>
-                {installmentPaymentMethod === "credit" && (
-                  <div className="grid gap-2 md:grid-cols-2">
+                <div className="grid gap-3 xl:grid-cols-2">
+                  {installmentPaymentMethod !== "credit" && (
+                    <label className="grid gap-1 text-xs font-medium text-zinc-400">
+                      Quando vence
+                      <SelectField
+                        icon={CalendarClock}
+                        value={installmentDueOffsetMonths}
+                        onChange={(event) => setInstallmentDueOffsetMonths(event.target.value)}
+                      >
+                        <option value="0">No mesmo mês</option>
+                        <option value="1">No mês seguinte</option>
+                      </SelectField>
+                    </label>
+                  )}
+                  {installmentPaymentMethod === "credit" && (
                     <label className="grid gap-1 text-xs font-medium text-zinc-400">
                       Cartão
                       <SelectField
+                        icon={CreditCard}
                         value={installmentCardId}
                         onChange={(event) => setInstallmentCardId(event.target.value)}
                       >
@@ -870,29 +1066,39 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                         ))}
                       </SelectField>
                     </label>
-                    <label className="grid gap-1 text-xs font-medium text-zinc-400">
-                      Dia da cobrança
-                      <SelectField
-                        value={installmentChargeDay}
-                        onChange={(event) => setInstallmentChargeDay(event.target.value)}
-                      >
-                        <option value="">Cobrança imediata</option>
-                        {Array.from({ length: 31 }).map((_, index) => {
-                          const day = String(index + 1)
-                          return (
-                            <option key={`installment-charge-day-${day}`} value={day}>
-                              Cobra dia {day}
-                            </option>
-                          )
-                        })}
-                      </SelectField>
-                    </label>
-                  </div>
-                )}
-                <div className="grid gap-2 md:grid-cols-2">
+                  )}
                   <label className="grid gap-1 text-xs font-medium text-zinc-400">
-                    Mês da próxima parcela
+                    {installmentPaymentMethod === "credit"
+                      ? "Dia da cobrança"
+                      : "Dia do vencimento"}
                     <SelectField
+                      icon={CalendarDays}
+                      value={installmentChargeDay}
+                      onChange={(event) => setInstallmentChargeDay(event.target.value)}
+                    >
+                      <option value="">
+                        {installmentPaymentMethod === "credit"
+                          ? "Cobrança imediata"
+                          : "Sem dia de vencimento"}
+                      </option>
+                      {Array.from({ length: 31 }).map((_, index) => {
+                        const day = String(index + 1)
+                        return (
+                          <option key={`installment-charge-day-${day}`} value={day}>
+                            {installmentPaymentMethod === "credit"
+                              ? `Cobra dia ${day}`
+                              : `Vence dia ${day}`}
+                          </option>
+                        )
+                      })}
+                    </SelectField>
+                  </label>
+                </div>
+                <div className="grid gap-3 xl:grid-cols-2">
+                  <label className="grid gap-1 text-xs font-medium text-zinc-400">
+                    Primeiro mês da parcela
+                    <SelectField
+                      icon={CalendarDays}
                       value={installmentStartMonth.split("-")[1]}
                       onChange={(event) => {
                         const [year] = installmentStartMonth.split("-")
@@ -910,8 +1116,9 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     </SelectField>
                   </label>
                   <label className="grid gap-1 text-xs font-medium text-zinc-400">
-                    Ano da próxima parcela
+                    Ano da primeira parcela
                     <SelectField
+                      icon={CalendarDays}
                       value={installmentStartMonth.split("-")[0]}
                       onChange={(event) => {
                         const month = installmentStartMonth.split("-")[1]
@@ -929,27 +1136,46 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     </SelectField>
                   </label>
                 </div>
-                <button
-                  className="rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
-                  onClick={addInstallment}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-400">
+                  {installmentProgressPreview.isActive
+                    ? `No mês ativo, este parcelamento está em ${installmentProgressPreview.currentInstallment}/${Math.max(
+                        Number(installmentTotal || 1),
+                        1
+                      )}.`
+                    : "No mês ativo, este parcelamento ainda não começou ou já foi encerrado."}{" "}
+                  {Number(installmentPaid || 0) > 0
+                    ? `Quitadas manualmente: ${Number(installmentPaid || 0)}.`
+                    : "Quitadas manualmente: 0."}
+                </div>
+                <div
+                  className={`grid gap-2 ${editingInstallmentId ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
                 >
-                  {editingInstallmentId ? "Salvar edição" : "Adicionar"}
-                </button>
-                {editingInstallmentId && (
-                  <button
-                    className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
-                    onClick={cancelEditingInstallment}
+                   <button
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+                    onClick={() => setListModal("installment")}
+                    type="button"
                   >
-                    Cancelar edição
+                    <List size={16} />
+                    Ver parcelas ({installmentPlans.length})
                   </button>
-                )}
-                <button
-                  className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
-                  onClick={() => setListModal("installment")}
-                  type="button"
-                >
-                  Ver parcelas ({installmentPlans.length})
-                </button>
+                  <button
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
+                    onClick={addInstallment}
+                  >
+                    {editingInstallmentId ? <Save size={16} /> : <Plus size={16} />}
+                    {editingInstallmentId ? "Salvar edição" : "Adicionar"}
+                  </button>
+                 
+                  {editingInstallmentId && (
+                    <button
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+                      onClick={cancelEditingInstallment}
+                    >
+                      <X size={16} />
+                      Cancelar edição
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -978,58 +1204,78 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
               </button>
             </div>
 
-            <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+            <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
               {listModal === "fixed" &&
                 fixedCosts.map((cost) => (
                   <div
                     key={cost.id}
-                    className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs text-zinc-300 ${
+                    className={`rounded-xl border px-4 py-4 text-sm text-zinc-300 ${
                       editingFixedCostId === cost.id
                         ? "border-emerald-500/60 bg-emerald-500/10"
-                        : "border-zinc-800"
+                        : "border-zinc-800 bg-zinc-950/70"
                     }`}
                   >
-                    <span>
-                      {cost.name} · {formatCurrency(cost.amount)}
-                      <span className="ml-2 text-zinc-500">
-                        {(() => {
-                          const category = defaultCategories.find(
-                            (item) => item.id === cost.categoryId
-                          )
-                          if (!category) {
-                            return "Categoria não definida"
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 space-y-2">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span className="text-base font-medium text-zinc-100">{cost.name}</span>
+                          <span className="text-sm font-semibold text-zinc-200">
+                            {formatCurrency(cost.amount)}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-zinc-400">
+                            {(() => {
+                              const category = defaultCategories.find(
+                                (item) => item.id === cost.categoryId
+                              )
+                              if (!category) {
+                                return "Categoria não definida"
+                              }
+                              const subcategory = category.subcategories.find(
+                                (item) => item.id === cost.subcategoryId
+                              )
+                              return subcategory
+                                ? `${category.name} / ${subcategory.name}`
+                                : category.name
+                            })()}
+                          </span>
+                          <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-zinc-400">
+                            {getPaymentLabel(cost.paymentMethod, cost.cardId)}
+                          </span>
+                          {cost.paymentMethod !== "credit" && cost.dueDay && (
+                            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-amber-300">
+                              Vence dia {cost.dueDay}
+                              {cost.dueOffsetMonths === 1 ? " · mês seguinte" : ""}
+                            </span>
+                          )}
+                          {cost.paymentMethod === "credit" && cost.chargeDay && (
+                            <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-sky-300">
+                              Cobra dia {cost.chargeDay}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 self-start">
+                        <button
+                          className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-emerald-500 hover:text-emerald-300"
+                          onClick={() => startEditingFixed(cost.id)}
+                          type="button"
+                        >
+                          <Pencil size={14} />
+                          Editar
+                        </button>
+                        <button
+                          className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-rose-500 hover:text-rose-300"
+                          onClick={() =>
+                            setDeleteTarget({ kind: "fixed", id: cost.id, label: cost.name })
                           }
-                          const subcategory = category.subcategories.find(
-                            (item) => item.id === cost.subcategoryId
-                          )
-                          return subcategory ? `${category.name} / ${subcategory.name}` : category.name
-                        })()}
-                      </span>
-                      <span className="ml-2 text-zinc-500">
-                        {getPaymentLabel(cost.paymentMethod, cost.cardId)}
-                      </span>
-                      {cost.paymentMethod !== "credit" && cost.dueDay && (
-                        <span className="ml-2 text-amber-300">Vence dia {cost.dueDay}</span>
-                      )}
-                      {cost.paymentMethod === "credit" && cost.chargeDay && (
-                        <span className="ml-2 text-sky-300">Cobra dia {cost.chargeDay}</span>
-                      )}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="text-zinc-500 hover:text-zinc-200"
-                        onClick={() => startEditingFixed(cost.id)}
-                        type="button"
-                      >
-                        editar
-                      </button>
-                      <button
-                        className="text-zinc-500 hover:text-zinc-200"
-                        onClick={() => removeFixedCost(cost.id)}
-                        type="button"
-                      >
-                        remover
-                      </button>
+                          type="button"
+                        >
+                          <Trash2 size={14} />
+                          Excluir
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1040,56 +1286,123 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                   return (
                     <div
                       key={plan.id}
-                      className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 text-xs text-zinc-300"
+                      className="rounded-xl border border-zinc-800 bg-zinc-950/70 px-4 py-4 text-sm text-zinc-300"
                     >
-                      <span>
-                        {plan.name} · {formatCurrency(plan.installmentValue)} ·{" "}
-                        {progress.isActive
-                          ? `${progress.currentInstallment}/${plan.totalInstallments}`
-                          : "encerrado"}
-                        {(plan.paidInstallments || 0) > 0 && (
-                          <span className="ml-2 text-zinc-500">
-                            {plan.paidInstallments} pagas
-                          </span>
-                        )}
-                        <span className="ml-2 text-zinc-500">
-                          {getPaymentLabel(plan.paymentMethod, plan.cardId)}
-                        </span>
-                        {plan.paymentMethod === "credit" && plan.chargeDay && (
-                          <span className="ml-2 text-sky-300">Cobra dia {plan.chargeDay}</span>
-                        )}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          className="text-zinc-500 hover:text-zinc-200"
-                          onClick={() => startEditingInstallment(plan.id)}
-                          type="button"
-                        >
-                          editar
-                        </button>
-                        <button
-                          className="text-zinc-500 hover:text-zinc-200"
-                          onClick={() => removeInstallmentPlan(plan.id)}
-                          type="button"
-                        >
-                          remover
-                        </button>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 space-y-2">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span className="text-base font-medium text-zinc-100">{plan.name}</span>
+                            <span className="text-sm font-semibold text-zinc-200">
+                              {formatCurrency(plan.installmentValue)}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-zinc-400">
+                              {progress.isActive
+                                ? `${progress.currentInstallment}/${plan.totalInstallments}`
+                                : "encerrado"}
+                            </span>
+                            {(plan.paidInstallments || 0) > 0 && (
+                              <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-zinc-400">
+                                {plan.paidInstallments} pagas
+                              </span>
+                            )}
+                            <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-zinc-400">
+                              {getPaymentLabel(plan.paymentMethod, plan.cardId)}
+                            </span>
+                            {plan.chargeDay && (
+                              <span
+                                className={`rounded-full px-2.5 py-1 ${
+                                  plan.paymentMethod === "credit"
+                                    ? "border border-sky-500/30 bg-sky-500/10 text-sky-300"
+                                    : "border border-amber-500/30 bg-amber-500/10 text-amber-300"
+                                }`}
+                              >
+                                {plan.paymentMethod === "credit"
+                                  ? `Cobra dia ${plan.chargeDay}`
+                                  : `Vence dia ${plan.chargeDay}${plan.dueOffsetMonths === 1 ? " · mês seguinte" : ""}`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 self-start">
+                          <button
+                            className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-emerald-500 hover:text-emerald-300"
+                            onClick={() => startEditingInstallment(plan.id)}
+                            type="button"
+                          >
+                            <Pencil size={14} />
+                            Editar
+                          </button>
+                          <button
+                            className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-rose-500 hover:text-rose-300"
+                            onClick={() =>
+                              setDeleteTarget({
+                                kind: "installment",
+                                id: plan.id,
+                                label: plan.name
+                              })
+                            }
+                            type="button"
+                          >
+                            <Trash2 size={14} />
+                            Excluir
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )
                 })}
 
               {listModal === "fixed" && fixedCosts.length === 0 && (
-                <p className="rounded-lg border border-zinc-800 px-3 py-2 text-xs text-zinc-400">
+                <p className="rounded-xl border border-zinc-800 px-4 py-4 text-sm text-zinc-400">
                   Nenhum gasto fixo cadastrado.
                 </p>
               )}
 
               {listModal === "installment" && installmentPlans.length === 0 && (
-                <p className="rounded-lg border border-zinc-800 px-3 py-2 text-xs text-zinc-400">
+                <p className="rounded-xl border border-zinc-800 px-4 py-4 text-sm text-zinc-400">
                   Nenhum parcelamento cadastrado.
                 </p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-zinc-950/85 p-4"
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 text-base font-semibold text-zinc-100">
+              Confirmar exclusão
+            </div>
+            <p className="text-sm leading-6 text-zinc-400">
+              Remover <span className="font-medium text-zinc-200">{deleteTarget.label}</span> da
+              lista de {deleteTarget.kind === "fixed" ? "gastos fixos" : "parcelamentos"}?
+            </p>
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              <button
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+                onClick={() => setDeleteTarget(null)}
+                type="button"
+              >
+                <X size={16} />
+                Cancelar
+              </button>
+              <button
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-rose-400"
+                onClick={confirmDeleteTarget}
+                type="button"
+              >
+                <Trash2 size={16} />
+                Excluir
+              </button>
             </div>
           </div>
         </div>

@@ -9,6 +9,7 @@ export type PaymentMethod =
 
 export type Transaction = {
   id: string
+  createdAt?: string
   label: string
   value: number
   date: string

@@ -13,6 +13,10 @@ import {
   ProjectionSettings
 } from "../types/planning"
 import {
+  buildMonthlyPayableKey,
+  sanitizePaidPlannedItems
+} from "../utils/domain/monthly-payments"
+import {
   addMonths,
   getCltProjectedRevenueForMonth,
   getPjProjectedRevenueForMonth,
@@ -23,6 +27,7 @@ import {
   getInstallmentProgress,
   getOperationalCostsForMonth,
   isMonthKeyAfter,
+  sanitizeDueOffsetMonths,
   sanitizeChargeDay
 } from "../utils/projections"
 
@@ -33,6 +38,7 @@ export type TransactionStore = {
   transactions: Transaction[]
   fixedCosts: FixedCost[]
   installmentPlans: InstallmentPlan[]
+  paidPlannedItems: Record<string, string>
   contractConfig: ContractConfig
   projectionSettings: ProjectionSettings
   totalIncomes: number
@@ -57,6 +63,17 @@ export type TransactionStore = {
   updateInstallmentPlan: (plan: InstallmentPlan) => void
   removeInstallmentPlan: (id: string) => void
   markCardInvoiceAsPaid: (cardId: string, monthKey: string) => void
+  markCardInvoiceAsUnpaid: (cardId: string, monthKey: string) => void
+  markPlannedItemAsPaid: (
+    kind: "fixedCost" | "installment",
+    sourceId: string,
+    monthKey: string
+  ) => void
+  markPlannedItemAsUnpaid: (
+    kind: "fixedCost" | "installment",
+    sourceId: string,
+    monthKey: string
+  ) => void
   setCardManualInvoiceAmountForMonth: (cardId: string, monthKey: string, amount: number) => void
   clearCardManualInvoiceAmountForMonth: (cardId: string, monthKey: string) => void
   updateContractConfig: (config: Partial<ContractConfig>) => void
@@ -266,6 +283,8 @@ function sanitizeInstallmentPlan(plan: InstallmentPlan): InstallmentPlan {
     ...plan,
     totalInstallments,
     paidInstallments,
+    dueOffsetMonths:
+      plan.paymentMethod === "credit" ? undefined : sanitizeDueOffsetMonths(plan.dueOffsetMonths),
     chargeDay: sanitizeChargeDay(plan.chargeDay)
   }
 }
@@ -277,6 +296,8 @@ function sanitizeFixedCost(cost: FixedCost): FixedCost {
       typeof cost.startMonth === "string" && /^\d{4}-\d{2}$/.test(cost.startMonth)
         ? cost.startMonth
         : undefined,
+    dueOffsetMonths:
+      cost.paymentMethod === "credit" ? undefined : sanitizeDueOffsetMonths(cost.dueOffsetMonths),
     dueDay: cost.paymentMethod === "credit" ? undefined : sanitizeChargeDay(cost.dueDay),
     chargeDay: cost.paymentMethod === "credit" ? sanitizeChargeDay(cost.chargeDay) : undefined
   }
@@ -333,6 +354,28 @@ function sanitizeActiveMonthKey(value?: string) {
   }
 
   return getCurrentMonthKey()
+}
+
+function sanitizeIncomeStartMonth(value?: string) {
+  if (typeof value === "string" && /^\d{4}-\d{2}$/.test(value)) {
+    return value
+  }
+
+  return undefined
+}
+
+function sanitizeTransaction(transaction: Transaction, index = 0): Transaction {
+  const createdAt =
+    typeof transaction.createdAt === "string" &&
+    !Number.isNaN(Date.parse(transaction.createdAt))
+      ? transaction.createdAt
+      : new Date(Date.UTC(2024, 0, 1, 0, 0, index)).toISOString()
+
+  return {
+    ...transaction,
+    createdAt,
+    tags: Array.isArray(transaction.tags) ? transaction.tags : []
+  }
 }
 
 function createMockTransactionState() {
@@ -563,6 +606,7 @@ function createMockTransactionState() {
     cltNetSalary: 0,
     cltPaydayDate: getTodayIsoDate(),
     pjPaydayDate: getTodayIsoDate(),
+    incomeStartMonth: currentMonth,
     localityState: "SP",
     localityCity: "Sao Paulo",
     useHolidayApi: true
@@ -580,6 +624,7 @@ function createMockTransactionState() {
     transactions,
     fixedCosts,
     installmentPlans,
+    paidPlannedItems: {},
     contractConfig,
     projectionSettings
   }
@@ -594,6 +639,7 @@ export const useTransactionStore = create<TransactionStore>()(
       transactions: [],
       fixedCosts: [],
       installmentPlans: [],
+      paidPlannedItems: {},
       contractConfig: {
         incomeMode: "pj",
         hourlyRate: 0,
@@ -601,6 +647,7 @@ export const useTransactionStore = create<TransactionStore>()(
         cltNetSalary: 0,
         cltPaydayDate: getTodayIsoDate(),
         pjPaydayDate: getTodayIsoDate(),
+        incomeStartMonth: getCurrentMonthKey(),
         localityState: "SP",
         localityCity: "Sao Paulo",
         useHolidayApi: true
@@ -757,7 +804,7 @@ export const useTransactionStore = create<TransactionStore>()(
         }),
       addTransaction: (transaction) =>
         set((state) => {
-          const transactions = [...state.transactions, transaction]
+          const transactions = [...state.transactions, sanitizeTransaction(transaction, state.transactions.length)]
           return {
             transactions,
             ...calculateTotals({
@@ -772,7 +819,15 @@ export const useTransactionStore = create<TransactionStore>()(
       updateTransaction: (transaction) =>
         set((state) => {
           const transactions = state.transactions.map((currentTransaction) =>
-            currentTransaction.id === transaction.id ? transaction : currentTransaction
+            currentTransaction.id === transaction.id
+              ? sanitizeTransaction(
+                  {
+                    ...transaction,
+                    createdAt: transaction.createdAt || currentTransaction.createdAt
+                  },
+                  0
+                )
+              : currentTransaction
           )
           return {
             transactions,
@@ -944,6 +999,49 @@ export const useTransactionStore = create<TransactionStore>()(
             })
           }
         }),
+      markCardInvoiceAsUnpaid: (cardId, monthKey) =>
+        set((state) => {
+          const targetCard = state.cards.find((card) => card.id === cardId)
+          if (!targetCard?.paidThroughMonth || targetCard.paidThroughMonth !== monthKey) {
+            return state
+          }
+          const cards = state.cards.map((card) =>
+            card.id === cardId
+              ? {
+                  ...card,
+                  paidThroughMonth: undefined
+                }
+              : card
+          )
+
+          return {
+            cards,
+            ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
+              transactions: state.transactions,
+              cards,
+              fixedCosts: state.fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
+        }),
+      markPlannedItemAsPaid: (kind, sourceId, monthKey) =>
+        set((state) => ({
+          paidPlannedItems: {
+            ...state.paidPlannedItems,
+            [buildMonthlyPayableKey(kind, sourceId, monthKey)]: new Date()
+              .toISOString()
+              .slice(0, 10)
+          }
+        })),
+      markPlannedItemAsUnpaid: (kind, sourceId, monthKey) =>
+        set((state) => {
+          const paidPlannedItems = { ...state.paidPlannedItems }
+          delete paidPlannedItems[buildMonthlyPayableKey(kind, sourceId, monthKey)]
+          return {
+            paidPlannedItems
+          }
+        }),
       setCardManualInvoiceAmountForMonth: (cardId, monthKey, amount) =>
         set((state) => {
           const cards = state.cards.map((card) =>
@@ -989,6 +1087,9 @@ export const useTransactionStore = create<TransactionStore>()(
             pjPaydayDate: sanitizePjPaydayDate(
               config.pjPaydayDate || state.contractConfig.pjPaydayDate
             ),
+            incomeStartMonth: sanitizeIncomeStartMonth(
+              config.incomeStartMonth ?? state.contractConfig.incomeStartMonth
+            ),
             cltCompetenceOffsetMonths: sanitizeCompetenceOffsetMonths(
               config.cltCompetenceOffsetMonths ?? state.contractConfig.cltCompetenceOffsetMonths
             ),
@@ -1032,6 +1133,7 @@ export const useTransactionStore = create<TransactionStore>()(
             cltNetSalary: 0,
             cltPaydayDate: getTodayIsoDate(),
             pjPaydayDate: getTodayIsoDate(),
+            incomeStartMonth: getCurrentMonthKey(),
             localityState: "SP",
             localityCity: "Sao Paulo",
             useHolidayApi: true
@@ -1048,6 +1150,7 @@ export const useTransactionStore = create<TransactionStore>()(
             transactions,
             fixedCosts,
             installmentPlans,
+            paidPlannedItems: {},
             contractConfig,
             projectionSettings,
             ...calculateTotals({
@@ -1062,7 +1165,7 @@ export const useTransactionStore = create<TransactionStore>()(
     }),
     {
       name: "devfinances-storage",
-      version: 32,
+      version: 34,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState, version) => {
         if (!persistedState || typeof persistedState !== "object") {
@@ -1641,6 +1744,31 @@ export const useTransactionStore = create<TransactionStore>()(
               fixedCosts,
               installmentPlans
             })
+          }
+        }
+
+        if (version < 33) {
+          const state = persistedState as TransactionStore
+          return {
+            ...state,
+            paidPlannedItems: sanitizePaidPlannedItems(
+              (state as TransactionStore & { paidPlannedItems?: Record<string, string> })
+                .paidPlannedItems
+            ),
+            contractConfig: {
+              ...state.contractConfig,
+              incomeStartMonth: sanitizeIncomeStartMonth(state.contractConfig?.incomeStartMonth)
+            }
+          }
+        }
+
+        if (version < 34) {
+          const state = persistedState as TransactionStore
+          return {
+            ...state,
+            transactions: (state.transactions || []).map((transaction, index) =>
+              sanitizeTransaction(transaction, index)
+            )
           }
         }
 

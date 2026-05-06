@@ -4,6 +4,7 @@ import { CalendarDays, ChevronDown } from "lucide-react"
 import { Category } from "../../types/finance"
 import { CreditCard } from "../../types/card"
 import { PaymentMethod, Transaction } from "../../types/transaction"
+import { transactionSchema } from "../../schemas/transaction"
 import { parseCurrencyInput } from "../../utils/currency-input"
 import { useTransactionStore } from "../../store/useTransactionStore"
 import { getOperationalDateForMonth } from "../../utils/projections"
@@ -88,6 +89,7 @@ export const TransactionForm = ({
   const [tagsInput, setTagsInput] = useState("")
   const [showMissingCardModal, setShowMissingCardModal] = useState(false)
   const [competenceMonth, setCompetenceMonth] = useState("")
+  const [formError, setFormError] = useState("")
   const dateInputRef = useRef<HTMLInputElement>(null)
 
   function openDatePicker() {
@@ -156,6 +158,7 @@ export const TransactionForm = ({
     setSubcategoryId(categories[0].subcategories[0].id)
     setTagsInput("")
     setCompetenceMonth("")
+    setFormError("")
   }
 
   function addQuickValue(amount: number) {
@@ -222,11 +225,11 @@ export const TransactionForm = ({
     e.preventDefault()
     const isCreditExpense = option === 2 && paymentMethod === "credit"
     if (!date || amountCents <= 0) {
-      alert("Valor e data são obrigatórios")
+      setFormError("Preencha data e um valor maior que zero.")
       return
     }
     if (isCreditExpense && !cardId) {
-      alert("Selecione um cartão para despesas no crédito")
+      setFormError("Selecione um cartão para despesas no crédito.")
       return
     }
 
@@ -236,6 +239,27 @@ export const TransactionForm = ({
     const transactionLabel = label.trim() || fallbackLabel
     const transactionPaymentMethod = option === 1 ? "cash" : paymentMethod
     const transactionCardId = isCreditExpense ? cardId : undefined
+
+    const nextTransaction = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      label: transactionLabel,
+      value: amountCents / 100,
+      date: date.toString(),
+      type: option,
+      paymentMethod: transactionPaymentMethod,
+      cardId: transactionCardId,
+      categoryId,
+      subcategoryId,
+      tags: parseTags(),
+      competenceMonth: option === 1 && competenceMonth ? competenceMonth : undefined
+    }
+
+    const parsedTransaction = transactionSchema.safeParse(nextTransaction)
+    if (!parsedTransaction.success) {
+      setFormError(parsedTransaction.error.issues[0]?.message || "Revise os dados do lançamento.")
+      return
+    }
 
     const duplicateTransaction = existingTransactions.some(
       (transaction) =>
@@ -250,23 +274,12 @@ export const TransactionForm = ({
     )
 
     if (duplicateTransaction) {
-      alert("Já existe uma transação idêntica nessa data, cartão, categoria e valor.")
+      setFormError("Já existe uma transação idêntica nessa data, cartão, categoria e valor.")
       return
     }
 
-    onSubmitTransaction({
-      id: crypto.randomUUID(),
-      label: transactionLabel,
-      value: amountCents / 100,
-      date: date.toString(),
-      type: option,
-      paymentMethod: transactionPaymentMethod,
-      cardId: transactionCardId,
-      categoryId,
-      subcategoryId,
-      tags: parseTags(),
-      competenceMonth: option === 1 && competenceMonth ? competenceMonth : undefined
-    })
+    setFormError("")
+    onSubmitTransaction(parsedTransaction.data)
     resetValues()
   }
 
@@ -560,6 +573,11 @@ export const TransactionForm = ({
           >
             Lançar transação
           </button>
+          {formError && (
+            <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+              {formError}
+            </p>
+          )}
         </motion.form>
       </div>
       {showMissingCardModal && (

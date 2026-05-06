@@ -84,6 +84,14 @@ function sanitizeCompetenceOffsetMonths(value?: number) {
   return Math.min(Math.max(Math.round(value || 0), 0), 12)
 }
 
+function sanitizeStartMonth(value?: string) {
+  if (typeof value === "string" && /^\d{4}-\d{2}$/.test(value)) {
+    return value
+  }
+
+  return undefined
+}
+
 export function sanitizeChargeDay(value?: number) {
   if (!Number.isFinite(value)) {
     return undefined
@@ -92,12 +100,45 @@ export function sanitizeChargeDay(value?: number) {
   return Math.min(Math.max(Math.round(value || 0), 1), 31)
 }
 
+export function sanitizeDueOffsetMonths(value?: number) {
+  if (!Number.isFinite(value)) {
+    return 0
+  }
+
+  return Math.min(Math.max(Math.round(value || 0), 0), 1)
+}
+
 export function getMonthDateFromDay(monthKey: string, day?: number) {
   return buildMonthDate(monthKey, sanitizeChargeDay(day) || 1)
 }
 
 export function isFixedCostActiveForMonth(cost: FixedCost, monthKey: string) {
   return !cost.startMonth || !isMonthKeyAfter(cost.startMonth, monthKey)
+}
+
+export function getFixedCostOccurrenceMonthForDueMonth(
+  cost: FixedCost,
+  dueMonth: string
+) {
+  return addMonths(dueMonth, -sanitizeDueOffsetMonths(cost.dueOffsetMonths))
+}
+
+export function getFixedCostDueMonth(cost: FixedCost, occurrenceMonth: string) {
+  return addMonths(occurrenceMonth, sanitizeDueOffsetMonths(cost.dueOffsetMonths))
+}
+
+export function getInstallmentOccurrenceMonthForDueMonth(
+  plan: InstallmentPlan,
+  dueMonth: string
+) {
+  return addMonths(dueMonth, -sanitizeDueOffsetMonths(plan.dueOffsetMonths))
+}
+
+export function getInstallmentDueMonth(
+  plan: InstallmentPlan,
+  occurrenceMonth: string
+) {
+  return addMonths(occurrenceMonth, sanitizeDueOffsetMonths(plan.dueOffsetMonths))
 }
 
 export function getOperationalDateForMonth(monthKey: string) {
@@ -147,10 +188,9 @@ export function getCltProjectedRevenueForMonth(contractConfig: ContractConfig, m
   const competenceOffsetMonths = sanitizeCompetenceOffsetMonths(
     contractConfig.cltCompetenceOffsetMonths
   )
-  const startMonth = addMonths(
-    dateToMonthKey(contractConfig.cltPaydayDate),
-    -competenceOffsetMonths
-  )
+  const startMonth =
+    sanitizeStartMonth(contractConfig.incomeStartMonth) ||
+    addMonths(dateToMonthKey(contractConfig.cltPaydayDate), -competenceOffsetMonths)
   if (isMonthKeyAfter(startMonth, monthKey)) {
     return 0
   }
@@ -175,10 +215,9 @@ export function getPjProjectedRevenueForMonth(input: {
   const competenceOffsetMonths = sanitizeCompetenceOffsetMonths(
     input.contractConfig.pjCompetenceOffsetMonths
   )
-  const startMonth = addMonths(
-    dateToMonthKey(input.contractConfig.pjPaydayDate),
-    -competenceOffsetMonths
-  )
+  const startMonth =
+    sanitizeStartMonth(input.contractConfig.incomeStartMonth) ||
+    addMonths(dateToMonthKey(input.contractConfig.pjPaydayDate), -competenceOffsetMonths)
   if (isMonthKeyAfter(startMonth, input.monthKey)) {
     return 0
   }
@@ -358,6 +397,38 @@ export function getFixedCostsTotal(fixedCosts: FixedCost[]) {
   return fixedCosts.reduce((total, cost) => total + cost.amount, 0)
 }
 
+export function getNonCreditFixedCostTotalForDueMonth(
+  fixedCosts: FixedCost[],
+  targetMonth: string
+) {
+  const occurrenceMonths = [addMonths(targetMonth, -1), targetMonth]
+
+  return occurrenceMonths.reduce((sum, occurrenceMonth) => {
+    const totalForOccurrence = fixedCosts
+      .filter(
+        (cost) =>
+          cost.paymentMethod !== "credit" &&
+          isFixedCostActiveForMonth(cost, occurrenceMonth) &&
+          getFixedCostDueMonth(cost, occurrenceMonth) === targetMonth
+      )
+      .reduce((total, cost) => total + cost.amount, 0)
+
+    return sum + totalForOccurrence
+  }, 0)
+}
+
+export function getNonCreditFixedCostTotalForOccurrenceMonth(
+  fixedCosts: FixedCost[],
+  targetMonth: string
+) {
+  return fixedCosts
+    .filter(
+      (cost) =>
+        cost.paymentMethod !== "credit" && isFixedCostActiveForMonth(cost, targetMonth)
+    )
+    .reduce((total, cost) => total + cost.amount, 0)
+}
+
 export function getInstallmentPaidCount(installmentPlan: InstallmentPlan) {
   const paidInstallments = Number.isFinite(installmentPlan.paidInstallments)
     ? Math.floor(installmentPlan.paidInstallments)
@@ -441,6 +512,23 @@ export function getInstallmentTotalForMonth(
     .reduce((total, plan) => total + plan.installmentValue, 0)
 }
 
+export function getNonCreditInstallmentTotalForDueMonth(
+  installmentPlans: InstallmentPlan[],
+  targetMonth: string
+) {
+  const occurrenceMonths = [addMonths(targetMonth, -1), targetMonth]
+
+  return occurrenceMonths.reduce((sum, occurrenceMonth) => {
+    const totalForOccurrence = installmentPlans
+      .filter((plan) => plan.paymentMethod !== "credit")
+      .filter((plan) => getInstallmentProgress(plan, occurrenceMonth).isActive)
+      .filter((plan) => getInstallmentDueMonth(plan, occurrenceMonth) === targetMonth)
+      .reduce((total, plan) => total + plan.installmentValue, 0)
+
+    return sum + totalForOccurrence
+  }, 0)
+}
+
 export function getMonthlyLeftoverFromTransactions(
   transactions: Transaction[],
   targetMonth: string
@@ -469,6 +557,29 @@ export function getIncomeTransactionsTotalForMonth(
           : dateToMonthKey(transaction.date) === targetMonth)
     )
     .reduce((total, transaction) => total + transaction.value, 0)
+}
+
+export function getExpectedIncomeForMonth(input: {
+  contractConfig: ContractConfig
+  transactions: Transaction[]
+  monthKey: string
+  holidays: Holiday[]
+}) {
+  const projectedRecurringIncome =
+    input.contractConfig.incomeMode === "clt"
+      ? getCltProjectedRevenueForMonth(input.contractConfig, input.monthKey)
+      : getPjProjectedRevenueForMonth({
+          contractConfig: input.contractConfig,
+          monthKey: input.monthKey,
+          holidays: input.holidays
+        })
+
+  const manualIncomeTransactions = getIncomeTransactionsTotalForMonth(
+    input.transactions,
+    input.monthKey
+  )
+
+  return projectedRecurringIncome + manualIncomeTransactions
 }
 
 export function getAverageMonthlyLeftover(
@@ -510,12 +621,7 @@ export function getCommittedCostsForMonth(input: {
 }) {
   const cards = input.cards || []
   const fixedCostsTotal =
-    input.fixedCosts
-      .filter(
-        (cost) =>
-          cost.paymentMethod !== "credit" && isFixedCostActiveForMonth(cost, input.monthKey)
-      )
-      .reduce((total, cost) => total + cost.amount, 0) +
+    getNonCreditFixedCostTotalForDueMonth(input.fixedCosts, input.monthKey) +
     cards.reduce(
       (total, card) =>
         total +
@@ -527,19 +633,22 @@ export function getCommittedCostsForMonth(input: {
         }),
       0
     )
-  const installmentsTotal = getInstallmentTotalForMonth(input.installmentPlans, input.monthKey)
+  const installmentsTotal =
+    getNonCreditInstallmentTotalForDueMonth(input.installmentPlans, input.monthKey) +
+    getInstallmentTotalForMonth(
+      input.installmentPlans.filter((plan) => plan.paymentMethod === "credit"),
+      input.monthKey
+    )
 
   // Business rule: total outflows should include cash expenses PLUS the full credit card invoices.
   // A credit card invoice for a month is:
   // active installments + credit fixed costs + ad-hoc credit transactions + manualInvoiceAmount.
-  const cashFixedCostsTotal = input.fixedCosts
-    .filter(
-      (cost) =>
-        cost.paymentMethod !== "credit" && isFixedCostActiveForMonth(cost, input.monthKey)
-    )
-    .reduce((total, cost) => total + cost.amount, 0)
-  const cashInstallmentsTotal = getInstallmentTotalForMonth(
-    input.installmentPlans.filter((plan) => plan.paymentMethod !== "credit"),
+  const cashFixedCostsTotal = getNonCreditFixedCostTotalForDueMonth(
+    input.fixedCosts,
+    input.monthKey
+  )
+  const cashInstallmentsTotal = getNonCreditInstallmentTotalForDueMonth(
+    input.installmentPlans,
     input.monthKey
   )
   const cashTransactionsTotal = (input.transactions || [])
@@ -576,8 +685,9 @@ export function getCommittedCostsForMonth(input: {
       )
       .reduce((total, transaction) => total + transaction.value, 0)
 
-    // Manual invoice is treated as a one-off adjustment for the current month only.
-    const manualInvoiceAmount = getCardManualInvoiceAmount(card, input.monthKey)
+    // Ajuste manual e salvo no mes operacional da fatura, mas impacta o
+    // desembolso no mes de vencimento.
+    const manualInvoiceAmount = getCardManualInvoiceAmount(card, addMonths(input.monthKey, -1))
 
     return (
       sum +
@@ -606,12 +716,10 @@ export function getOperationalCostsForMonth(input: {
   installmentPlans: InstallmentPlan[]
   monthKey: string
 }) {
-  const cashFixedCostsTotal = input.fixedCosts
-    .filter(
-      (cost) =>
-        cost.paymentMethod !== "credit" && isFixedCostActiveForMonth(cost, input.monthKey)
-    )
-    .reduce((total, cost) => total + cost.amount, 0)
+  const cashFixedCostsTotal = getNonCreditFixedCostTotalForOccurrenceMonth(
+    input.fixedCosts,
+    input.monthKey
+  )
 
   const creditFixedCostsTotal = (input.cards || []).reduce(
     (total, card) =>
@@ -672,6 +780,8 @@ export function getOperationalCostsForMonth(input: {
   )
 
   return {
+    fixedCostsTotal: cashFixedCostsTotal + creditFixedCostsTotal,
+    installmentsTotal: cashInstallmentsTotal + creditInstallmentsTotal,
     total:
       cashFixedCostsTotal +
       creditFixedCostsTotal +
@@ -706,7 +816,7 @@ export function buildProjectionTimeline(input: {
     )
     const projectedRevenue = projectedRevenueBase + manualIncomesForMonth
     const goalsMonthlyContribution = Math.max(input.goalsMonthlyContribution || 0, 0)
-    const committed = getCommittedCostsForMonth({
+    const operational = getOperationalCostsForMonth({
       cards: input.cards,
       transactions: input.transactions,
       fixedCosts: input.fixedCosts,
@@ -716,7 +826,7 @@ export function buildProjectionTimeline(input: {
 
     // Projected leftover should reflect what will remain:
     // projected revenue minus all outflows (cash + credit invoices + goals contribution).
-    const committedCosts = committed.total + goalsMonthlyContribution
+    const committedCosts = operational.total + goalsMonthlyContribution
     const projectedLeftover = projectedRevenue - committedCosts
     cumulativeBalance += projectedLeftover
 
@@ -725,8 +835,8 @@ export function buildProjectionTimeline(input: {
       projectedRevenue,
       projectedLeftover,
       committedCosts,
-      fixedCostsTotal: committed.fixedCostsTotal,
-      installmentsTotal: committed.installmentsTotal,
+      fixedCostsTotal: operational.fixedCostsTotal,
+      installmentsTotal: operational.installmentsTotal,
       goalsMonthlyContribution,
       cumulativeBalance
     }

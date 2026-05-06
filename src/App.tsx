@@ -7,6 +7,7 @@ import { OverviewPage } from "./pages/OverviewPage"
 import { TransactionsPage } from "./pages/TransactionsPage"
 import { ProjectionsPage } from "./pages/ProjectionsPage"
 import { PlanningPage } from "./pages/PlanningPage"
+import { PlanningWorkspacePage } from "./pages/PlanningWorkspacePage"
 import { GoalsPage } from "./pages/GoalsPage"
 import { SettingsPage } from "./pages/SettingsPage"
 import { LoginPage } from "./components/auth/LoginPage"
@@ -126,6 +127,7 @@ function App() {
           <Route path="/transacoes" element={<TransactionsPage />} />
           <Route path="/cartoes" element={<Navigate to="/" replace />} />
           <Route path="/planejamento" element={<PlanningPage />} />
+          <Route path="/compromissos" element={<PlanningWorkspacePage />} />
           <Route path="/projecoes" element={<ProjectionsPage />} />
           <Route path="/metas" element={<GoalsPage />} />
           <Route

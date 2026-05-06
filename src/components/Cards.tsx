@@ -62,6 +62,12 @@ type CategoryExpenseBucket = {
   value: number
 }
 
+type CategoryDrillItem = {
+  id: string
+  label: string
+  value: number
+}
+
 export const Cards = () => {
   const navigate = useNavigate()
   const cards = useTransactionStore((state) => state.cards)
@@ -390,6 +396,69 @@ export const Cards = () => {
         .sort((left, right) => right.value - left.value),
     [categoryExpenseBuckets, selectedCategoryDrillId]
   )
+  const selectedCategoryItems = useMemo<CategoryDrillItem[]>(() => {
+    if (!selectedCategoryDrillId) {
+      return []
+    }
+
+    const items: CategoryDrillItem[] = []
+
+    transactions
+      .filter((transaction) => {
+        if (transaction.type !== 2 || transaction.categoryId !== selectedCategoryDrillId) {
+          return false
+        }
+
+        if (transaction.paymentMethod !== "credit") {
+          return dateToMonthKey(transaction.date) === currentMonth
+        }
+
+        const card = cards.find((item) => item.id === transaction.cardId)
+        const transactionMonth = card
+          ? getCreditTransactionStatementMonth(transaction.date, card)
+          : dateToMonthKey(transaction.date)
+
+        return transactionMonth === currentMonth
+      })
+      .sort((left, right) =>
+        (right.createdAt || right.date).localeCompare(left.createdAt || left.date)
+      )
+      .forEach((transaction) => {
+        items.push({
+          id: `transaction-${transaction.id}`,
+          label: transaction.label,
+          value: transaction.value
+        })
+      })
+
+    fixedCosts
+      .filter(
+        (cost) =>
+          cost.categoryId === selectedCategoryDrillId &&
+          isFixedCostActiveForMonth(cost, currentMonth)
+      )
+      .forEach((cost) => {
+        items.push({
+          id: `fixed-${cost.id}`,
+          label: cost.name,
+          value: cost.amount
+        })
+      })
+
+    if (selectedCategoryDrillId === "__installments") {
+      installmentPlans
+        .filter((plan) => getInstallmentTotalForMonth([plan], currentMonth) > 0)
+        .forEach((plan) => {
+          items.push({
+            id: `installment-${plan.id}`,
+            label: plan.name,
+            value: plan.installmentValue
+          })
+        })
+    }
+
+    return items
+  }, [selectedCategoryDrillId, transactions, cards, fixedCosts, installmentPlans, currentMonth])
 
   const totalCategoryExpenses = useMemo(
     () => categoryDonutData.reduce((sum, item) => sum + item.value, 0),
@@ -784,7 +853,7 @@ export const Cards = () => {
         </div>
 
         {activeCategoryDonutData.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px] md:items-center">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">
             <ReactEChartsCore
               echarts={echarts}
               option={categoryDistributionOption}
@@ -793,30 +862,52 @@ export const Cards = () => {
               notMerge
               lazyUpdate
             />
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950">
-              {activeCategoryDonutData.slice(0, 6).map((item) => (
-                <div key={item.id} className="flex items-center justify-between border-b border-zinc-800 px-3 py-2.5 text-sm last:border-b-0">
-                  <span className="flex min-w-0 items-center gap-2 text-zinc-300">
-                    {(() => {
-                      const iconCategoryId = hasDrilldown
-                        ? selectedCategoryDrillId || "outros"
-                        : item.id
-                      const iconSubcategoryId =
-                        hasDrilldown && selectedCategoryDrillId
-                          ? item.id.replace(`${selectedCategoryDrillId}-`, "")
-                          : undefined
-                      const Icon = getCategoryIcon(iconCategoryId, iconSubcategoryId)
-                      return <Icon size={14} className="shrink-0 text-zinc-500" />
-                    })()}
-                    <span className="truncate">{item.name}</span>
-                  </span>
-                  <span className="ml-3 font-semibold text-zinc-100">{formatCurrency(item.value)}</span>
-                </div>
-              ))}
-              <div className="border-t border-zinc-800 px-3 py-2.5 text-sm text-zinc-400">
-                Total do mês {getMonthLabel(currentMonth)}:{" "}
-                <span className="font-semibold text-zinc-100">{formatCurrency(totalCategoryExpenses)}</span>
-              </div>
+            <div className="h-[340px] overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
+              {hasDrilldown ? (
+                <>
+                  <div className="border-b border-zinc-800 px-3 py-2.5 text-xs uppercase tracking-wide text-zinc-500">
+                    Itens da categoria
+                  </div>
+                  <div className="h-[307px] overflow-y-auto pb-2">
+                    {selectedCategoryItems.length > 0 ? (
+                      selectedCategoryItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between gap-3 border-b border-zinc-800 px-3 py-2.5 text-sm last:border-b-0"
+                        >
+                          <span className="min-w-0 truncate text-zinc-200">{item.label}</span>
+                          <span className="shrink-0 font-semibold text-zinc-100">
+                            {formatCurrency(item.value)}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-3 py-4 text-sm text-zinc-500">
+                        Nenhum lançamento detalhado para esta categoria no mês.
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {activeCategoryDonutData.slice(0, 6).map((item) => (
+                    <div key={item.id} className="flex items-center justify-between border-b border-zinc-800 px-3 py-2.5 text-sm last:border-b-0">
+                      <span className="flex min-w-0 items-center gap-2 text-zinc-300">
+                        {(() => {
+                          const Icon = getCategoryIcon(item.id)
+                          return <Icon size={14} className="shrink-0 text-zinc-500" />
+                        })()}
+                        <span className="truncate">{item.name}</span>
+                      </span>
+                      <span className="ml-3 font-semibold text-zinc-100">{formatCurrency(item.value)}</span>
+                    </div>
+                  ))}
+                  <div className="border-t border-zinc-800 px-3 py-2.5 text-sm text-zinc-400">
+                    Total do mês {getMonthLabel(currentMonth)}:{" "}
+                    <span className="font-semibold text-zinc-100">{formatCurrency(totalCategoryExpenses)}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         ) : (

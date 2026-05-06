@@ -4,9 +4,9 @@ import { createJSONStorage, persist } from "zustand/middleware"
 import { Goal, GoalInput } from "../types/goal"
 import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
 import {
-  getCltProjectedRevenueForMonth,
-  getCommittedCostsForMonth,
-  getPjProjectedRevenueForMonth
+  getCurrentMonthKey,
+  getExpectedIncomeForMonth,
+  getOperationalCostsForMonth
 } from "../utils/projections"
 import { useTransactionStore } from "./useTransactionStore"
 
@@ -150,9 +150,9 @@ export function useGoalCashflowStatus(): GoalCashflowStatus {
   const fixedCosts = useTransactionStore((state) => state.fixedCosts)
   const installmentPlans = useTransactionStore((state) => state.installmentPlans)
   const contractConfig = useTransactionStore((state) => state.contractConfig)
-  const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
   const totalMonthlyContribution = useGoalStore(selectTotalMonthlyContribution)
   const [holidaysForMonth, setHolidaysForMonth] = useState<Holiday[]>([])
+  const currentMonthKey = getCurrentMonthKey()
 
   useEffect(() => {
     let ignore = false
@@ -164,7 +164,7 @@ export function useGoalCashflowStatus(): GoalCashflowStatus {
       }
     }
 
-    const year = Number(activeMonthKey.split("-")[0])
+    const year = Number(currentMonthKey.split("-")[0])
 
     fetchBrazilHolidaysByYear(year)
       .then((holidays) => {
@@ -173,7 +173,7 @@ export function useGoalCashflowStatus(): GoalCashflowStatus {
         }
 
         setHolidaysForMonth(
-          holidays.filter((holiday) => holiday.date.startsWith(activeMonthKey))
+          holidays.filter((holiday) => holiday.date.startsWith(currentMonthKey))
         )
       })
       .catch(() => {
@@ -185,41 +185,41 @@ export function useGoalCashflowStatus(): GoalCashflowStatus {
     return () => {
       ignore = true
     }
-  }, [contractConfig.incomeMode, contractConfig.useHolidayApi, activeMonthKey])
+  }, [contractConfig.incomeMode, contractConfig.useHolidayApi, currentMonthKey])
 
-  const projectedRevenue = useMemo(() => {
-    if (contractConfig.incomeMode === "clt") {
-      return getCltProjectedRevenueForMonth(contractConfig, activeMonthKey)
-    }
-
-    return getPjProjectedRevenueForMonth({
-      contractConfig,
-      monthKey: activeMonthKey,
-      holidays: holidaysForMonth
-    })
-  }, [
-    contractConfig.cltPaydayDate,
-    contractConfig.cltNetSalary,
-    contractConfig.cltCompetenceOffsetMonths,
-    contractConfig.hourlyRate,
-    contractConfig.hoursPerWorkday,
-    contractConfig.incomeMode,
-    contractConfig.pjPaydayDate,
-    contractConfig.pjCompetenceOffsetMonths,
-    holidaysForMonth,
-    activeMonthKey
-  ])
+  const projectedRevenue = useMemo(
+    () =>
+      getExpectedIncomeForMonth({
+        contractConfig,
+        transactions,
+        monthKey: currentMonthKey,
+        holidays: holidaysForMonth
+      }),
+    [
+      contractConfig.cltPaydayDate,
+      contractConfig.cltNetSalary,
+      contractConfig.cltCompetenceOffsetMonths,
+      contractConfig.hourlyRate,
+      contractConfig.hoursPerWorkday,
+      contractConfig.incomeMode,
+      contractConfig.pjPaydayDate,
+      contractConfig.pjCompetenceOffsetMonths,
+      transactions,
+      holidaysForMonth,
+      currentMonthKey
+    ]
+  )
 
   const committedCosts = useMemo(
     () =>
-      getCommittedCostsForMonth({
+      getOperationalCostsForMonth({
         cards,
         transactions,
         fixedCosts,
         installmentPlans,
-        monthKey: activeMonthKey
+        monthKey: currentMonthKey
       }).total,
-    [cards, transactions, fixedCosts, installmentPlans, activeMonthKey]
+    [cards, transactions, fixedCosts, installmentPlans, currentMonthKey]
   )
 
   const projectedMonthlyLeftover = projectedRevenue - committedCosts

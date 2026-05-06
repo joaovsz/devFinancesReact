@@ -444,35 +444,54 @@ const Transactions = ({
 
   const filteredRows = useMemo(
     () =>
-      allRows.filter((row) => {
-        const typeLabel = getTypeLabel(row)
-        if (typeFilters.length > 0 && !typeFilters.includes(typeLabel)) {
-          return false
-        }
-
-        if (cardFilterId) {
-          if (!(row.paymentMethod === "credit" && row.cardId === cardFilterId)) {
+      allRows
+        .filter((row) => {
+          const typeLabel = getTypeLabel(row)
+          if (typeFilters.length > 0 && !typeFilters.includes(typeLabel)) {
             return false
           }
-        }
 
-        if (!normalizedSearch) {
-          return true
-        }
+          if (cardFilterId) {
+            if (!(row.paymentMethod === "credit" && row.cardId === cardFilterId)) {
+              return false
+            }
+          }
 
-        const labelMatch = row.label.toLowerCase().includes(normalizedSearch)
-        const typeMatch = typeLabel.toLowerCase().includes(normalizedSearch)
+          if (!normalizedSearch) {
+            return true
+          }
 
-        if ("isPlanned" in row && row.isPlanned) {
-          return labelMatch || typeMatch
-        }
+          const labelMatch = row.label.toLowerCase().includes(normalizedSearch)
+          const typeMatch = typeLabel.toLowerCase().includes(normalizedSearch)
 
-        const transaction = row as Transaction
-        const categoryMatch = getCategoryLabel(transaction).toLowerCase().includes(normalizedSearch)
-        const paymentMatch = getPaymentLabel(transaction).toLowerCase().includes(normalizedSearch)
+          if ("isPlanned" in row && row.isPlanned) {
+            return labelMatch || typeMatch
+          }
 
-        return labelMatch || typeMatch || categoryMatch || paymentMatch
-      }),
+          const transaction = row as Transaction
+          const categoryMatch = getCategoryLabel(transaction).toLowerCase().includes(normalizedSearch)
+          const paymentMatch = getPaymentLabel(transaction).toLowerCase().includes(normalizedSearch)
+
+          return labelMatch || typeMatch || categoryMatch || paymentMatch
+        })
+        .sort((left, right) => {
+          const leftIsPlanned = "isPlanned" in left && left.isPlanned
+          const rightIsPlanned = "isPlanned" in right && right.isPlanned
+
+          if (!leftIsPlanned && !rightIsPlanned) {
+            const leftTransaction = left as Transaction
+            const rightTransaction = right as Transaction
+            return (rightTransaction.createdAt || "").localeCompare(
+              leftTransaction.createdAt || ""
+            )
+          }
+
+          if (leftIsPlanned && rightIsPlanned) {
+            return right.date.localeCompare(left.date)
+          }
+
+          return leftIsPlanned ? 1 : -1
+        }),
     [allRows, typeFilters, cardFilterId, normalizedSearch]
   )
 

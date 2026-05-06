@@ -10,10 +10,13 @@ import { useTransactionStore } from "../store/useTransactionStore"
 import { selectTotalMonthlyContribution, useGoalStore } from "../store/useGoalStore"
 import { fetchBrazilHolidaysByYear } from "../services/calendar"
 import { getWorkingMonthMetrics } from "../utils/business-days"
+import { buildMonthlyPayables } from "../utils/domain/monthly-payments"
 import {
   addMonths,
   buildProjectionTimeline,
   getCltProjectedRevenueForMonth,
+  getCurrentMonthKey,
+  getInstallmentProgress,
   getMonthLabel,
   getPjProjectedRevenueForMonth
 } from "../utils/projections"
@@ -42,10 +45,11 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
   const transactions = useTransactionStore((state) => state.transactions)
   const fixedCosts = useTransactionStore((state) => state.fixedCosts)
   const installmentPlans = useTransactionStore((state) => state.installmentPlans)
+  const paidPlannedItems = useTransactionStore((state) => state.paidPlannedItems)
   const contractConfig = useTransactionStore((state) => state.contractConfig)
-  const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
   const goalsMonthlyContribution = useGoalStore(selectTotalMonthlyContribution)
-  const [targetMonth, setTargetMonth] = useState(activeMonthKey)
+  const currentMonthKey = getCurrentMonthKey()
+  const [targetMonth, setTargetMonth] = useState(currentMonthKey)
   const [visibleMonths, setVisibleMonths] = useState(6)
   const [isMobile, setIsMobile] = useState(false)
   const [holidaysByYear, setHolidaysByYear] = useState<Record<number, string[]>>({})
@@ -60,10 +64,6 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
       Array.from(new Set(monthKeys.map((monthKey) => Number(monthKey.split("-")[0])))),
     [monthKeys]
   )
-
-  useEffect(() => {
-    setTargetMonth(activeMonthKey)
-  }, [activeMonthKey])
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -222,6 +222,64 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
       dropAmount: bestDrop
     }
   }, [timeline])
+  const installmentEndingInsight = useMemo(() => {
+    const currentEnding = installmentPlans
+      .filter((plan) => {
+        const progress = getInstallmentProgress(plan, targetMonth)
+        return progress.isActive && progress.currentInstallment === plan.totalInstallments
+      })
+      .map((plan) => ({
+        id: plan.id,
+        name: plan.name,
+        value: plan.installmentValue
+      }))
+
+    const nextMonthKey = addMonths(targetMonth, 1)
+    const nextEnding = installmentPlans
+      .filter((plan) => {
+        const progress = getInstallmentProgress(plan, nextMonthKey)
+        return progress.isActive && progress.currentInstallment === plan.totalInstallments
+      })
+      .map((plan) => ({
+        id: plan.id,
+        name: plan.name,
+        value: plan.installmentValue
+      }))
+
+    return {
+      currentMonthKey: targetMonth,
+      nextMonthKey,
+      currentEnding,
+      nextEnding,
+      currentEndingTotal: currentEnding.reduce((sum, item) => sum + item.value, 0),
+      nextEndingTotal: nextEnding.reduce((sum, item) => sum + item.value, 0)
+    }
+  }, [installmentPlans, targetMonth])
+  const biggestCommitmentsInsight = useMemo(() => {
+    const referenceDate =
+      targetMonth === currentMonthKey
+        ? new Date().toISOString().slice(0, 10)
+        : `${targetMonth}-28`
+    const payables = buildMonthlyPayables({
+      cards,
+      transactions,
+      fixedCosts,
+      installmentPlans,
+      monthKey: targetMonth,
+      paidPlannedItems,
+      referenceDate
+    })
+
+    return payables.sort((left, right) => right.amount - left.amount).slice(0, 2)
+  }, [
+    cards,
+    transactions,
+    fixedCosts,
+    installmentPlans,
+    targetMonth,
+    paidPlannedItems,
+    currentMonthKey
+  ])
   const commitmentsPressureInsight = useMemo(() => {
     const monthsWithRevenue = timeline.filter((item) => item.projectedRevenue > 0)
     if (monthsWithRevenue.length === 0) {
@@ -401,48 +459,94 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
       <div className="grid gap-3 md:grid-cols-2">
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
           <div className="text-xs uppercase tracking-wide text-zinc-400">Virada dos parcelamentos</div>
-          {installmentDropInsight ? (
-            <p className="mt-1 text-sm text-zinc-200">
-              A partir de{" "}
-              <span className="font-semibold text-zinc-100">
-                {getMonthLabel(installmentDropInsight.monthKey)}
-              </span>
-              , seus parcelamentos caem{" "}
-              <span className="font-semibold text-emerald-300">
-                {formatCurrency(installmentDropInsight.dropAmount)}/mês
-              </span>
-              .
-            </p>
-          ) : (
-            <p className="mt-1 text-sm text-zinc-400">
-              Não há queda relevante de parcelamentos no horizonte atual.
-            </p>
-          )}
+          <div className="mt-2 space-y-3">
+            {installmentEndingInsight.currentEnding.length > 0 ? (
+              <div>
+                <p className="text-sm text-zinc-200">
+                  Em <span className="font-semibold text-zinc-100">{getMonthLabel(installmentEndingInsight.currentMonthKey)}</span>, acabam{" "}
+                  <span className="font-semibold text-emerald-300">
+                    {formatCurrency(installmentEndingInsight.currentEndingTotal)}/mês
+                  </span>
+                  .
+                </p>
+                <p className="mt-2 text-xs text-zinc-500">
+                  {installmentEndingInsight.currentEnding.map((item) => item.name).join(" · ")}.
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-400">
+                Nenhuma parcela termina em {getMonthLabel(installmentEndingInsight.currentMonthKey)}.
+              </p>
+            )}
+
+            {installmentEndingInsight.nextEnding.length > 0 && (
+              <div>
+                <p className="text-sm text-zinc-200">
+                  No mês seguinte, <span className="font-semibold text-zinc-100">{getMonthLabel(installmentEndingInsight.nextMonthKey)}</span>, deixam de pesar{" "}
+                  <span className="font-semibold text-emerald-300">
+                    {formatCurrency(installmentEndingInsight.nextEndingTotal)}/mês
+                  </span>
+                  .
+                </p>
+                <p className="mt-2 text-xs text-zinc-500">
+                  {installmentEndingInsight.nextEnding.map((item) => item.name).join(" · ")}.
+                </p>
+              </div>
+            )}
+
+            {!installmentEndingInsight.nextEnding.length && installmentDropInsight && (
+              <p className="text-sm text-zinc-400">
+                Próxima queda relevante em{" "}
+                <span className="font-semibold text-zinc-200">
+                  {getMonthLabel(installmentDropInsight.monthKey)}
+                </span>{" "}
+                com redução de{" "}
+                <span className="font-semibold text-emerald-300">
+                  {formatCurrency(installmentDropInsight.dropAmount)}/mês
+                </span>
+                .
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
           <div className="text-xs uppercase tracking-wide text-zinc-400">Pressão de compromissos</div>
           {commitmentsPressureInsight ? (
-            <p className="mt-1 text-sm text-zinc-200">
-              Em média, compromissos consomem{" "}
-              <span className="font-semibold text-zinc-100">
-                {(commitmentsPressureInsight.averageRatio * 100).toFixed(1)}%
-              </span>{" "}
-              da receita projetada. Pico em{" "}
-              <span className="font-semibold text-zinc-100">
-                {commitmentsPressureInsight.peak
-                  ? getMonthLabel(commitmentsPressureInsight.peak.monthKey)
-                  : "-"}
-              </span>{" "}
-              com{" "}
-              <span className="font-semibold text-amber-300">
-                {commitmentsPressureInsight.peak
-                  ? (commitmentsPressureInsight.peak.ratio * 100).toFixed(1)
-                  : "0.0"}
-                %
-              </span>
-              .
-            </p>
+            <div className="mt-1 space-y-3">
+              <p className="text-sm text-zinc-200">
+                Em média, compromissos consomem{" "}
+                <span className="font-semibold text-zinc-100">
+                  {(commitmentsPressureInsight.averageRatio * 100).toFixed(1)}%
+                </span>{" "}
+                da receita projetada. Pico em{" "}
+                <span className="font-semibold text-zinc-100">
+                  {commitmentsPressureInsight.peak
+                    ? getMonthLabel(commitmentsPressureInsight.peak.monthKey)
+                    : "-"}
+                </span>{" "}
+                com{" "}
+                <span className="font-semibold text-amber-300">
+                  {commitmentsPressureInsight.peak
+                    ? (commitmentsPressureInsight.peak.ratio * 100).toFixed(1)
+                    : "0.0"}
+                  %
+                </span>
+                .
+              </p>
+              {biggestCommitmentsInsight.length > 0 && (
+                <p className="text-xs text-zinc-500">
+                  Em {getMonthLabel(targetMonth)}, os maiores pesos são{" "}
+                  {biggestCommitmentsInsight
+                    .map(
+                      (item) =>
+                        `${item.label} (${formatCurrency(item.amount)})`
+                    )
+                    .join(" e ")}
+                  .
+                </p>
+              )}
+            </div>
           ) : (
             <p className="mt-1 text-sm text-zinc-400">
               Sem receita projetada para calcular pressão no período.

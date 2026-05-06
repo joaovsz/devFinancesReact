@@ -2,6 +2,8 @@ import { Holiday } from "../services/calendar"
 import { FixedCost, InstallmentPlan, ContractConfig } from "../types/planning"
 import { PaymentMethod } from "../types/transaction"
 import {
+  getFixedCostDueMonth,
+  getInstallmentDueMonth,
   getCltIncomeDateForMonth,
   getCltProjectedRevenueForMonth,
   getMonthDateFromDay,
@@ -38,6 +40,10 @@ export function buildPlannedEntriesForMonth(input: {
   const entries: PlannedEntry[] = []
 
   input.fixedCosts.filter((cost) => isFixedCostActiveForMonth(cost, input.monthKey)).forEach((cost) => {
+    const dueMonth =
+      cost.paymentMethod === "credit"
+        ? input.monthKey
+        : getFixedCostDueMonth(cost, input.monthKey)
     entries.push({
       id: `planned-fixed-${cost.id}-${input.monthKey}`,
       label: cost.name,
@@ -45,7 +51,7 @@ export function buildPlannedEntriesForMonth(input: {
       date:
         cost.paymentMethod === "credit"
           ? getMonthDateFromDay(input.monthKey, cost.chargeDay)
-          : getMonthDateFromDay(input.monthKey, cost.dueDay),
+          : getMonthDateFromDay(dueMonth, cost.dueDay),
       type: 2,
       paymentMethod: cost.paymentMethod,
       cardId: cost.cardId,
@@ -61,11 +67,16 @@ export function buildPlannedEntriesForMonth(input: {
       return
     }
 
+    const dueMonth =
+      plan.paymentMethod === "credit"
+        ? input.monthKey
+        : getInstallmentDueMonth(plan, input.monthKey)
+
     entries.push({
       id: `planned-installment-${plan.id}-${input.monthKey}`,
       label: `${plan.name} (${progress.currentInstallment}/${plan.totalInstallments})`,
       value: plan.installmentValue,
-      date: getMonthDateFromDay(input.monthKey, plan.chargeDay),
+      date: getMonthDateFromDay(dueMonth, plan.chargeDay),
       type: 2,
       paymentMethod: plan.paymentMethod,
       cardId: plan.cardId,

@@ -5,6 +5,7 @@ export type FixedCost = {
   name: string
   amount: number
   startMonth?: string
+  dueOffsetMonths?: number
   dueDay?: number
   chargeDay?: number
   categoryId: string
@@ -20,6 +21,7 @@ export type InstallmentPlan = {
   totalInstallments: number
   paidInstallments: number
   startMonth: string // YYYY-MM
+  dueOffsetMonths?: number
   chargeDay?: number
   paymentMethod: PaymentMethod
   cardId?: string
@@ -32,6 +34,7 @@ export type ContractConfig = {
   cltNetSalary: number
   cltPaydayDate: string
   pjPaydayDate: string
+  incomeStartMonth?: string
   cltCompetenceOffsetMonths?: number
   pjCompetenceOffsetMonths?: number
   localityState: string
