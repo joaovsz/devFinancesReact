@@ -3,7 +3,6 @@ import { FixedCost, InstallmentPlan } from "../../types/planning"
 import { Transaction } from "../../types/transaction"
 import {
   addMonths,
-  dateToMonthKey,
   getCardManualInvoiceAmount,
   getCreditFixedCostStatementMonth,
   getCreditInstallmentStatementMonth,
@@ -14,8 +13,7 @@ import {
   getInstallmentProgress,
   getMonthDateFromDay,
   isCardInvoicePaidForMonth,
-  isFixedCostActiveForMonth,
-  isMonthKeyAfter
+  isFixedCostActiveForMonth
 } from "../projections"
 
 export type MonthlyPayableKind = "fixedCost" | "installment" | "cardInvoice"
@@ -31,6 +29,8 @@ export type MonthlyPayable = {
   dueDate?: string
   status: MonthlyPayableStatus
 }
+
+const DUE_SOON_THRESHOLD_DAYS = 10
 
 export function buildMonthlyPayableKey(
   kind: Exclude<MonthlyPayableKind, "cardInvoice">,
@@ -67,22 +67,19 @@ function getStatusForDueDate(
     return "pending" as const
   }
 
-  const referenceMonthKey = dateToMonthKey(referenceDate)
-  const dueMonthKey = dateToMonthKey(dueDate)
-  if (isMonthKeyAfter(referenceMonthKey, dueMonthKey)) {
+  const referenceTime = new Date(`${referenceDate}T00:00:00`).getTime()
+  const dueTime = new Date(`${dueDate}T00:00:00`).getTime()
+  if (!Number.isFinite(referenceTime) || !Number.isFinite(dueTime)) {
+    return "pending" as const
+  }
+
+  const deltaDays = Math.ceil((dueTime - referenceTime) / 86_400_000)
+  if (deltaDays < 0) {
     return "overdue" as const
   }
 
-  if (referenceMonthKey === dueMonthKey && dueDate < referenceDate) {
-    return "overdue" as const
-  }
-
-  if (referenceMonthKey === dueMonthKey) {
-    const referenceDay = Number(referenceDate.slice(-2))
-    const dueDay = Number(dueDate.slice(-2))
-    if (Number.isFinite(referenceDay) && Number.isFinite(dueDay) && dueDay - referenceDay <= 7) {
-      return "dueSoon" as const
-    }
+  if (deltaDays <= DUE_SOON_THRESHOLD_DAYS) {
+    return "dueSoon" as const
   }
 
   return "pending" as const

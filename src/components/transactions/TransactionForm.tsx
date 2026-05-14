@@ -1,10 +1,15 @@
-import { MouseEvent, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Path, PathValue, useForm } from "react-hook-form"
 import { motion } from "framer-motion"
 import { CalendarDays, ChevronDown } from "lucide-react"
 import { Category } from "../../types/finance"
 import { CreditCard } from "../../types/card"
 import { PaymentMethod, Transaction } from "../../types/transaction"
-import { transactionSchema } from "../../schemas/transaction"
+import {
+  TransactionFormValues,
+  transactionFormSchema,
+  transactionSchema
+} from "../../schemas"
 import { parseCurrencyInput } from "../../utils/currency-input"
 import { useTransactionStore } from "../../store/useTransactionStore"
 import { getOperationalDateForMonth } from "../../utils/projections"
@@ -60,6 +65,29 @@ function getInitialPaymentMethod(cards: CreditCard[], initialCreditCardId?: stri
   return getInitialCardId(cards, initialCreditCardId) ? "credit" : "cash"
 }
 
+function getDefaultFormValues(
+  categories: Category[],
+  cards: CreditCard[],
+  activeMonthKey: string,
+  initialCreditCardId?: string
+): TransactionFormValues {
+  const firstCategory = categories.find((category) => category.id !== "rendas") || categories[0]
+  const firstSubcategory = firstCategory?.subcategories[0]
+
+  return {
+    label: "",
+    amountCents: 0,
+    date: getOperationalDateForMonth(activeMonthKey),
+    type: 2,
+    paymentMethod: getInitialPaymentMethod(cards, initialCreditCardId),
+    cardId: getInitialCardId(cards, initialCreditCardId),
+    categoryId: firstCategory?.id || "",
+    subcategoryId: firstSubcategory?.id || "",
+    tagsInput: "",
+    competenceMonth: ""
+  }
+}
+
 function normalizeDuplicateText(value: string) {
   return value.trim().toLocaleLowerCase("pt-BR")
 }
@@ -76,21 +104,39 @@ export const TransactionForm = ({
   onSubmitTransaction
 }: TransactionFormProps) => {
   const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
-  const [label, setLabel] = useState("")
-  const [amountCents, setAmountCents] = useState(0)
-  const [date, setDate] = useState(getOperationalDateForMonth(activeMonthKey))
-  const [option, setOption] = useState(2)
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
-    getInitialPaymentMethod(cards, initialCreditCardId)
-  )
-  const [cardId, setCardId] = useState(getInitialCardId(cards, initialCreditCardId))
-  const [categoryId, setCategoryId] = useState(categories[0].id)
-  const [subcategoryId, setSubcategoryId] = useState(categories[0].subcategories[0].id)
-  const [tagsInput, setTagsInput] = useState("")
+  const {
+    getValues,
+    handleSubmit,
+    reset,
+    setError,
+    setValue,
+    watch,
+    formState: { errors }
+  } = useForm<TransactionFormValues>({
+    defaultValues: getDefaultFormValues(categories, cards, activeMonthKey, initialCreditCardId)
+  })
   const [showMissingCardModal, setShowMissingCardModal] = useState(false)
-  const [competenceMonth, setCompetenceMonth] = useState("")
-  const [formError, setFormError] = useState("")
   const dateInputRef = useRef<HTMLInputElement>(null)
+  const formValues = watch()
+  const {
+    label,
+    amountCents,
+    date,
+    type: option,
+    paymentMethod,
+    cardId,
+    categoryId,
+    subcategoryId,
+    tagsInput,
+    competenceMonth
+  } = formValues
+
+  function updateField<K extends Path<TransactionFormValues>>(
+    name: K,
+    value: PathValue<TransactionFormValues, K>
+  ) {
+    setValue(name, value, { shouldDirty: true, shouldValidate: false })
+  }
 
   function openDatePicker() {
     try {
@@ -112,7 +158,7 @@ export const TransactionForm = ({
 
   useEffect(() => {
     if (!cardId && cards[0]?.id) {
-      setCardId(getInitialCardId(cards, initialCreditCardId))
+      updateField("cardId", getInitialCardId(cards, initialCreditCardId))
     }
   }, [cards, cardId, initialCreditCardId])
 
@@ -121,14 +167,16 @@ export const TransactionForm = ({
       return
     }
 
-    setOption(2)
-    setPaymentMethod("credit")
-    setCardId(initialCreditCardId)
+    updateField("type", 2)
+    updateField("paymentMethod", "credit")
+    updateField("cardId", initialCreditCardId)
   }, [initialCreditCardId, cards])
 
   useEffect(() => {
-    setDate(getOperationalDateForMonth(activeMonthKey))
-    setCompetenceMonth((current) => (current ? activeMonthKey : current))
+    updateField("date", getOperationalDateForMonth(activeMonthKey))
+    if (getValues("competenceMonth")) {
+      updateField("competenceMonth", activeMonthKey)
+    }
   }, [activeMonthKey])
 
   function formatCents(cents: number) {
@@ -148,137 +196,129 @@ export const TransactionForm = ({
   }
 
   function resetValues() {
-    setLabel("")
-    setAmountCents(0)
-    setDate(getOperationalDateForMonth(activeMonthKey))
-    setOption(2)
-    setPaymentMethod(getInitialPaymentMethod(cards, initialCreditCardId))
-    setCardId(getInitialCardId(cards, initialCreditCardId))
-    setCategoryId(categories[0].id)
-    setSubcategoryId(categories[0].subcategories[0].id)
-    setTagsInput("")
-    setCompetenceMonth("")
-    setFormError("")
+    reset(getDefaultFormValues(categories, cards, activeMonthKey, initialCreditCardId))
   }
 
   function addQuickValue(amount: number) {
-    setAmountCents((currentCents) => currentCents + amount * 100)
+    updateField("amountCents", amountCents + amount * 100)
   }
 
   function pressNumpad(key: string) {
     if (key === "⌫") {
-      setAmountCents((currentCents) => Math.floor(currentCents / 10))
+      updateField("amountCents", Math.floor(amountCents / 10))
       return
     }
 
-    setAmountCents((currentCents) => {
-      const raw = String(currentCents) + key
-      const next = Number(raw)
-      return Number.isFinite(next) ? next : currentCents
-    })
+    const next = Number(String(amountCents) + key)
+    updateField("amountCents", Number.isFinite(next) ? next : amountCents)
   }
 
   function selectTransaction(transactionType: number) {
-    setOption(transactionType)
+    updateField("type", transactionType as TransactionFormValues["type"])
     if (transactionType === 1) {
-      setPaymentMethod("cash")
+      updateField("paymentMethod", "cash")
+      updateField("cardId", "")
       return
     }
 
     if (categoryId === "rendas") {
       const firstExpenseCategory = categories.find((c) => c.id !== "rendas") || categories[0]
-      setCategoryId(firstExpenseCategory.id)
-      setSubcategoryId(firstExpenseCategory.subcategories[0].id)
+      updateField("categoryId", firstExpenseCategory.id)
+      updateField("subcategoryId", firstExpenseCategory.subcategories[0].id)
     }
 
     if (paymentMethod === "cash" && cards.length > 0) {
-      setPaymentMethod("credit")
-      setCardId(getInitialCardId(cards, initialCreditCardId))
+      updateField("paymentMethod", "credit")
+      updateField("cardId", getInitialCardId(cards, initialCreditCardId))
     }
   }
 
   function handleCategory(nextCategoryId: string) {
     const nextCategory =
       filteredCategories.find((category) => category.id === nextCategoryId) || filteredCategories[0]
-    setCategoryId(nextCategory.id)
-    setSubcategoryId(nextCategory.subcategories[0].id)
+    updateField("categoryId", nextCategory.id)
+    updateField("subcategoryId", nextCategory.subcategories[0].id)
   }
 
   function handlePaymentMethod(nextPaymentMethod: PaymentMethod) {
     if (nextPaymentMethod === "credit" && cards.length === 0) {
       setShowMissingCardModal(true)
-      setPaymentMethod("cash")
-      setCardId("")
+      updateField("paymentMethod", "cash")
+      updateField("cardId", "")
       return
     }
 
-    setPaymentMethod(nextPaymentMethod)
+    updateField("paymentMethod", nextPaymentMethod)
     if (nextPaymentMethod === "credit") {
-      setCardId(getInitialCardId(cards, initialCreditCardId))
+      updateField("cardId", getInitialCardId(cards, initialCreditCardId))
       return
     }
 
-    setCardId("")
+    updateField("cardId", "")
   }
 
-  function submitTransaction(e: MouseEvent<HTMLButtonElement, globalThis.MouseEvent>) {
-    e.preventDefault()
-    const isCreditExpense = option === 2 && paymentMethod === "credit"
-    if (!date || amountCents <= 0) {
-      setFormError("Preencha data e um valor maior que zero.")
-      return
-    }
-    if (isCreditExpense && !cardId) {
-      setFormError("Selecione um cartão para despesas no crédito.")
+  function submitTransaction(values: TransactionFormValues) {
+    const parsedForm = transactionFormSchema.safeParse(values)
+    if (!parsedForm.success) {
+      setError("root", {
+        message: parsedForm.error.issues[0]?.message || "Revise os dados do lançamento."
+      })
       return
     }
 
+    const formData = parsedForm.data
+    const isCreditExpense = formData.type === 2 && formData.paymentMethod === "credit"
     const fallbackLabel =
-      selectedCategory.subcategories.find((subcategory) => subcategory.id === subcategoryId)
+      selectedCategory.subcategories.find((subcategory) => subcategory.id === formData.subcategoryId)
         ?.name || selectedCategory.name
-    const transactionLabel = label.trim() || fallbackLabel
-    const transactionPaymentMethod = option === 1 ? "cash" : paymentMethod
-    const transactionCardId = isCreditExpense ? cardId : undefined
+    const transactionLabel = formData.label.trim() || fallbackLabel
+    const transactionPaymentMethod = formData.type === 1 ? "cash" : formData.paymentMethod
+    const transactionCardId = isCreditExpense ? formData.cardId : undefined
 
     const nextTransaction = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       label: transactionLabel,
-      value: amountCents / 100,
-      date: date.toString(),
-      type: option,
+      value: formData.amountCents / 100,
+      date: formData.date,
+      type: formData.type,
       paymentMethod: transactionPaymentMethod,
       cardId: transactionCardId,
-      categoryId,
-      subcategoryId,
+      categoryId: formData.categoryId,
+      subcategoryId: formData.subcategoryId,
       tags: parseTags(),
-      competenceMonth: option === 1 && competenceMonth ? competenceMonth : undefined
+      competenceMonth: formData.type === 1 && formData.competenceMonth
+        ? formData.competenceMonth
+        : undefined
     }
 
     const parsedTransaction = transactionSchema.safeParse(nextTransaction)
     if (!parsedTransaction.success) {
-      setFormError(parsedTransaction.error.issues[0]?.message || "Revise os dados do lançamento.")
+      setError("root", {
+        message: parsedTransaction.error.issues[0]?.message || "Revise os dados do lançamento."
+      })
       return
     }
 
     const duplicateTransaction = existingTransactions.some(
       (transaction) =>
-        transaction.date === date.toString() &&
-        transaction.type === option &&
+        transaction.date === formData.date &&
+        transaction.type === formData.type &&
         transaction.paymentMethod === transactionPaymentMethod &&
         (transaction.cardId || undefined) === transactionCardId &&
-        transaction.categoryId === categoryId &&
-        transaction.subcategoryId === subcategoryId &&
-        toCents(transaction.value) === amountCents &&
+        transaction.categoryId === formData.categoryId &&
+        transaction.subcategoryId === formData.subcategoryId &&
+        toCents(transaction.value) === formData.amountCents &&
         normalizeDuplicateText(transaction.label) === normalizeDuplicateText(transactionLabel)
     )
 
     if (duplicateTransaction) {
-      setFormError("Já existe uma transação idêntica nessa data, cartão, categoria e valor.")
+      setError("root", {
+        message: "Já existe uma transação idêntica nessa data, cartão, categoria e valor."
+      })
       return
     }
 
-    setFormError("")
     onSubmitTransaction(parsedTransaction.data)
     resetValues()
   }
@@ -302,7 +342,10 @@ export const TransactionForm = ({
               placeholder="R$ 0,00"
               value={amountCents > 0 ? formatCents(amountCents) : ""}
               onChange={(event) =>
-                setAmountCents(Math.round(parseCurrencyInput(event.target.value) * 100))
+                updateField(
+                  "amountCents",
+                  Math.round(parseCurrencyInput(event.target.value) * 100)
+                )
               }
             />
           </label>
@@ -323,7 +366,7 @@ export const TransactionForm = ({
               className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 transition hover:border-amber-500 hover:text-amber-300"
               onClick={(event) => {
                 event.preventDefault()
-                setAmountCents(0)
+                updateField("amountCents", 0)
               }}
             >
               Limpar
@@ -338,7 +381,7 @@ export const TransactionForm = ({
               max="500000"
               step="500"
               value={amountCents}
-              onChange={(event) => setAmountCents(Number(event.target.value))}
+              onChange={(event) => updateField("amountCents", Number(event.target.value))}
             />
           </label>
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-2.5">
@@ -372,7 +415,12 @@ export const TransactionForm = ({
           </div>
         </motion.div>
 
-        <motion.form initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="grid content-start gap-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+        <motion.form
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid content-start gap-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-4"
+          onSubmit={handleSubmit(submitTransaction)}
+        >
           <div className="grid grid-cols-2 gap-2">
             <button
               className={`rounded-xl border px-3 py-2 text-sm transition ${
@@ -416,7 +464,7 @@ export const TransactionForm = ({
                   className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                   type="date"
                   value={date}
-                  onChange={(event) => setDate(event.target.value)}
+                  onChange={(event) => updateField("date", event.target.value)}
                   aria-label="Data da transação"
                 />
               </div>
@@ -428,7 +476,7 @@ export const TransactionForm = ({
                   <select
                     className={selectClassName}
                     value={competenceMonth}
-                    onChange={(event) => setCompetenceMonth(event.target.value)}
+                    onChange={(event) => updateField("competenceMonth", event.target.value)}
                   >
                     <option value="">Mês Atual</option>
                     {(() => {
@@ -469,7 +517,7 @@ export const TransactionForm = ({
               type="text"
               placeholder="Descrição opcional"
               value={label}
-              onChange={(event) => setLabel(event.target.value)}
+              onChange={(event) => updateField("label", event.target.value)}
             />
           </label>
 
@@ -497,7 +545,7 @@ export const TransactionForm = ({
                 <select
                   className={selectClassName}
                   value={subcategoryId}
-                  onChange={(event) => setSubcategoryId(event.target.value)}
+                  onChange={(event) => updateField("subcategoryId", event.target.value)}
                 >
                   {selectedCategory.subcategories.map((subcategory) => (
                     <option key={subcategory.id} value={subcategory.id}>
@@ -535,7 +583,7 @@ export const TransactionForm = ({
                 <select
                   className={`${selectClassName} disabled:cursor-not-allowed disabled:opacity-50`}
                   value={cardId}
-                  onChange={(event) => setCardId(event.target.value)}
+                  onChange={(event) => updateField("cardId", event.target.value)}
                   disabled={!(option === 2 && paymentMethod === "credit")}
                 >
                   {cards.length === 0 && <option value="">Nenhum cartão cadastrado</option>}
@@ -562,20 +610,19 @@ export const TransactionForm = ({
               type="text"
               placeholder="Separadas por vírgula"
               value={tagsInput}
-              onChange={(event) => setTagsInput(event.target.value)}
+              onChange={(event) => updateField("tagsInput", event.target.value)}
             />
           </label>
 
           <button
             className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
-            onClick={submitTransaction}
-            type="button"
+            type="submit"
           >
             Lançar transação
           </button>
-          {formError && (
+          {errors.root?.message && (
             <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-              {formError}
+              {errors.root.message}
             </p>
           )}
         </motion.form>

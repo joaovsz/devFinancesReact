@@ -140,6 +140,7 @@ function buildTransactionStateSnapshot(state: TransactionStore) {
     transactions: state.transactions,
     fixedCosts: state.fixedCosts,
     installmentPlans: state.installmentPlans,
+    paidPlannedItems: state.paidPlannedItems,
     contractConfig: state.contractConfig,
     projectionSettings: state.projectionSettings,
     totalIncomes: state.totalIncomes,

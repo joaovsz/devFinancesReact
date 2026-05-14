@@ -6,6 +6,7 @@ import { useGoalStore } from "../store/useGoalStore"
 import { useTransactionStore } from "../store/useTransactionStore"
 
 const STORAGE_KEY = "devfinances-storage"
+const REMOTE_AUTH_STORAGE_KEY = "devfinances-remote-auth-enabled"
 
 type SettingsPageProps = {
   colorTheme: ColorTheme
@@ -54,6 +55,9 @@ const colorThemeOptions: Array<{
 export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPageProps) => {
   const [statusMessage, setStatusMessage] = useState("")
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("appearance")
+  const [remoteAuthEnabled, setRemoteAuthEnabled] = useState(
+    () => localStorage.getItem(REMOTE_AUTH_STORAGE_KEY) === "true"
+  )
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const canLoadMockData = import.meta.env.DEV
   const loadMockData = useTransactionStore((state) => state.loadMockData)
@@ -107,7 +111,7 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
         }
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
-        if (isSupabaseConfigured) {
+        if (isSupabaseConfigured && remoteAuthEnabled) {
           const supabase = getSupabaseClient()
           const {
             data: { session }
@@ -143,6 +147,18 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
     clearAllData()
     clearGoals()
     setStatusMessage("Dados locais limpos com sucesso.")
+  }
+
+  function toggleRemoteAuth(enabled: boolean) {
+    setRemoteAuthEnabled(enabled)
+    if (enabled) {
+      localStorage.setItem(REMOTE_AUTH_STORAGE_KEY, "true")
+      setStatusMessage("Login remoto habilitado. Recarregue para aplicar.")
+      return
+    }
+
+    localStorage.removeItem(REMOTE_AUTH_STORAGE_KEY)
+    setStatusMessage("Login remoto desativado. O app permanece local-first.")
   }
 
   return (
@@ -244,6 +260,17 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
               Importar backup (.json)
             </button>
           </div>
+          {isSupabaseConfigured && (
+            <label className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300">
+              <span>Login e sincronização remotos</span>
+              <input
+                className="h-4 w-4 accent-emerald-500"
+                type="checkbox"
+                checked={remoteAuthEnabled}
+                onChange={(event) => toggleRemoteAuth(event.target.checked)}
+              />
+            </label>
+          )}
         </div>
       )}
 

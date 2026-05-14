@@ -5,10 +5,9 @@ import { Transaction } from "../types/transaction"
 import { useTransactionStore } from '../store/useTransactionStore'
 import { defaultCategories } from "../data/categories"
 import {
-  dateToMonthKey,
-  getCardManualInvoiceAmount,
-  getCreditTransactionStatementMonth
+  getCardManualInvoiceAmount
 } from "../utils/projections"
+import { isTransactionInOperationalMonth } from "../utils/domain/transactions"
 import { buildPlannedEntriesForMonth, PlannedEntry } from "../utils/planningEntries"
 import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
 import {
@@ -150,30 +149,20 @@ const Transactions = ({
   )
   const monthTransactions = useMemo(
     () =>
-      transactions.filter((transaction) => {
-        if (transaction.type === 1) {
-          return transaction.competenceMonth
-            ? transaction.competenceMonth === activeMonthKey
-            : dateToMonthKey(transaction.date) === activeMonthKey
-        }
-
-        if (transaction.paymentMethod !== "credit") {
-          return dateToMonthKey(transaction.date) === activeMonthKey
-        }
-
-        const card = cards.find((item) => item.id === transaction.cardId)
-        const transactionMonth = card
-          ? getCreditTransactionStatementMonth(transaction.date, card)
-          : dateToMonthKey(transaction.date)
-
-        return transactionMonth === activeMonthKey
-      }),
+      transactions.filter((transaction) =>
+        isTransactionInOperationalMonth({
+          transaction,
+          cards,
+          monthKey: activeMonthKey
+        })
+      ),
     [transactions, cards, activeMonthKey]
   )
-  const allRows: TransactionRow[] = useMemo(
-    () => [...plannedEntries, ...manualInvoiceEntries, ...monthTransactions],
-    [plannedEntries, manualInvoiceEntries, monthTransactions]
-  )
+  const allRows: TransactionRow[] = [
+    ...plannedEntries,
+    ...manualInvoiceEntries,
+    ...monthTransactions
+  ]
   const normalizedSearch = searchQuery.trim().toLowerCase()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<{ label: string; value: string; date: string }>({

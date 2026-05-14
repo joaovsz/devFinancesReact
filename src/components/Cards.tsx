@@ -1,4 +1,5 @@
 import { MouseEvent, useEffect, useMemo, useState } from "react"
+import { useForm } from "react-hook-form"
 import { Link, useNavigate } from "react-router-dom"
 import {
   Activity,
@@ -24,13 +25,12 @@ import ReactEChartsCore from "echarts-for-react/lib/core"
 import type { EChartsOption } from "echarts"
 import { fetchBrazilHolidaysByYear, Holiday } from "../services/calendar"
 import {
-  dateToMonthKey,
-  getCreditTransactionStatementMonth,
   getInstallmentTotalForMonth,
   getMonthLabel,
   isCardInvoicePaidForMonth,
   isFixedCostActiveForMonth
 } from "../utils/projections"
+import { isTransactionInOperationalMonth } from "../utils/domain/transactions"
 import {
   calculateManualInvoiceAdjustment,
   CreditCardInvoicePlannedItem,
@@ -55,6 +55,11 @@ import { DismissibleInfoCard } from "./ui/DismissibleInfoCard"
 import { CardInvoiceModal } from "./cards/CardInvoiceModal"
 import { defaultCategories } from "../data/categories"
 import { echarts } from "../utils/echarts"
+import {
+  CreditCardFormValues,
+  creditCardFormSchema,
+  creditCardSchema
+} from "../schemas"
 
 type CategoryExpenseBucket = {
   categoryId: string
@@ -67,6 +72,8 @@ type CategoryDrillItem = {
   label: string
   value: number
 }
+
+const otherBankOption: BankPreset = { id: "other", name: "Outros", brandColor: "#64748B" }
 
 export const Cards = () => {
   const navigate = useNavigate()
@@ -99,9 +106,21 @@ export const Cards = () => {
   const [selectedBankId, setSelectedBankId] = useState(bankPresets[0]?.id || "other")
   const [bankSearch, setBankSearch] = useState(bankPresets[0]?.name || "")
   const [showBankOptions, setShowBankOptions] = useState(false)
-  const [newCardLimit, setNewCardLimit] = useState("")
-  const [newCardCloseDay, setNewCardCloseDay] = useState("")
-  const [newCardDueDay, setNewCardDueDay] = useState("")
+  const {
+    handleSubmit: handleSubmitCard,
+    reset: resetCardForm,
+    setError: setCardFormError,
+    setValue: setCardFormValue,
+    watch: watchCardForm,
+    formState: { errors: cardFormErrors }
+  } = useForm<CreditCardFormValues>({
+    defaultValues: {
+      limit: "",
+      closeDay: "",
+      dueDay: ""
+    }
+  })
+  const newCardForm = watchCardForm()
   const [invoiceCardId, setInvoiceCardId] = useState<string | null>(null)
   const [selectedCategoryDrillId, setSelectedCategoryDrillId] = useState<string | null>(null)
   const [themeVersion, setThemeVersion] = useState(0)
@@ -109,16 +128,9 @@ export const Cards = () => {
     Record<string, string>
   >({})
   const dayOptions = Array.from({ length: 31 }, (_, index) => String(index + 1))
-  const cardBankOptions = useMemo(
-    () => [...institutions, { id: "other", name: "Outros", brandColor: "#64748B" }],
-    [institutions]
-  )
-  const filteredBankOptions = useMemo(
-    () =>
-      cardBankOptions.filter((bank) =>
-        bank.name.toLowerCase().includes(bankSearch.trim().toLowerCase())
-      ),
-    [cardBankOptions, bankSearch]
+  const cardBankOptions = [...institutions, otherBankOption]
+  const filteredBankOptions = cardBankOptions.filter((bank) =>
+    bank.name.toLowerCase().includes(bankSearch.trim().toLowerCase())
   )
 
   useEffect(() => {
@@ -167,11 +179,13 @@ export const Cards = () => {
   }, [])
 
   useEffect(() => {
-    const selected = cardBankOptions.find((bank) => bank.id === selectedBankId)
+    const selected =
+      institutions.find((bank) => bank.id === selectedBankId) ||
+      (selectedBankId === otherBankOption.id ? otherBankOption : undefined)
     if (selected) {
       setBankSearch(selected.name)
     }
-  }, [selectedBankId, cardBankOptions])
+  }, [selectedBankId, institutions])
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -213,13 +227,9 @@ export const Cards = () => {
   const summaryExpenses = totalExpenses + goalsMonthlyContribution
   const summaryTotal = summaryIncomes - summaryExpenses
 
-  const recentTransactions = useMemo(
-    () =>
-      [...transactions]
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 6),
-    [transactions]
-  )
+  const recentTransactions = [...transactions]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 6)
 
   const cardUsage = useMemo(
     () =>
@@ -232,10 +242,7 @@ export const Cards = () => {
       }),
     [cards, transactions, fixedCosts, installmentPlans, currentMonth]
   )
-  const selectedInvoiceCard = useMemo(
-    () => cardUsage.find((card) => card.id === invoiceCardId) || null,
-    [cardUsage, invoiceCardId]
-  )
+  const selectedInvoiceCard = cardUsage.find((card) => card.id === invoiceCardId) || null
   const isSelectedInvoicePaid = selectedInvoiceCard
     ? isCardInvoicePaidForMonth(selectedInvoiceCard, currentMonth)
     : false
@@ -305,20 +312,11 @@ export const Cards = () => {
 
     transactions
       .filter((transaction) => {
-        if (transaction.type !== 2) {
-          return false
-        }
-
-        if (transaction.paymentMethod !== "credit") {
-          return dateToMonthKey(transaction.date) === currentMonth
-        }
-
-        const card = cards.find((item) => item.id === transaction.cardId)
-        const transactionMonth = card
-          ? getCreditTransactionStatementMonth(transaction.date, card)
-          : dateToMonthKey(transaction.date)
-
-        return transactionMonth === currentMonth
+        return transaction.type === 2 && isTransactionInOperationalMonth({
+          transaction,
+          cards,
+          monthKey: currentMonth
+        })
       })
       .forEach((transaction) => {
         addExpense(transaction.categoryId, transaction.subcategoryId, transaction.value)
@@ -409,16 +407,11 @@ export const Cards = () => {
           return false
         }
 
-        if (transaction.paymentMethod !== "credit") {
-          return dateToMonthKey(transaction.date) === currentMonth
-        }
-
-        const card = cards.find((item) => item.id === transaction.cardId)
-        const transactionMonth = card
-          ? getCreditTransactionStatementMonth(transaction.date, card)
-          : dateToMonthKey(transaction.date)
-
-        return transactionMonth === currentMonth
+        return isTransactionInOperationalMonth({
+          transaction,
+          cards,
+          monthKey: currentMonth
+        })
       })
       .sort((left, right) =>
         (right.createdAt || right.date).localeCompare(left.createdAt || left.date)
@@ -647,16 +640,25 @@ export const Cards = () => {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`
   }
 
-  function updateCardField(card: CardType, field: keyof CardType, value: string) {
-    const numericValue = Number(value)
+  function updateCardField(
+    card: CardType,
+    field: "limitTotal" | "closeDay" | "dueDay",
+    value: string
+  ) {
+    const numericValue = field === "limitTotal" ? parseCurrencyInput(value) : Number(value)
     if (Number.isNaN(numericValue)) {
       return
     }
 
-    updateCard({
+    const parsedCard = creditCardSchema.safeParse({
       ...card,
       [field]: numericValue
     })
+    if (!parsedCard.success) {
+      return
+    }
+
+    updateCard(parsedCard.data)
   }
 
   function setInvoiceTotalDraft(cardId: string, inputValue: string) {
@@ -699,8 +701,12 @@ export const Cards = () => {
     clearInvoiceTotalDraft(card.id)
   }
 
-  function handleAddCard() {
-    if (!selectedBankId || !newCardLimit || !newCardCloseDay || !newCardDueDay) {
+  function handleAddCard(values: CreditCardFormValues) {
+    const parsedForm = creditCardFormSchema.safeParse(values)
+    if (!parsedForm.success) {
+      setCardFormError("root", {
+        message: parsedForm.error.issues[0]?.message || "Revise os dados do cartão."
+      })
       return
     }
 
@@ -709,21 +715,28 @@ export const Cards = () => {
       cardBankOptions.find((bank) => bank.id === selectedBankId) ||
       cardBankOptions.find((bank) => bank.name.toLowerCase() === normalizedSearch) ||
       filteredBankOptions[0]
-    addCard({
+    const nextCard = {
       id: crypto.randomUUID(),
       bankId: selectedBank?.id || "other",
       name: selectedBank?.name || "Outros",
       brandColor: selectedBank?.brandColor || "#64748B",
       logoUrl: selectedBank?.logoUrl,
-      limitTotal: parseCurrencyInput(newCardLimit),
-      closeDay: Number(newCardCloseDay),
-      dueDay: Number(newCardDueDay),
+      limitTotal: parsedForm.data.limit,
+      closeDay: parsedForm.data.closeDay,
+      dueDay: parsedForm.data.dueDay,
       manualInvoiceAmount: 0
-    })
+    }
+    const parsedCard = creditCardSchema.safeParse(nextCard)
+    if (!parsedCard.success) {
+      setCardFormError("root", {
+        message: parsedCard.error.issues[0]?.message || "Revise os dados do cartão."
+      })
+      return
+    }
 
-    setNewCardLimit("")
-    setNewCardCloseDay("")
-    setNewCardDueDay("")
+    addCard(parsedCard.data)
+
+    resetCardForm()
     setShowAddCardForm(false)
   }
 
@@ -1053,7 +1066,7 @@ export const Cards = () => {
                           updateCardField(
                             card,
                             "limitTotal",
-                            String(parseCurrencyInput(event.target.value))
+                            event.target.value
                           )
                         }
                       />
@@ -1202,7 +1215,7 @@ export const Cards = () => {
                 <span className="text-xs font-medium">Adicionar cartão</span>
               </button>
             ) : (
-              <div className="grid gap-2">
+              <form className="grid gap-2" onSubmit={handleSubmitCard(handleAddCard)}>
                 <div className="relative">
                   <input
                     className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 pr-8 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
@@ -1249,15 +1262,21 @@ export const Cards = () => {
                   type="text"
                   inputMode="decimal"
                   placeholder="Limite"
-                  value={newCardLimit}
-                  onChange={(event) => setNewCardLimit(formatCurrencyInput(event.target.value))}
+                  value={newCardForm.limit}
+                  onChange={(event) =>
+                    setCardFormValue("limit", formatCurrencyInput(event.target.value), {
+                      shouldDirty: true
+                    })
+                  }
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <select
                     size={1}
                     className="h-10 max-h-10 w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                    value={newCardCloseDay}
-                    onChange={(event) => setNewCardCloseDay(event.target.value)}
+                    value={newCardForm.closeDay}
+                    onChange={(event) =>
+                      setCardFormValue("closeDay", event.target.value, { shouldDirty: true })
+                    }
                   >
                     <option value="">Fech.</option>
                     {dayOptions.map((day) => (
@@ -1269,8 +1288,10 @@ export const Cards = () => {
                   <select
                     size={1}
                     className="h-10 max-h-10 w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                    value={newCardDueDay}
-                    onChange={(event) => setNewCardDueDay(event.target.value)}
+                    value={newCardForm.dueDay}
+                    onChange={(event) =>
+                      setCardFormValue("dueDay", event.target.value, { shouldDirty: true })
+                    }
                   >
                     <option value="">Venc.</option>
                     {dayOptions.map((day) => (
@@ -1280,21 +1301,30 @@ export const Cards = () => {
                     ))}
                   </select>
                 </div>
+                {cardFormErrors.root?.message && (
+                  <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                    {cardFormErrors.root.message}
+                  </p>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     className="rounded-xl border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
-                    onClick={() => setShowAddCardForm(false)}
+                    onClick={() => {
+                      resetCardForm()
+                      setShowAddCardForm(false)
+                    }}
+                    type="button"
                   >
                     Cancelar
                   </button>
                   <button
                     className="rounded-xl bg-emerald-500 px-2 py-2 text-xs font-medium text-white transition hover:bg-emerald-400"
-                    onClick={handleAddCard}
+                    type="submit"
                   >
                     Salvar
                   </button>
                 </div>
-              </div>
+              </form>
             )}
           </div>
         </div>

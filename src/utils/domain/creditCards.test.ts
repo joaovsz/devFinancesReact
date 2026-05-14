@@ -225,4 +225,50 @@ describe("creditCards domain", () => {
     expect(plannedItems).toHaveLength(1)
     expect(plannedItems[0]?.label).toContain("(1/5)")
   })
+
+  it("itera parcelamento entre meses e remove a parcela depois do fim", () => {
+    const card = createCard({
+      id: "installment-card",
+      closeDay: 26,
+      dueDay: 1
+    })
+    const installmentPlan = createInstallmentPlan({
+      id: "installment-cross-month",
+      cardId: card.id,
+      startMonth: "2025-03",
+      totalInstallments: 3,
+      installmentValue: 100,
+      chargeDay: 15
+    })
+
+    const marchItems = getCreditCardInvoicePlannedItems({
+      card,
+      fixedCosts: [],
+      installmentPlans: [installmentPlan],
+      monthKey: "2025-03"
+    })
+    const aprilItems = getCreditCardInvoicePlannedItems({
+      card,
+      fixedCosts: [],
+      installmentPlans: [installmentPlan],
+      monthKey: "2025-04"
+    })
+    const mayItems = getCreditCardInvoicePlannedItems({
+      card,
+      fixedCosts: [],
+      installmentPlans: [installmentPlan],
+      monthKey: "2025-05"
+    })
+    const juneItems = getCreditCardInvoicePlannedItems({
+      card,
+      fixedCosts: [],
+      installmentPlans: [installmentPlan],
+      monthKey: "2025-06"
+    })
+
+    expect(marchItems[0]?.label).toContain("(1/3)")
+    expect(aprilItems[0]?.label).toContain("(2/3)")
+    expect(mayItems[0]?.label).toContain("(3/3)")
+    expect(juneItems).toHaveLength(0)
+  })
 })

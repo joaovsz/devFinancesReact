@@ -1,4 +1,5 @@
 import { InputHTMLAttributes, SelectHTMLAttributes, useEffect, useMemo, useRef, useState } from "react"
+import { Path, PathValue, useForm } from "react-hook-form"
 import {
   BadgeDollarSign,
   CalendarClock,
@@ -28,6 +29,13 @@ import {
   formatCurrencyInput,
   parseCurrencyInput
 } from "../utils/currency-input"
+import {
+  fixedExpenseFormSchema,
+  fixedExpenseSchema,
+  installmentFormSchema,
+  installmentSchema
+} from "../schemas"
+import { FixedExpenseFormValues, InstallmentFormValues } from "../types/forms"
 
 const selectClassName =
   "w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 pr-9 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
@@ -60,6 +68,42 @@ type IconFieldProps = {
 
 type SelectFieldProps = SelectHTMLAttributes<HTMLSelectElement> & IconFieldProps
 type InputFieldProps = InputHTMLAttributes<HTMLInputElement> & IconFieldProps
+
+function getDefaultExpenseCategory() {
+  return defaultCategories.find((category) => category.id !== "rendas") || defaultCategories[0]
+}
+
+function getDefaultFixedFormValues(firstCardId: string): FixedExpenseFormValues {
+  const category = getDefaultExpenseCategory()
+  return {
+    name: "",
+    amount: "",
+    categoryId: category.id,
+    subcategoryId: category.subcategories[0].id,
+    dueDay: "",
+    dueOffsetMonths: "0",
+    chargeDay: "",
+    paymentMethod: "cash",
+    cardId: firstCardId
+  }
+}
+
+function getDefaultInstallmentFormValues(
+  firstCardId: string,
+  activeMonthKey: string
+): InstallmentFormValues {
+  return {
+    name: "",
+    value: "",
+    total: "",
+    paid: "0",
+    paymentMethod: "cash",
+    cardId: firstCardId,
+    chargeDay: "",
+    dueOffsetMonths: "0",
+    startMonth: activeMonthKey
+  }
+}
 
 function SelectField({ icon: Icon, ...props }: SelectFieldProps) {
   return (
@@ -116,30 +160,138 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
 
   const firstCardId = cards[0]?.id || ""
 
-  const [fixedName, setFixedName] = useState("")
-  const [fixedAmount, setFixedAmount] = useState("")
-  const [fixedCategoryId, setFixedCategoryId] = useState(defaultCategories[0].id)
-  const [fixedSubcategoryId, setFixedSubcategoryId] = useState(
-    defaultCategories[0].subcategories[0].id
-  )
-  const [fixedDueDay, setFixedDueDay] = useState("")
-  const [fixedDueOffsetMonths, setFixedDueOffsetMonths] = useState("0")
-  const [fixedChargeDay, setFixedChargeDay] = useState("")
-  const [fixedPaymentMethod, setFixedPaymentMethod] = useState<PaymentMethod>("cash")
-  const [fixedCardId, setFixedCardId] = useState(firstCardId)
+  const {
+    handleSubmit: handleSubmitFixed,
+    reset: resetFixedForm,
+    setError: setFixedFormError,
+    setValue: setFixedFormValue,
+    watch: watchFixedForm,
+    formState: { errors: fixedFormErrors }
+  } = useForm<FixedExpenseFormValues>({
+    defaultValues: getDefaultFixedFormValues(firstCardId)
+  })
+  const fixedForm = watchFixedForm()
   const [editingFixedCostId, setEditingFixedCostId] = useState("")
 
-  const [installmentName, setInstallmentName] = useState("")
-  const [installmentValue, setInstallmentValue] = useState("")
-  const [installmentTotal, setInstallmentTotal] = useState("")
-  const [installmentPaid, setInstallmentPaid] = useState("0")
-  const [installmentPaymentMethod, setInstallmentPaymentMethod] =
-    useState<PaymentMethod>("cash")
-  const [installmentCardId, setInstallmentCardId] = useState(firstCardId)
-  const [installmentChargeDay, setInstallmentChargeDay] = useState("")
-  const [installmentDueOffsetMonths, setInstallmentDueOffsetMonths] = useState("0")
-  const [installmentStartMonth, setInstallmentStartMonth] = useState(activeMonthKey)
+  const {
+    handleSubmit: handleSubmitInstallment,
+    reset: resetInstallmentForm,
+    setError: setInstallmentFormError,
+    setValue: setInstallmentFormValue,
+    watch: watchInstallmentForm,
+    formState: { errors: installmentFormErrors }
+  } = useForm<InstallmentFormValues>({
+    defaultValues: getDefaultInstallmentFormValues(firstCardId, activeMonthKey)
+  })
+  const installmentForm = watchInstallmentForm()
   const [editingInstallmentId, setEditingInstallmentId] = useState("")
+  const fixedName = fixedForm.name
+  const fixedAmount = fixedForm.amount
+  const fixedCategoryId = fixedForm.categoryId
+  const fixedSubcategoryId = fixedForm.subcategoryId
+  const fixedDueDay = fixedForm.dueDay
+  const fixedDueOffsetMonths = fixedForm.dueOffsetMonths
+  const fixedChargeDay = fixedForm.chargeDay
+  const fixedPaymentMethod = fixedForm.paymentMethod
+  const fixedCardId = fixedForm.cardId
+  const installmentName = installmentForm.name
+  const installmentValue = installmentForm.value
+  const installmentTotal = installmentForm.total
+  const installmentPaid = installmentForm.paid
+  const installmentPaymentMethod = installmentForm.paymentMethod
+  const installmentCardId = installmentForm.cardId
+  const installmentChargeDay = installmentForm.chargeDay
+  const installmentDueOffsetMonths = installmentForm.dueOffsetMonths
+  const installmentStartMonth = installmentForm.startMonth
+
+  function updateFixedField<K extends Path<FixedExpenseFormValues>>(
+    name: K,
+    value: PathValue<FixedExpenseFormValues, K>
+  ) {
+    setFixedFormValue(name, value, { shouldDirty: true })
+  }
+
+  function updateInstallmentField<K extends Path<InstallmentFormValues>>(
+    name: K,
+    value: PathValue<InstallmentFormValues, K>
+  ) {
+    setInstallmentFormValue(name, value, { shouldDirty: true })
+  }
+
+  function setFixedName(value: string) {
+    updateFixedField("name", value)
+  }
+
+  function setFixedAmount(value: string) {
+    updateFixedField("amount", value)
+  }
+
+  function setFixedCategoryId(value: string) {
+    updateFixedField("categoryId", value)
+  }
+
+  function setFixedSubcategoryId(value: string) {
+    updateFixedField("subcategoryId", value)
+  }
+
+  function setFixedDueDay(value: string) {
+    updateFixedField("dueDay", value)
+  }
+
+  function setFixedDueOffsetMonths(value: string) {
+    updateFixedField("dueOffsetMonths", value)
+  }
+
+  function setFixedChargeDay(value: string) {
+    updateFixedField("chargeDay", value)
+  }
+
+  function setFixedPaymentMethod(value: PaymentMethod) {
+    updateFixedField("paymentMethod", value)
+  }
+
+  function setFixedCardId(value: string) {
+    updateFixedField("cardId", value)
+  }
+
+  function setInstallmentName(value: string) {
+    updateInstallmentField("name", value)
+  }
+
+  function setInstallmentValue(value: string) {
+    updateInstallmentField("value", value)
+  }
+
+  function setInstallmentTotal(value: string | ((current: string) => string)) {
+    updateInstallmentField(
+      "total",
+      typeof value === "function" ? value(installmentTotal) : value
+    )
+  }
+
+  function setInstallmentPaid(value: string) {
+    updateInstallmentField("paid", value)
+  }
+
+  function setInstallmentPaymentMethod(value: PaymentMethod) {
+    updateInstallmentField("paymentMethod", value)
+  }
+
+  function setInstallmentCardId(value: string) {
+    updateInstallmentField("cardId", value)
+  }
+
+  function setInstallmentChargeDay(value: string) {
+    updateInstallmentField("chargeDay", value)
+  }
+
+  function setInstallmentDueOffsetMonths(value: string) {
+    updateInstallmentField("dueOffsetMonths", value)
+  }
+
+  function setInstallmentStartMonth(value: string) {
+    updateInstallmentField("startMonth", value)
+  }
 
   const [hourlyRateInput, setHourlyRateInput] = useState(
     formatCurrencyFromNumber(contractConfig.hourlyRate)
@@ -327,14 +479,28 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     return card ? `Crédito - ${card.name}` : "Crédito"
   }
 
-  function addFixed() {
-    if (!fixedName || !fixedAmount) {
-      alert("Preencha nome e valor do gasto fixo.")
+  function addFixed(values: FixedExpenseFormValues) {
+    const parsedForm = fixedExpenseFormSchema.safeParse(values)
+    if (!parsedForm.success) {
+      setFixedFormError("root", {
+        message: parsedForm.error.issues[0]?.message || "Revise o gasto fixo."
+      })
       return
     }
-    if (fixedPaymentMethod === "credit" && !fixedCardId) {
-      alert("Selecione um cartão para gasto fixo no crédito.")
-      return
+
+    const formData = parsedForm.data
+    const nextFixedCost = {
+      id: editingFixedCostId || crypto.randomUUID(),
+      name: formData.name,
+      amount: formData.amount,
+      startMonth: editingFixedCostId ? undefined : activeMonthKey,
+      dueOffsetMonths: formData.paymentMethod === "credit" ? undefined : formData.dueOffsetMonths,
+      dueDay: formData.paymentMethod === "credit" ? undefined : formData.dueDay,
+      chargeDay: formData.paymentMethod === "credit" ? formData.chargeDay : undefined,
+      categoryId: formData.categoryId,
+      subcategoryId: formData.subcategoryId,
+      paymentMethod: formData.paymentMethod,
+      cardId: formData.paymentMethod === "credit" ? formData.cardId : undefined
     }
 
     if (editingFixedCostId) {
@@ -344,27 +510,19 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         return
       }
 
-      updateFixedCost({
+      const parsedCost = fixedExpenseSchema.safeParse({
         ...target,
-        name: fixedName,
-        amount: parseCurrencyInput(fixedAmount),
-        dueOffsetMonths:
-          fixedPaymentMethod === "credit" ? undefined : Number(fixedDueOffsetMonths || 0),
-        dueDay:
-          fixedPaymentMethod === "credit"
-            ? undefined
-            : fixedDueDay
-              ? Number(fixedDueDay)
-              : undefined,
-        chargeDay:
-          fixedPaymentMethod === "credit" && fixedChargeDay
-            ? Number(fixedChargeDay)
-            : undefined,
-        categoryId: fixedCategoryId,
-        subcategoryId: fixedSubcategoryId,
-        paymentMethod: fixedPaymentMethod,
-        cardId: fixedPaymentMethod === "credit" ? fixedCardId : undefined
+        ...nextFixedCost,
+        startMonth: target.startMonth
       })
+      if (!parsedCost.success) {
+        setFixedFormError("root", {
+          message: parsedCost.error.issues[0]?.message || "Revise o gasto fixo."
+        })
+        return
+      }
+
+      updateFixedCost(parsedCost.data)
 
       setEditingFixedCostId("")
       setSearchParams((currentParams) => {
@@ -373,36 +531,17 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         return nextParams
       })
     } else {
-      addFixedCost({
-        id: crypto.randomUUID(),
-        name: fixedName,
-        amount: parseCurrencyInput(fixedAmount),
-        startMonth: activeMonthKey,
-        dueOffsetMonths:
-          fixedPaymentMethod === "credit" ? undefined : Number(fixedDueOffsetMonths || 0),
-        dueDay:
-          fixedPaymentMethod === "credit"
-            ? undefined
-            : fixedDueDay
-              ? Number(fixedDueDay)
-              : undefined,
-        chargeDay:
-          fixedPaymentMethod === "credit" && fixedChargeDay
-            ? Number(fixedChargeDay)
-            : undefined,
-        categoryId: fixedCategoryId,
-        subcategoryId: fixedSubcategoryId,
-        paymentMethod: fixedPaymentMethod,
-        cardId: fixedPaymentMethod === "credit" ? fixedCardId : undefined
-      })
+      const parsedCost = fixedExpenseSchema.safeParse(nextFixedCost)
+      if (!parsedCost.success) {
+        setFixedFormError("root", {
+          message: parsedCost.error.issues[0]?.message || "Revise o gasto fixo."
+        })
+        return
+      }
+      addFixedCost(parsedCost.data)
     }
 
-    setFixedName("")
-    setFixedAmount("")
-    setFixedCategoryId(defaultCategories[0].id)
-    setFixedSubcategoryId(defaultCategories[0].subcategories[0].id)
-    setFixedDueDay("")
-    setFixedDueOffsetMonths("0")
+    resetFixedForm(getDefaultFixedFormValues(firstCardId))
   }
 
   function startEditingFixed(costId: string) {
@@ -451,26 +590,27 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     })
   }
 
-  function addInstallment() {
-    if (!installmentName || !installmentValue || !installmentTotal || !installmentStartMonth) {
-      alert("Preencha nome, valor, total de parcelas e mês inicial.")
+  function addInstallment(values: InstallmentFormValues) {
+    const parsedForm = installmentFormSchema.safeParse(values)
+    if (!parsedForm.success) {
+      setInstallmentFormError("root", {
+        message: parsedForm.error.issues[0]?.message || "Revise o parcelamento."
+      })
       return
     }
-    if (installmentPaymentMethod === "credit" && !installmentCardId) {
-      alert("Selecione um cartão para parcelamento no crédito.")
-      return
-    }
-    const totalInstallments = Number(installmentTotal)
-    const paidInstallments = Number(installmentPaid || 0)
-    if (
-      !Number.isInteger(totalInstallments) ||
-      totalInstallments < 1 ||
-      !Number.isInteger(paidInstallments) ||
-      paidInstallments < 0 ||
-      paidInstallments >= totalInstallments
-    ) {
-      alert("Parcelas já pagas deve ser menor que o total de parcelas.")
-      return
+
+    const formData = parsedForm.data
+    const nextInstallmentPlan = {
+      id: editingInstallmentId || crypto.randomUUID(),
+      name: formData.name,
+      installmentValue: formData.value,
+      totalInstallments: formData.total,
+      paidInstallments: formData.paid,
+      startMonth: formData.startMonth,
+      dueOffsetMonths: formData.paymentMethod === "credit" ? undefined : formData.dueOffsetMonths,
+      chargeDay: formData.chargeDay,
+      paymentMethod: formData.paymentMethod,
+      cardId: formData.paymentMethod === "credit" ? formData.cardId : undefined
     }
 
     if (editingInstallmentId) {
@@ -480,21 +620,18 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         return
       }
 
-      updateInstallmentPlan({
+      const parsedPlan = installmentSchema.safeParse({
         ...target,
-        name: installmentName,
-        installmentValue: parseCurrencyInput(installmentValue),
-        totalInstallments,
-        paidInstallments,
-        startMonth: installmentStartMonth,
-        dueOffsetMonths:
-          installmentPaymentMethod === "credit"
-            ? undefined
-            : Number(installmentDueOffsetMonths || 0),
-        chargeDay: installmentChargeDay ? Number(installmentChargeDay) : undefined,
-        paymentMethod: installmentPaymentMethod,
-        cardId: installmentPaymentMethod === "credit" ? installmentCardId : undefined
+        ...nextInstallmentPlan
       })
+      if (!parsedPlan.success) {
+        setInstallmentFormError("root", {
+          message: parsedPlan.error.issues[0]?.message || "Revise o parcelamento."
+        })
+        return
+      }
+
+      updateInstallmentPlan(parsedPlan.data)
       setEditingInstallmentId("")
       setSearchParams((currentParams) => {
         const nextParams = new URLSearchParams(currentParams)
@@ -502,30 +639,17 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
         return nextParams
       })
     } else {
-      addInstallmentPlan({
-        id: crypto.randomUUID(),
-        name: installmentName,
-        installmentValue: parseCurrencyInput(installmentValue),
-        totalInstallments,
-        paidInstallments,
-        startMonth: installmentStartMonth,
-        dueOffsetMonths:
-          installmentPaymentMethod === "credit"
-            ? undefined
-            : Number(installmentDueOffsetMonths || 0),
-        chargeDay: installmentChargeDay ? Number(installmentChargeDay) : undefined,
-        paymentMethod: installmentPaymentMethod,
-        cardId: installmentPaymentMethod === "credit" ? installmentCardId : undefined
-      })
+      const parsedPlan = installmentSchema.safeParse(nextInstallmentPlan)
+      if (!parsedPlan.success) {
+        setInstallmentFormError("root", {
+          message: parsedPlan.error.issues[0]?.message || "Revise o parcelamento."
+        })
+        return
+      }
+      addInstallmentPlan(parsedPlan.data)
     }
 
-    setInstallmentName("")
-    setInstallmentValue("")
-    setInstallmentTotal("")
-    setInstallmentPaid("0")
-    setInstallmentChargeDay("")
-    setInstallmentDueOffsetMonths("0")
-    setInstallmentStartMonth(activeMonthKey)
+    resetInstallmentForm(getDefaultInstallmentFormValues(firstCardId, activeMonthKey))
   }
 
   function startEditingInstallment(planId: string) {
@@ -792,7 +916,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
               }`}
             >
               <h2 className="mb-3 text-sm font-semibold text-zinc-100">Gastos fixos</h2>
-              <div className="grid gap-2">
+              <form className="grid gap-2" onSubmit={handleSubmitFixed(addFixed)}>
                 <div className="grid gap-2 md:grid-cols-2">
                   <InputField
                     className={inputClassName}
@@ -914,6 +1038,11 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                 <div
                   className={`grid gap-2 ${editingFixedCostId ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
                 >
+                  {fixedFormErrors.root?.message && (
+                    <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200 sm:col-span-full">
+                      {fixedFormErrors.root.message}
+                    </p>
+                  )}
                  
                   <button
                     className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
@@ -925,7 +1054,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                   </button>
                    <button
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
-                    onClick={addFixed}
+                    type="submit"
                   >
                     {editingFixedCostId ? <Save size={16} /> : <Plus size={16} />}
                     {editingFixedCostId ? "Salvar edição" : "Adicionar"}
@@ -934,13 +1063,14 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     <button
                       className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
                       onClick={cancelEditingFixed}
+                      type="button"
                     >
                       <X size={16} />
                       Cancelar edição
                     </button>
                   )}
                 </div>
-              </div>
+              </form>
             </div>
           )}
 
@@ -954,7 +1084,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
               }`}
             >
               <h2 className="mb-3 text-sm font-semibold text-zinc-100">Parcelamentos</h2>
-              <div className="grid gap-4">
+              <form className="grid gap-4" onSubmit={handleSubmitInstallment(addInstallment)}>
                 <div className="grid gap-3 xl:grid-cols-2">
                   <label className="grid gap-1 text-xs font-medium text-zinc-400">
                     Nome
@@ -1150,6 +1280,11 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                 <div
                   className={`grid gap-2 ${editingInstallmentId ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
                 >
+                  {installmentFormErrors.root?.message && (
+                    <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200 sm:col-span-full">
+                      {installmentFormErrors.root.message}
+                    </p>
+                  )}
                    <button
                     className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
                     onClick={() => setListModal("installment")}
@@ -1160,7 +1295,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                   </button>
                   <button
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
-                    onClick={addInstallment}
+                    type="submit"
                   >
                     {editingInstallmentId ? <Save size={16} /> : <Plus size={16} />}
                     {editingInstallmentId ? "Salvar edição" : "Adicionar"}
@@ -1170,13 +1305,14 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     <button
                       className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
                       onClick={cancelEditingInstallment}
+                      type="button"
                     >
                       <X size={16} />
                       Cancelar edição
                     </button>
                   )}
                 </div>
-              </div>
+              </form>
             </div>
           )}
         </div>

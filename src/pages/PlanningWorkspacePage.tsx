@@ -12,10 +12,11 @@ import {
 } from "../utils/domain/monthly-payments"
 import {
   getCommittedCostsForMonth,
-  getExpectedIncomeForMonth,
   getCurrentMonthKey,
+  getExpectedIncomeForMonth,
   getOperationalCostsForMonth,
 } from "../utils/projections"
+
 function getMonthReferenceDate(monthKey: string) {
   if (monthKey === getCurrentMonthKey()) {
     return new Date().toISOString().slice(0, 10)
@@ -140,37 +141,12 @@ export const PlanningWorkspacePage = () => {
   )
 
   const nonCreditDueAlerts = useMemo(() => {
-    if (currentMonth !== getCurrentMonthKey()) {
-      return []
-    }
-
-    const today = new Date()
-    const todayDay = today.getDate()
-    return fixedCosts
-      .filter(
-        (cost) =>
-          cost.paymentMethod !== "credit" &&
-          Number.isFinite(cost.dueDay) &&
-          Number(cost.dueDay) >= 1 &&
-          Number(cost.dueDay) <= 31
-      )
-      .map((cost) => {
-        const dueDay = Number(cost.dueDay)
-        const deltaDays = dueDay - todayDay
-        const status: "overdue" | "soon" | "ok" =
-          deltaDays < 0 ? "overdue" : deltaDays <= 3 ? "soon" : "ok"
-        return {
-          id: cost.id,
-          name: cost.name,
-          amount: cost.amount,
-          dueDay,
-          deltaDays,
-          status
-        }
-      })
-      .filter((alert) => alert.status !== "ok")
-      .sort((left, right) => left.dueDay - right.dueDay)
-  }, [fixedCosts])
+    return monthlyPayables.filter(
+      (item) =>
+        item.kind !== "cardInvoice" &&
+        (item.status === "overdue" || item.status === "dueSoon")
+    )
+  }, [monthlyPayables])
 
   function togglePayable(item: MonthlyPayable) {
     if (item.kind === "cardInvoice") {
@@ -355,7 +331,7 @@ export const PlanningWorkspacePage = () => {
                 className="flex items-center justify-between rounded-lg border border-amber-500/25 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-200"
               >
                 <span className="truncate">
-                  {alert.name} · vence dia {alert.dueDay}
+                  {alert.label} · {formatPayableDueLabel(alert)}
                 </span>
                 <span className="ml-3 font-semibold">{formatCurrency(alert.amount)}</span>
               </div>

@@ -21,6 +21,7 @@ export type ColorTheme =
   | "amber-graphite"
 
 const COLOR_THEME_STORAGE_KEY = "devfinances-color-theme"
+const REMOTE_AUTH_STORAGE_KEY = "devfinances-remote-auth-enabled"
 const COLOR_THEME_CLASSNAMES: Record<ColorTheme, string> = {
   "indigo-calm": "color-indigo-calm",
   "ocean-slate": "color-ocean-slate",
@@ -64,9 +65,12 @@ function App() {
     localStorage.setItem(COLOR_THEME_STORAGE_KEY, colorTheme)
   }, [colorTheme])
 
-  useSupabaseSync(user)
+  const isRemoteAuthEnabled =
+    isConfigured && localStorage.getItem(REMOTE_AUTH_STORAGE_KEY) === "true"
 
-  const isAuthRequired = isConfigured
+  useSupabaseSync(isRemoteAuthEnabled ? user : null)
+
+  const isAuthRequired = isRemoteAuthEnabled
   const isAuthenticated = Boolean(user)
 
   if (isAuthRequired && isLoading) {
