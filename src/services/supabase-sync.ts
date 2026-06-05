@@ -8,7 +8,7 @@ export const TRANSACTION_STORAGE_KEY = "devfinances-storage"
 export const GOALS_STORAGE_KEY = "devfinances-goals-storage"
 export const COMMERCE_STORAGE_KEY = "devfinances-commerce-storage"
 export const AUTH_USER_STORAGE_KEY = "devfinances-auth-user-id"
-const AUTH_BOOTSTRAP_RELOADED_PREFIX = "devfinances-auth-bootstrap-reloaded"
+export const AUTH_BOOTSTRAP_RELOADED_PREFIX = "devfinances-auth-bootstrap-reloaded"
 const AUTH_LAST_SYNCED_AT_PREFIX = "devfinances-auth-last-synced-at"
 const TRANSACTION_STORAGE_VERSION = 28
 const GOALS_STORAGE_VERSION = 1
@@ -319,6 +319,10 @@ export async function pushLocalStateToSupabase(user: User) {
     goalsStorage: goalsStorage || { state: { goals: [] }, version: GOALS_STORAGE_VERSION },
     commerceStorage: commerceStorage || { state: { products: [], purchaseLots: [], sales: [], stockMovements: [] }, version: 1 }
   })
+}
+
+export function clearBootstrapReloadFlag(userId: string) {
+  sessionStorage.removeItem(getBootstrapReloadKey(userId))
 }
 
 export async function pullRemoteSnapshotIfNewer(user: User) {

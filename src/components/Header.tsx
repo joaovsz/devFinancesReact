@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
-import { Menu, Moon, Sun, User } from "lucide-react"
+import { Menu, Moon, RefreshCw, Sun, User } from "lucide-react"
 import { NavLink } from "react-router-dom"
 import Logo from "./icons/Logo"
 import { getDockItems } from "./MagicDock"
@@ -12,6 +12,7 @@ type HeaderProps = {
   onToggleTheme: () => void
   userEmail?: string | null
   onSignOut?: () => void
+  onSync?: () => Promise<boolean>
   canAccessCommerce?: boolean
 }
 
@@ -20,6 +21,7 @@ export const Header = ({
   onToggleTheme,
   userEmail,
   onSignOut,
+  onSync,
   canAccessCommerce = false
 }: HeaderProps) => {
   const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
@@ -28,6 +30,7 @@ export const Header = ({
   const isCurrentOperationalMonth = activeMonthKey === getCurrentMonthKey()
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false)
+  const [syncState, setSyncState] = useState<"idle" | "loading" | "updated" | "ok">("idle")
   const navigationItems = getDockItems(canAccessCommerce)
   const accountMenuRef = useRef<HTMLDivElement | null>(null)
   const navMenuRef = useRef<HTMLDivElement | null>(null)
@@ -67,6 +70,47 @@ export const Header = ({
             >
               {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </motion.button>
+            {onSync && (
+              <motion.button
+                whileHover={{ y: -2, scale: 1.03 }}
+                whileTap={{ scale: 0.96 }}
+                disabled={syncState === "loading"}
+                onClick={async () => {
+                  setSyncState("loading")
+                  const hasNew = await onSync()
+                  if (hasNew) {
+                    setSyncState("updated")
+                    setTimeout(() => window.location.reload(), 800)
+                  } else {
+                    setSyncState("ok")
+                    setTimeout(() => setSyncState("idle"), 2500)
+                  }
+                }}
+                className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-xs font-medium transition disabled:cursor-wait ${
+                  syncState === "ok"
+                    ? "border-emerald-600 bg-emerald-500/15 text-emerald-400"
+                    : syncState === "updated"
+                      ? "border-emerald-600 bg-emerald-500/15 text-emerald-400"
+                      : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-zinc-100"
+                }`}
+                title="Sincronizar dados do app Android"
+                aria-label="Sincronizar"
+              >
+                <RefreshCw
+                  size={14}
+                  className={syncState === "loading" ? "animate-spin" : ""}
+                />
+                <span className="hidden sm:inline">
+                  {syncState === "loading"
+                    ? "Sincronizando..."
+                    : syncState === "ok"
+                      ? "Atualizado"
+                      : syncState === "updated"
+                        ? "Novo dado!"
+                        : "Sincronizar"}
+                </span>
+              </motion.button>
+            )}
             <Logo className="text-zinc-100" />
           </div>
 

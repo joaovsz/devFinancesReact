@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Footer } from "./components/Footer"
 import { Header } from "./components/Header"
 import { MagicDock } from "./components/MagicDock"
@@ -15,6 +15,7 @@ import { useAuth } from "./context/AuthContext"
 import { useSupabaseSync } from "./hooks/useSupabaseSync"
 import { CommerceDashboardPage } from "./modules/commerce/pages/CommerceDashboardPage"
 import { canAccessCommerceModule } from "./utils/featureAccess"
+import { clearBootstrapReloadFlag, pullRemoteSnapshotIfNewer } from "./services/supabase-sync"
 
 export type ColorTheme =
   | "indigo-calm"
@@ -72,6 +73,11 @@ function App() {
 
   useSupabaseSync(isRemoteAuthEnabled ? user : null)
 
+  const handleSync = useCallback(async () => {
+    if (!user) return false
+    return pullRemoteSnapshotIfNewer(user)
+  }, [user])
+
   const isAuthRequired = isRemoteAuthEnabled
   const isAuthenticated = Boolean(user)
   const canAccessCommerce = canAccessCommerceModule(user?.email)
@@ -116,7 +122,15 @@ function App() {
           setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"))
         }
         userEmail={user?.email || null}
-        onSignOut={isAuthRequired && isAuthenticated ? () => void signOut() : undefined}
+        onSignOut={
+          isAuthRequired && isAuthenticated
+            ? () => {
+                if (user) clearBootstrapReloadFlag(user.id)
+                void signOut()
+              }
+            : undefined
+        }
+        onSync={isAuthRequired && isAuthenticated ? handleSync : undefined}
         canAccessCommerce={canAccessCommerce}
       />
       <main
