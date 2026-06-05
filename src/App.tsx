@@ -75,7 +75,7 @@ function App() {
 
   const handleSync = useCallback(async () => {
     if (!user) return false
-    return pullRemoteSnapshotIfNewer(user)
+    return pullRemoteSnapshotIfNewer(user, true)
   }, [user])
 
   const isAuthRequired = isRemoteAuthEnabled

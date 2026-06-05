@@ -324,7 +324,7 @@ export function clearBootstrapReloadFlag(userId: string) {
   sessionStorage.removeItem(getBootstrapReloadKey(userId))
 }
 
-export async function pullRemoteSnapshotIfNewer(user: User) {
+export async function pullRemoteSnapshotIfNewer(user: User, force = false) {
   const supabase = getSupabaseClient()
   if (!supabase) {
     return false
@@ -337,6 +337,7 @@ export async function pullRemoteSnapshotIfNewer(user: User) {
     .maybeSingle()
 
   if (error || !data) {
+    console.warn("[sync] Falha ao buscar snapshot remoto:", error?.message)
     return false
   }
 
@@ -349,7 +350,8 @@ export async function pullRemoteSnapshotIfNewer(user: User) {
     return false
   }
 
-  if (!isRemoteNewer(user.id, data.updated_at)) {
+  // force=true: botão Sincronizar ignora comparação de timestamps e sempre aplica
+  if (!force && !isRemoteNewer(user.id, data.updated_at)) {
     return false
   }
 
