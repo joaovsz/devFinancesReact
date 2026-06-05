@@ -269,12 +269,11 @@ export async function syncFromSupabaseOnLogin(user: User) {
 
   if (localHasMeaningfulData && remoteHasMeaningfulData && isRemoteNewer(user.id, data.updated_at)) {
     applyRemoteSnapshot(data, user.id)
-    const reloadKey = getBootstrapReloadKey(user.id)
-    const hasReloadedThisSession = sessionStorage.getItem(reloadKey) === "1"
-    if (!hasReloadedThisSession) {
-      sessionStorage.setItem(reloadKey, "1")
-      window.location.reload()
-    }
+    // Sempre recarrega: applyRemoteSnapshot atualiza o localStorage mas não as stores
+    // em memória. Sem reload, o estado antigo sobrescreve os dados do Android no
+    // próximo push (schedulePush). lastSyncedAt já foi atualizado dentro de
+    // applyRemoteSnapshot, então não há risco de loop infinito.
+    window.location.reload()
     return
   }
 
