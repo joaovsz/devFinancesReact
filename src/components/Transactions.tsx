@@ -165,7 +165,15 @@ const Transactions = ({
   ]
   const normalizedSearch = searchQuery.trim().toLowerCase()
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [draft, setDraft] = useState<{ label: string; value: string; date: string }>({
+  const [draft, setDraft] = useState<{
+    label: string
+    value: string
+    date: string
+    categoryId?: string
+    subcategoryId?: string
+    cardId?: string
+    paymentMethod?: string
+  }>({
     label: "",
     value: "",
     date: ""
@@ -180,7 +188,11 @@ const Transactions = ({
     setDraft({
       label: transaction.label,
       value: formatCurrencyFromNumber(transaction.value),
-      date: transaction.date
+      date: transaction.date,
+      categoryId: transaction.categoryId,
+      subcategoryId: transaction.subcategoryId,
+      cardId: transaction.cardId,
+      paymentMethod: transaction.paymentMethod
     })
   }
 
@@ -257,12 +269,18 @@ const Transactions = ({
 
     const parsedValue = parseCurrencyInput(draft.value)
     const nextValue = parsedValue > 0 ? parsedValue : transaction.value
+    const nextPaymentMethod = (draft.paymentMethod as Transaction["paymentMethod"]) || transaction.paymentMethod
+    const isCredit = nextPaymentMethod === "credit"
 
     updateTransaction({
       ...transaction,
       label: draft.label.trim() || transaction.label,
       value: nextValue,
-      date: draft.date || transaction.date
+      date: draft.date || transaction.date,
+      paymentMethod: nextPaymentMethod,
+      cardId: isCredit ? (draft.cardId ?? transaction.cardId) : undefined,
+      ...(draft.categoryId !== undefined && { categoryId: draft.categoryId }),
+      ...(draft.subcategoryId !== undefined && { subcategoryId: draft.subcategoryId }),
     })
 
     setEditingId(null)
@@ -541,15 +559,76 @@ const Transactions = ({
           >
             <div className="pr-2">
               {isEditing && isEditable ? (
-                <input
-                  autoFocus
-                  className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
-                  type="text"
-                  value={draft.label}
-                  onChange={(event) =>
-                    setDraft((currentDraft) => ({ ...currentDraft, label: event.target.value }))
-                  }
-                />
+                <div className="flex flex-col gap-1">
+                  <input
+                    autoFocus
+                    className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
+                    type="text"
+                    value={draft.label}
+                    onChange={(event) =>
+                      setDraft((currentDraft) => ({ ...currentDraft, label: event.target.value }))
+                    }
+                  />
+                  {!isPlanned && (
+                    <>
+                      <select
+                        className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
+                        value={draft.paymentMethod || ""}
+                        onChange={(event) =>
+                          setDraft((currentDraft) => ({
+                            ...currentDraft,
+                            paymentMethod: event.target.value || undefined,
+                            cardId: event.target.value !== "credit" ? undefined : currentDraft.cardId
+                          }))
+                        }
+                      >
+                        <option value="">Pagamento</option>
+                        <option value="credit">Crédito</option>
+                        <option value="debit">Débito</option>
+                        <option value="pix">Pix</option>
+                        <option value="cash">Conta</option>
+                        <option value="bank-transfer">Transferência</option>
+                        <option value="bank-slip">Boleto</option>
+                        <option value="cash-money">Dinheiro</option>
+                      </select>
+                      <select
+                        className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
+                        value={draft.categoryId || ""}
+                        onChange={(event) =>
+                          setDraft((currentDraft) => ({
+                            ...currentDraft,
+                            categoryId: event.target.value,
+                            subcategoryId: ""
+                          }))
+                        }
+                      >
+                        <option value="">Categoria</option>
+                        {defaultCategories.map((cat) => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                      </select>
+                      {draft.categoryId && (
+                        <select
+                          className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
+                          value={draft.subcategoryId || ""}
+                          onChange={(event) =>
+                            setDraft((currentDraft) => ({
+                              ...currentDraft,
+                              subcategoryId: event.target.value
+                            }))
+                          }
+                        >
+                          <option value="">Subcategoria</option>
+                          {defaultCategories
+                            .find((cat) => cat.id === draft.categoryId)
+                            ?.subcategories.map((sub) => (
+                              <option key={sub.id} value={sub.id}>{sub.name}</option>
+                            ))}
+                        </select>
+                      )}
+                    </>
+                  )}
+                </div>
               ) : (
                 <div className="truncate">{transaction.label}</div>
               )}
@@ -606,7 +685,25 @@ const Transactions = ({
               </span>
             </div>
             <div className="truncate pr-2 text-xs text-zinc-300">
-              {getCreditCardLabel(transaction)}
+              {isEditing && !isPlanned && (draft.paymentMethod ?? actualTransaction.paymentMethod) === "credit" ? (
+                <select
+                  className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
+                  value={draft.cardId || ""}
+                  onChange={(event) =>
+                    setDraft((currentDraft) => ({
+                      ...currentDraft,
+                      cardId: event.target.value || undefined
+                    }))
+                  }
+                >
+                  <option value="">Sem cartão</option>
+                  {cards.map((card) => (
+                    <option key={card.id} value={card.id}>{card.name}</option>
+                  ))}
+                </select>
+              ) : (
+                getCreditCardLabel(transaction)
+              )}
             </div>
             <div className="text-zinc-400">
               {isEditing && !isPlanned ? (
