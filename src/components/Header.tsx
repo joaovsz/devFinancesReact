@@ -3,7 +3,7 @@ import { motion } from "framer-motion"
 import { Menu, Moon, Sun, User } from "lucide-react"
 import { NavLink } from "react-router-dom"
 import Logo from "./icons/Logo"
-import { dockItems } from "./MagicDock"
+import { getDockItems } from "./MagicDock"
 import { useTransactionStore } from "../store/useTransactionStore"
 import { getCurrentMonthKey, getMonthLabel } from "../utils/projections"
 
@@ -12,15 +12,23 @@ type HeaderProps = {
   onToggleTheme: () => void
   userEmail?: string | null
   onSignOut?: () => void
+  canAccessCommerce?: boolean
 }
 
-export const Header = ({ theme, onToggleTheme, userEmail, onSignOut }: HeaderProps) => {
+export const Header = ({
+  theme,
+  onToggleTheme,
+  userEmail,
+  onSignOut,
+  canAccessCommerce = false
+}: HeaderProps) => {
   const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
   const setActiveMonthKey = useTransactionStore((state) => state.setActiveMonthKey)
   const resetActiveMonthKey = useTransactionStore((state) => state.resetActiveMonthKey)
   const isCurrentOperationalMonth = activeMonthKey === getCurrentMonthKey()
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false)
+  const navigationItems = getDockItems(canAccessCommerce)
   const accountMenuRef = useRef<HTMLDivElement | null>(null)
   const navMenuRef = useRef<HTMLDivElement | null>(null)
 
@@ -90,7 +98,7 @@ export const Header = ({ theme, onToggleTheme, userEmail, onSignOut }: HeaderPro
                     </button>
                   </div>
                   <div className="mt-3 grid gap-2 overflow-y-auto md:mt-2 md:space-y-1">
-                    {dockItems.map((item) => {
+                    {navigationItems.map((item) => {
                     const Icon = item.icon
                     return (
                       <NavLink

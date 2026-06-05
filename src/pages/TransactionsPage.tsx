@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useSearchParams } from "react-router-dom"
-import { ChevronDown, Info, X } from "lucide-react"
+import { ChevronDown, Info, Smartphone, X } from "lucide-react"
 import { Table } from "../components/Table"
 import { TransactionForm } from "../components/transactions/TransactionForm"
 import { defaultCategories } from "../data/categories"
@@ -23,6 +23,11 @@ export const TransactionsPage = () => {
     "w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 pr-9 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
   const formRef = useRef<HTMLDivElement | null>(null)
   const tableRef = useRef<HTMLDivElement | null>(null)
+
+  const pendingAndroidCount = useMemo(
+    () => transactions.filter((t) => t.categoryId === "alterar").length,
+    [transactions]
+  )
 
   function toggleTypeFilter(type: string) {
     setTypeFilters((current) =>
@@ -130,6 +135,34 @@ export const TransactionsPage = () => {
           )}
         </AnimatePresence>
       </section>
+      {pendingAndroidCount > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3"
+        >
+          <div className="flex items-center gap-2 text-sm text-amber-200">
+            <Smartphone size={15} className="shrink-0 text-amber-400" />
+            <span>
+              <span className="font-semibold">{pendingAndroidCount}</span>{" "}
+              {pendingAndroidCount === 1
+                ? "transação capturada pelo app Android aguarda revisão de categoria."
+                : "transações capturadas pelo app Android aguardam revisão de categoria."}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery("Alterar")
+              tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }}
+            className="shrink-0 rounded-lg border border-amber-500/50 bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-300 transition hover:bg-amber-500/30"
+          >
+            Revisar agora
+          </button>
+        </motion.div>
+      )}
+
       <div ref={formRef}>
         <TransactionForm
           categories={defaultCategories}

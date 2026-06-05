@@ -1,5 +1,5 @@
 import { FocusEvent, KeyboardEvent, useEffect, useMemo, useState } from "react"
-import { Check, Pencil, X } from "lucide-react"
+import { Check, Pencil, Smartphone, X } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { Transaction } from "../types/transaction"
 import { useTransactionStore } from '../store/useTransactionStore'
@@ -504,12 +504,16 @@ const Transactions = ({
         const isEditable = isRowEditable(transaction)
         const actualTransaction = transaction as Transaction
         const isEditing = editingId === transaction.id
+        const isAndroidCapture =
+          !isPlanned &&
+          (actualTransaction.categoryId === "alterar" ||
+            actualTransaction.tags?.includes("app-android"))
         return (
           <div
             key={transaction.id}
             className={`grid min-w-[860px] grid-cols-[220px_130px_120px_170px_120px_56px] items-center border-b border-zinc-800/70 px-5 py-4 text-sm text-zinc-200 last:border-b-0 md:min-w-0 md:grid-cols-[1.8fr_1fr_1fr_1.2fr_1fr_56px] ${
               isEditing ? "bg-zinc-900/70" : ""
-            }`}
+            } ${isAndroidCapture ? "border-l-2 border-l-amber-500/60 pl-4" : ""}`}
             onDoubleClick={(event) => {
               const target = event.target as HTMLElement
               if (target.closest("button")) {
@@ -551,8 +555,13 @@ const Transactions = ({
               )}
               {!isEditing && !isPlanned && (
                 <>
-                  <div className="mt-1 truncate text-xs text-zinc-400">
-                    {getCategoryLabel(actualTransaction)}
+                  <div className="mt-1 flex items-center gap-1.5 truncate text-xs text-zinc-400">
+                    {isAndroidCapture && (
+                      <Smartphone size={11} className="shrink-0 text-amber-400" />
+                    )}
+                    <span className={isAndroidCapture ? "text-amber-400" : ""}>
+                      {getCategoryLabel(actualTransaction)}
+                    </span>
                   </div>
                   {(actualTransaction.tags?.length || 0) > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">

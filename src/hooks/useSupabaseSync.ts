@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 import { User } from "@supabase/supabase-js"
 import { isSupabaseConfigured } from "../lib/supabase"
+import { useCommerceStore } from "../modules/commerce/store/useCommerceStore"
 import { useGoalStore } from "../store/useGoalStore"
 import { useTransactionStore } from "../store/useTransactionStore"
 import {
@@ -62,6 +63,7 @@ export function useSupabaseSync(user: User | null) {
 
       await useTransactionStore.persist.rehydrate()
       await useGoalStore.persist.rehydrate()
+      await useCommerceStore.persist.rehydrate()
     }
 
     const schedulePush = () => {
@@ -85,6 +87,10 @@ export function useSupabaseSync(user: User | null) {
     })
 
     const unsubscribeGoals = useGoalStore.subscribe(() => {
+      schedulePush()
+    })
+
+    const unsubscribeCommerce = useCommerceStore.subscribe(() => {
       schedulePush()
     })
 
@@ -120,6 +126,7 @@ export function useSupabaseSync(user: User | null) {
       window.removeEventListener("pagehide", handlePageHide)
       unsubscribeTransaction()
       unsubscribeGoals()
+      unsubscribeCommerce()
     }
   }, [user])
 }

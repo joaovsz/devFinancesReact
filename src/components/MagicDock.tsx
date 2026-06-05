@@ -4,6 +4,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Home,
+  PackageSearch,
   Settings,
   Target,
   Wallet
@@ -28,12 +29,27 @@ export const dockItems: DockItem[] = [
   { to: "/configuracoes", label: "Config", icon: Settings }
 ]
 
-type MagicDockProps = {
-  theme: "dark" | "light"
+const commerceDockItem: DockItem = {
+  to: "/commerce",
+  label: "Commerce",
+  shortLabel: "Commerce",
+  icon: PackageSearch
 }
 
-export const MagicDock = ({ theme }: MagicDockProps) => {
-  const mobileDockItems = dockItems.slice(0, 4)
+export function getDockItems(canAccessCommerce: boolean) {
+  return canAccessCommerce
+    ? [...dockItems.slice(0, -1), commerceDockItem, dockItems[dockItems.length - 1]]
+    : dockItems
+}
+
+type MagicDockProps = {
+  theme: "dark" | "light"
+  canAccessCommerce?: boolean
+}
+
+export const MagicDock = ({ theme, canAccessCommerce = false }: MagicDockProps) => {
+  const visibleDockItems = getDockItems(canAccessCommerce)
+  const mobileDockItems = visibleDockItems.slice(0, 4)
 
   return (
     <>
@@ -55,8 +71,8 @@ export const MagicDock = ({ theme }: MagicDockProps) => {
             : "border-zinc-300/80 bg-white/95 shadow-zinc-300/40"
         }`}
       >
-        <div className="grid w-full grid-cols-4 items-center gap-1.5 sm:grid-cols-7 sm:gap-2">
-          {[...mobileDockItems, ...dockItems.slice(4)].map((item, index) => {
+        <div className="grid w-full grid-cols-4 items-center gap-1.5 sm:grid-cols-8 sm:gap-2">
+          {[...mobileDockItems, ...visibleDockItems.slice(4)].map((item, index) => {
             const Icon = item.icon
             const isMobileOnlyHidden = index >= mobileDockItems.length
             return (

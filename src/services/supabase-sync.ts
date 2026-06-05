@@ -2,9 +2,11 @@ import { User } from "@supabase/supabase-js"
 import { getSupabaseClient } from "../lib/supabase"
 import { GoalStore } from "../store/useGoalStore"
 import { TransactionStore } from "../store/useTransactionStore"
+import { useCommerceStore } from "../modules/commerce/store/useCommerceStore"
 
 export const TRANSACTION_STORAGE_KEY = "devfinances-storage"
 export const GOALS_STORAGE_KEY = "devfinances-goals-storage"
+export const COMMERCE_STORAGE_KEY = "devfinances-commerce-storage"
 export const AUTH_USER_STORAGE_KEY = "devfinances-auth-user-id"
 const AUTH_BOOTSTRAP_RELOADED_PREFIX = "devfinances-auth-bootstrap-reloaded"
 const AUTH_LAST_SYNCED_AT_PREFIX = "devfinances-auth-last-synced-at"
@@ -17,6 +19,7 @@ type UserAppStateRow = {
   user_id: string
   transaction_storage: unknown
   goals_storage: unknown
+  commerce_storage: unknown
   updated_at: string
 }
 
@@ -28,6 +31,7 @@ type PersistedSnapshot<TState> = {
 export type AppStateSnapshots = {
   transactionStorage: PersistedSnapshot<unknown>
   goalsStorage: PersistedSnapshot<unknown>
+  commerceStorage: PersistedSnapshot<unknown>
 }
 
 function parseStorageValue(raw: string | null) {
@@ -49,12 +53,15 @@ function getArrayLength(value: unknown) {
 function hasMeaningfulSnapshots(input: {
   transactionStorage: unknown
   goalsStorage: unknown
+  commerceStorage?: unknown
 }) {
   const transactionStorage = input.transactionStorage as { state?: Record<string, unknown> } | null
   const goalsStorage = input.goalsStorage as { state?: Record<string, unknown> } | null
+  const commerceStorage = input.commerceStorage as { state?: Record<string, unknown> } | null
 
   const transactionState = transactionStorage?.state || {}
   const goalsState = goalsStorage?.state || {}
+  const commerceState = commerceStorage?.state || {}
 
   const transactionItemsCount =
     getArrayLength(transactionState.transactions) +
@@ -64,8 +71,11 @@ function hasMeaningfulSnapshots(input: {
     getArrayLength(transactionState.bankAccounts)
 
   const goalItemsCount = getArrayLength(goalsState.goals)
+  const commerceItemsCount =
+    getArrayLength(commerceState.products) +
+    getArrayLength(commerceState.purchaseLots)
 
-  return transactionItemsCount > 0 || goalItemsCount > 0
+  return transactionItemsCount > 0 || goalItemsCount > 0 || commerceItemsCount > 0
 }
 
 function hasMeaningfulLocalData() {
@@ -75,10 +85,14 @@ function hasMeaningfulLocalData() {
   const goalsStorage = parseStorageValue(localStorage.getItem(GOALS_STORAGE_KEY)) as
     | { state?: Record<string, unknown> }
     | null
+  const commerceStorage = parseStorageValue(localStorage.getItem(COMMERCE_STORAGE_KEY)) as
+    | { state?: Record<string, unknown> }
+    | null
 
   return hasMeaningfulSnapshots({
     transactionStorage,
-    goalsStorage
+    goalsStorage,
+    commerceStorage
   })
 }
 
@@ -121,12 +135,15 @@ function isRemoteNewer(userId: string, remoteUpdatedAt?: string) {
   return remoteEpoch > localEpoch
 }
 
-function applyRemoteSnapshot(data: Pick<UserAppStateRow, "transaction_storage" | "goals_storage" | "updated_at">, userId: string) {
+function applyRemoteSnapshot(data: Pick<UserAppStateRow, "transaction_storage" | "goals_storage" | "commerce_storage" | "updated_at">, userId: string) {
   if (data.transaction_storage) {
     localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(data.transaction_storage))
   }
   if (data.goals_storage) {
     localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(data.goals_storage))
+  }
+  if (data.commerce_storage) {
+    localStorage.setItem(COMMERCE_STORAGE_KEY, JSON.stringify(data.commerce_storage))
   }
   if (data.updated_at) {
     setLastSyncedAt(userId, data.updated_at)
@@ -159,6 +176,7 @@ export function buildAppStateSnapshots(input: {
   transactionState: TransactionStore
   goalState: GoalStore
 }): AppStateSnapshots {
+  const commerceState = useCommerceStore.getState()
   return {
     transactionStorage: {
       state: buildTransactionStateSnapshot(input.transactionState),
@@ -167,6 +185,15 @@ export function buildAppStateSnapshots(input: {
     goalsStorage: {
       state: buildGoalStateSnapshot(input.goalState),
       version: GOALS_STORAGE_VERSION
+    },
+    commerceStorage: {
+      state: {
+        products: commerceState.products,
+        purchaseLots: commerceState.purchaseLots,
+        sales: commerceState.sales,
+        stockMovements: commerceState.stockMovements
+      },
+      version: 1
     }
   }
 }
@@ -174,11 +201,13 @@ export function buildAppStateSnapshots(input: {
 export function clearLocalAppData() {
   localStorage.removeItem(TRANSACTION_STORAGE_KEY)
   localStorage.removeItem(GOALS_STORAGE_KEY)
+  localStorage.removeItem(COMMERCE_STORAGE_KEY)
 }
 
 export function persistSnapshotsLocally(snapshots: AppStateSnapshots) {
   localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(snapshots.transactionStorage))
   localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(snapshots.goalsStorage))
+  localStorage.setItem(COMMERCE_STORAGE_KEY, JSON.stringify(snapshots.commerceStorage))
 }
 
 export async function syncFromSupabaseOnLogin(user: User) {
@@ -197,7 +226,7 @@ export async function syncFromSupabaseOnLogin(user: User) {
 
   const { data, error } = await supabase
     .from(TABLE_NAME)
-    .select("transaction_storage, goals_storage, updated_at")
+    .select("transaction_storage, goals_storage, commerce_storage, updated_at")
     .eq("user_id", user.id)
     .maybeSingle()
 
@@ -208,7 +237,8 @@ export async function syncFromSupabaseOnLogin(user: User) {
 
   const remoteHasMeaningfulData = hasMeaningfulSnapshots({
     transactionStorage: data?.transaction_storage || null,
-    goalsStorage: data?.goals_storage || null
+    goalsStorage: data?.goals_storage || null,
+    commerceStorage: data?.commerce_storage || null
   })
   const localHasMeaningfulData = hasMeaningfulLocalData()
 
@@ -263,6 +293,7 @@ export async function pushSnapshotsToSupabase(user: User, snapshots: AppStateSna
     user_id: user.id,
     transaction_storage: snapshots.transactionStorage,
     goals_storage: snapshots.goalsStorage,
+    commerce_storage: snapshots.commerceStorage,
     updated_at: new Date().toISOString()
   }
 
@@ -281,10 +312,12 @@ export async function pushSnapshotsToSupabase(user: User, snapshots: AppStateSna
 export async function pushLocalStateToSupabase(user: User) {
   const transactionStorage = parseStorageValue(localStorage.getItem(TRANSACTION_STORAGE_KEY))
   const goalsStorage = parseStorageValue(localStorage.getItem(GOALS_STORAGE_KEY))
+  const commerceStorage = parseStorageValue(localStorage.getItem(COMMERCE_STORAGE_KEY))
 
   await pushSnapshotsToSupabase(user, {
     transactionStorage: transactionStorage || { state: {}, version: TRANSACTION_STORAGE_VERSION },
-    goalsStorage: goalsStorage || { state: { goals: [] }, version: GOALS_STORAGE_VERSION }
+    goalsStorage: goalsStorage || { state: { goals: [] }, version: GOALS_STORAGE_VERSION },
+    commerceStorage: commerceStorage || { state: { products: [], purchaseLots: [], sales: [], stockMovements: [] }, version: 1 }
   })
 }
 
@@ -296,7 +329,7 @@ export async function pullRemoteSnapshotIfNewer(user: User) {
 
   const { data, error } = await supabase
     .from(TABLE_NAME)
-    .select("transaction_storage, goals_storage, updated_at")
+    .select("transaction_storage, goals_storage, commerce_storage, updated_at")
     .eq("user_id", user.id)
     .maybeSingle()
 
@@ -306,7 +339,8 @@ export async function pullRemoteSnapshotIfNewer(user: User) {
 
   const remoteHasMeaningfulData = hasMeaningfulSnapshots({
     transactionStorage: data.transaction_storage || null,
-    goalsStorage: data.goals_storage || null
+    goalsStorage: data.goals_storage || null,
+    commerceStorage: data.commerce_storage || null
   })
   if (!remoteHasMeaningfulData) {
     return false

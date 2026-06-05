@@ -13,6 +13,8 @@ import { SettingsPage } from "./pages/SettingsPage"
 import { LoginPage } from "./components/auth/LoginPage"
 import { useAuth } from "./context/AuthContext"
 import { useSupabaseSync } from "./hooks/useSupabaseSync"
+import { CommerceDashboardPage } from "./modules/commerce/pages/CommerceDashboardPage"
+import { canAccessCommerceModule } from "./utils/featureAccess"
 
 export type ColorTheme =
   | "indigo-calm"
@@ -72,6 +74,7 @@ function App() {
 
   const isAuthRequired = isRemoteAuthEnabled
   const isAuthenticated = Boolean(user)
+  const canAccessCommerce = canAccessCommerceModule(user?.email)
 
   if (isAuthRequired && isLoading) {
     return (
@@ -114,6 +117,7 @@ function App() {
         }
         userEmail={user?.email || null}
         onSignOut={isAuthRequired && isAuthenticated ? () => void signOut() : undefined}
+        canAccessCommerce={canAccessCommerce}
       />
       <main
         className={`mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pt-2 md:px-8 md:pt-4 xl:max-w-7xl xl:gap-10 xl:px-10 2xl:max-w-[1500px] 2xl:px-12 ${
@@ -135,6 +139,10 @@ function App() {
           <Route path="/projecoes" element={<ProjectionsPage />} />
           <Route path="/metas" element={<GoalsPage />} />
           <Route
+            path="/commerce"
+            element={canAccessCommerce ? <CommerceDashboardPage /> : <Navigate to="/" replace />}
+          />
+          <Route
             path="/configuracoes"
             element={
               <SettingsPage
@@ -146,7 +154,7 @@ function App() {
         </Routes>
       </main>
       {!isTransactionsRoute && !isLoginRoute && <Footer />}
-      {!isLoginRoute && <MagicDock theme={theme} />}
+      {!isLoginRoute && <MagicDock theme={theme} canAccessCommerce={canAccessCommerce} />}
     </div>
   )
 }

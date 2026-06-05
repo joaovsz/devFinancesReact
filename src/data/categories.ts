@@ -2,6 +2,13 @@ import { Category } from "../types/finance"
 
 export const defaultCategories: Category[] = [
   {
+    id: "alterar",
+    name: "Alterar",
+    subcategories: [
+      { id: "alterar", name: "Capturado pelo app — aguardando revisão" }
+    ]
+  },
+  {
     id: "rendas",
     name: "Rendas",
     subcategories: [
