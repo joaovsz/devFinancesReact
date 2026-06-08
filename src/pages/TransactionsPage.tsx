@@ -9,6 +9,7 @@ import { useTransactionStore } from "../store/useTransactionStore"
 import { Transaction } from "../types/transaction"
 import { getCreditCardUsageSummaries } from "../utils/domain/creditCards"
 import { formatCurrencyFromNumber } from "../utils/currency-input"
+import { sortCategoriesByTransactionUsage } from "../utils/categoryUsage"
 
 export const TransactionsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -73,6 +74,10 @@ export const TransactionsPage = () => {
 
   const pendingAndroidCount = useMemo(
     () => transactions.filter((t) => t.categoryId === "alterar").length,
+    [transactions]
+  )
+  const categoriesByUsage = useMemo(
+    () => sortCategoriesByTransactionUsage(defaultCategories, transactions),
     [transactions]
   )
 
@@ -228,7 +233,7 @@ export const TransactionsPage = () => {
 
       <div ref={formRef}>
         <TransactionForm
-          categories={defaultCategories}
+          categories={categoriesByUsage}
           cards={cards}
           initialCreditCardId={quickAddCreditCardId}
           existingTransactions={transactions}
