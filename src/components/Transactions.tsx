@@ -39,6 +39,7 @@ type TransactionsProps = {
   searchQuery?: string
   typeFilters?: string[]
   cardFilterId?: string
+  onEditTransaction?: (transaction: Transaction) => void
 }
 
 type ManualInvoiceEntry = {
@@ -68,7 +69,8 @@ const paymentMethodLabels: Record<Transaction["paymentMethod"], string> = {
 const Transactions = ({
   searchQuery = "",
   typeFilters = [],
-  cardFilterId
+  cardFilterId,
+  onEditTransaction
 }: TransactionsProps) => {
   const transactions = useTransactionStore((state) => state.transactions)
   const cards = useTransactionStore((state) => state.cards)
@@ -76,7 +78,6 @@ const Transactions = ({
   const installmentPlans = useTransactionStore((state) => state.installmentPlans)
   const contractConfig = useTransactionStore((state) => state.contractConfig)
   const removeTransaction = useTransactionStore((state) => state.removeTransaction)
-  const updateTransaction = useTransactionStore((state) => state.updateTransaction)
   const updateFixedCost = useTransactionStore((state) => state.updateFixedCost)
   const removeFixedCost = useTransactionStore((state) => state.removeFixedCost)
   const removeInstallmentPlan = useTransactionStore((state) => state.removeInstallmentPlan)
@@ -183,19 +184,6 @@ const Transactions = ({
     removeTransaction(id)
   }
 
-  function startEditing(transaction: Transaction) {
-    setEditingId(transaction.id)
-    setDraft({
-      label: transaction.label,
-      value: formatCurrencyFromNumber(transaction.value),
-      date: transaction.date,
-      categoryId: transaction.categoryId,
-      subcategoryId: transaction.subcategoryId,
-      cardId: transaction.cardId,
-      paymentMethod: transaction.paymentMethod
-    })
-  }
-
   function startEditingManualInvoice(entry: ManualInvoiceEntry) {
     setEditingId(entry.id)
     setDraft({
@@ -260,28 +248,6 @@ const Transactions = ({
       setEditingId(null)
       return
     }
-
-    const transaction = transactions.find((item) => item.id === rowId)
-    if (!transaction) {
-      setEditingId(null)
-      return
-    }
-
-    const parsedValue = parseCurrencyInput(draft.value)
-    const nextValue = parsedValue > 0 ? parsedValue : transaction.value
-    const nextPaymentMethod = (draft.paymentMethod as Transaction["paymentMethod"]) || transaction.paymentMethod
-    const isCredit = nextPaymentMethod === "credit"
-
-    updateTransaction({
-      ...transaction,
-      label: draft.label.trim() || transaction.label,
-      value: nextValue,
-      date: draft.date || transaction.date,
-      paymentMethod: nextPaymentMethod,
-      cardId: isCredit ? (draft.cardId ?? transaction.cardId) : undefined,
-      ...(draft.categoryId !== undefined && { categoryId: draft.categoryId }),
-      ...(draft.subcategoryId !== undefined && { subcategoryId: draft.subcategoryId }),
-    })
 
     setEditingId(null)
   }
@@ -488,9 +454,7 @@ const Transactions = ({
           if (!leftIsPlanned && !rightIsPlanned) {
             const leftTransaction = left as Transaction
             const rightTransaction = right as Transaction
-            return (rightTransaction.createdAt || "").localeCompare(
-              leftTransaction.createdAt || ""
-            )
+            return rightTransaction.date.localeCompare(leftTransaction.date)
           }
 
           if (leftIsPlanned && rightIsPlanned) {
@@ -540,6 +504,10 @@ const Transactions = ({
               if (!isEditable) {
                 return
               }
+              if (!isPlanned) {
+                onEditTransaction?.(transaction as Transaction)
+                return
+              }
               if (isManualInvoice) {
                 startEditingManualInvoice(transaction)
                 return
@@ -548,14 +516,17 @@ const Transactions = ({
                 startEditingFixedEntry(transaction)
                 return
               }
-              startEditing(transaction as Transaction)
             }}
-            onBlurCapture={(event) =>
-              isEditable && handleRowBlur(event, transaction.id)
-            }
-            onKeyDown={(event) =>
-              isEditable && handleRowKeyDown(event, transaction.id)
-            }
+            onBlurCapture={(event) => {
+              if (isEditable && isPlanned) {
+                handleRowBlur(event, transaction.id)
+              }
+            }}
+            onKeyDown={(event) => {
+              if (isEditable && isPlanned) {
+                handleRowKeyDown(event, transaction.id)
+              }
+            }}
           >
             <div className="pr-2">
               {isEditing && isEditable ? (
@@ -722,25 +693,14 @@ const Transactions = ({
             <div className="flex justify-end">
               {!isPlanned && (
                 <div className="flex items-center gap-1">
-                  {isEditing ? (
-                    <button
-                      aria-label="Salvar transação"
-                      title="Salvar transação"
-                      className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
-                      onClick={() => saveEditById(transaction.id)}
-                    >
-                      <Check size={15} />
-                    </button>
-                  ) : (
-                    <button
-                      aria-label="Editar transação"
-                      title="Editar transação"
-                      className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
-                      onClick={() => startEditing(transaction as Transaction)}
-                    >
-                      <Pencil size={15} />
-                    </button>
-                  )}
+                  <button
+                    aria-label="Editar transação"
+                    title="Editar transação"
+                    className="rounded-lg p-1 text-emerald-400 transition hover:bg-emerald-500/15 hover:text-emerald-300"
+                    onClick={() => onEditTransaction?.(transaction as Transaction)}
+                  >
+                    <Pencil size={15} />
+                  </button>
                   <button
                     aria-label="Remover transação"
                     title="Remover transação"

@@ -6,16 +6,24 @@ import { Table } from "../components/Table"
 import { TransactionForm } from "../components/transactions/TransactionForm"
 import { defaultCategories } from "../data/categories"
 import { useTransactionStore } from "../store/useTransactionStore"
+import { Transaction } from "../types/transaction"
+import { getCreditCardUsageSummaries } from "../utils/domain/creditCards"
+import { formatCurrencyFromNumber } from "../utils/currency-input"
 
 export const TransactionsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const cards = useTransactionStore((state) => state.cards)
   const transactions = useTransactionStore((state) => state.transactions)
+  const fixedCosts = useTransactionStore((state) => state.fixedCosts)
+  const installmentPlans = useTransactionStore((state) => state.installmentPlans)
+  const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
   const addTransaction = useTransactionStore((state) => state.addTransaction)
+  const updateTransaction = useTransactionStore((state) => state.updateTransaction)
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilters, setTypeFilters] = useState<string[]>([])
   const [selectedCardId, setSelectedCardId] = useState(searchParams.get("cardId") || "all")
   const [isGuideOpen, setIsGuideOpen] = useState(false)
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const quickAddCreditCardId =
     searchParams.get("action") === "add-expense" ? searchParams.get("cardId") || undefined : undefined
   const availableTypeFilters = ["Entrada", "Saída", "Gasto fixo", "Parcelamento", "Faturamento"]
@@ -23,6 +31,45 @@ export const TransactionsPage = () => {
     "w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 pr-9 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
   const formRef = useRef<HTMLDivElement | null>(null)
   const tableRef = useRef<HTMLDivElement | null>(null)
+  const showInvoiceContext = searchParams.get("source") === "invoice"
+
+  const selectedInvoiceContext = useMemo(() => {
+    if (!showInvoiceContext || selectedCardId === "all") {
+      return null
+    }
+
+    const selectedCard = getCreditCardUsageSummaries({
+      cards,
+      transactions,
+      fixedCosts,
+      installmentPlans,
+      monthKey: activeMonthKey
+    }).find((card) => card.id === selectedCardId)
+
+    if (!selectedCard) {
+      return null
+    }
+
+    const [year, month] = activeMonthKey.split("-").map(Number)
+    const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("pt-BR", {
+      month: "short",
+      year: "numeric"
+    })
+
+    return {
+      cardName: selectedCard.name,
+      monthLabel: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1),
+      invoiceValue: selectedCard.currentInvoice
+    }
+  }, [
+    activeMonthKey,
+    cards,
+    fixedCosts,
+    installmentPlans,
+    selectedCardId,
+    showInvoiceContext,
+    transactions
+  ])
 
   const pendingAndroidCount = useMemo(
     () => transactions.filter((t) => t.categoryId === "alterar").length,
@@ -46,6 +93,22 @@ export const TransactionsPage = () => {
       next.set("cardId", cardId)
     }
     setSearchParams(next, { replace: true })
+  }
+
+  function handleEditTransaction(transaction: Transaction) {
+    setEditingTransaction(transaction)
+    requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  }
+
+  function handleSubmitTransaction(transaction: Transaction) {
+    if (editingTransaction) {
+      updateTransaction(transaction)
+      return
+    }
+
+    addTransaction(transaction)
   }
 
   useEffect(() => {
@@ -169,7 +232,9 @@ export const TransactionsPage = () => {
           cards={cards}
           initialCreditCardId={quickAddCreditCardId}
           existingTransactions={transactions}
-          onSubmitTransaction={addTransaction}
+          editingTransaction={editingTransaction}
+          onSubmitTransaction={handleSubmitTransaction}
+          onCancelEdit={() => setEditingTransaction(null)}
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -219,11 +284,25 @@ export const TransactionsPage = () => {
           })}
         </div>
       </div>
+      {selectedInvoiceContext && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-xs text-zinc-400">
+          <span>Fatura filtrada</span>
+          <span className="text-zinc-600">•</span>
+          <span className="text-zinc-300">{selectedInvoiceContext.cardName}</span>
+          <span className="text-zinc-600">•</span>
+          <span>{selectedInvoiceContext.monthLabel}</span>
+          <span className="text-zinc-600">•</span>
+          <span className="font-semibold text-amber-300">
+            {formatCurrencyFromNumber(selectedInvoiceContext.invoiceValue)}
+          </span>
+        </div>
+      )}
       <div ref={tableRef}>
         <Table
           searchQuery={searchQuery}
           typeFilters={typeFilters}
           cardFilterId={selectedCardId === "all" ? undefined : selectedCardId}
+          onEditTransaction={handleEditTransaction}
         />
       </div>
     </div>

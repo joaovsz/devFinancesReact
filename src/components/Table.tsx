@@ -1,12 +1,19 @@
 import Transactions from "./Transactions"
+import { Transaction } from "../types/transaction"
 
 type TableProps = {
   searchQuery?: string
   typeFilters?: string[]
   cardFilterId?: string
+  onEditTransaction?: (transaction: Transaction) => void
 }
 
-export const Table = ({ searchQuery = "", typeFilters = [], cardFilterId }: TableProps) => {
+export const Table = ({
+  searchQuery = "",
+  typeFilters = [],
+  cardFilterId,
+  onEditTransaction
+}: TableProps) => {
   return (
     <section className="flex min-h-0 max-h-[calc(100vh-15rem)] flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
       <div className="min-h-0 flex-1 overflow-auto">
@@ -22,6 +29,7 @@ export const Table = ({ searchQuery = "", typeFilters = [], cardFilterId }: Tabl
           searchQuery={searchQuery}
           typeFilters={typeFilters}
           cardFilterId={cardFilterId}
+          onEditTransaction={onEditTransaction}
         />
       </div>
     </section>

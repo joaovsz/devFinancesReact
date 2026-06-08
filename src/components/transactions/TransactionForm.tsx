@@ -19,7 +19,9 @@ type TransactionFormProps = {
   cards: CreditCard[]
   initialCreditCardId?: string
   existingTransactions: Transaction[]
+  editingTransaction?: Transaction | null
   onSubmitTransaction: (transaction: Transaction) => void
+  onCancelEdit?: () => void
 }
 
 const quickValueChips = [10, 25, 50, 100, 200]
@@ -88,6 +90,21 @@ function getDefaultFormValues(
   }
 }
 
+function getFormValuesFromTransaction(transaction: Transaction): TransactionFormValues {
+  return {
+    label: transaction.label,
+    amountCents: toCents(transaction.value),
+    date: transaction.date,
+    type: transaction.type as TransactionFormValues["type"],
+    paymentMethod: transaction.type === 1 ? "cash" : transaction.paymentMethod,
+    cardId: transaction.cardId || "",
+    categoryId: transaction.categoryId,
+    subcategoryId: transaction.subcategoryId,
+    tagsInput: transaction.tags.join(", "),
+    competenceMonth: transaction.competenceMonth || ""
+  }
+}
+
 function normalizeDuplicateText(value: string) {
   return value.trim().toLocaleLowerCase("pt-BR")
 }
@@ -101,7 +118,9 @@ export const TransactionForm = ({
   cards,
   initialCreditCardId,
   existingTransactions,
-  onSubmitTransaction
+  editingTransaction,
+  onSubmitTransaction,
+  onCancelEdit
 }: TransactionFormProps) => {
   const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
   const {
@@ -117,6 +136,7 @@ export const TransactionForm = ({
   })
   const [showMissingCardModal, setShowMissingCardModal] = useState(false)
   const dateInputRef = useRef<HTMLInputElement>(null)
+  const isEditing = Boolean(editingTransaction)
   const formValues = watch()
   const {
     label,
@@ -157,12 +177,20 @@ export const TransactionForm = ({
   )
 
   useEffect(() => {
+    if (editingTransaction) {
+      return
+    }
+
     if (!cardId && cards[0]?.id) {
       updateField("cardId", getInitialCardId(cards, initialCreditCardId))
     }
-  }, [cards, cardId, initialCreditCardId])
+  }, [cards, cardId, editingTransaction, initialCreditCardId])
 
   useEffect(() => {
+    if (editingTransaction) {
+      return
+    }
+
     if (!initialCreditCardId || !cards.some((card) => card.id === initialCreditCardId)) {
       return
     }
@@ -170,14 +198,26 @@ export const TransactionForm = ({
     updateField("type", 2)
     updateField("paymentMethod", "credit")
     updateField("cardId", initialCreditCardId)
-  }, [initialCreditCardId, cards])
+  }, [initialCreditCardId, cards, editingTransaction])
 
   useEffect(() => {
+    if (editingTransaction) {
+      return
+    }
+
     updateField("date", getOperationalDateForMonth(activeMonthKey))
     if (getValues("competenceMonth")) {
       updateField("competenceMonth", activeMonthKey)
     }
-  }, [activeMonthKey])
+  }, [activeMonthKey, editingTransaction])
+
+  useEffect(() => {
+    if (!editingTransaction) {
+      return
+    }
+
+    reset(getFormValuesFromTransaction(editingTransaction))
+  }, [editingTransaction, reset])
 
   function formatCents(cents: number) {
     return (cents / 100).toLocaleString("pt-BR", {
@@ -276,8 +316,8 @@ export const TransactionForm = ({
     const transactionCardId = isCreditExpense ? formData.cardId : undefined
 
     const nextTransaction = {
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
+      id: editingTransaction?.id || crypto.randomUUID(),
+      createdAt: editingTransaction?.createdAt || new Date().toISOString(),
       label: transactionLabel,
       value: formData.amountCents / 100,
       date: formData.date,
@@ -303,6 +343,7 @@ export const TransactionForm = ({
     const duplicateTransaction = existingTransactions.some(
       (transaction) =>
         transaction.date === formData.date &&
+        transaction.id !== editingTransaction?.id &&
         transaction.type === formData.type &&
         transaction.paymentMethod === transactionPaymentMethod &&
         (transaction.cardId || undefined) === transactionCardId &&
@@ -321,13 +362,28 @@ export const TransactionForm = ({
 
     onSubmitTransaction(parsedTransaction.data)
     resetValues()
+    onCancelEdit?.()
   }
 
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-300">
-        Lançamento rápido
-      </h2>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">
+          {isEditing ? "Editar lançamento" : "Lançamento rápido"}
+        </h2>
+        {isEditing && (
+          <button
+            className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+            onClick={() => {
+              resetValues()
+              onCancelEdit?.()
+            }}
+            type="button"
+          >
+            Cancelar edição
+          </button>
+        )}
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
@@ -618,7 +674,7 @@ export const TransactionForm = ({
             className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-400"
             type="submit"
           >
-            Lançar transação
+            {isEditing ? "Atualizar transação" : "Lançar transação"}
           </button>
           {errors.root?.message && (
             <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">

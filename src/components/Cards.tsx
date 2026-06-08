@@ -413,9 +413,7 @@ export const Cards = () => {
           monthKey: currentMonth
         })
       })
-      .sort((left, right) =>
-        (right.createdAt || right.date).localeCompare(left.createdAt || left.date)
-      )
+      .sort((left, right) => right.date.localeCompare(left.date))
       .forEach((transaction) => {
         items.push({
           id: `transaction-${transaction.id}`,
@@ -756,7 +754,7 @@ export const Cards = () => {
 
   function openTransactionsForInvoice(cardId: string) {
     closeCardInvoice()
-    navigate(`/transacoes?cardId=${cardId}`)
+    navigate(`/transacoes?cardId=${cardId}&source=invoice`)
   }
 
   function openAddExpenseForInvoice(cardId: string) {
