@@ -66,6 +66,49 @@ const paymentMethodLabels: Record<Transaction["paymentMethod"], string> = {
   credit: "Crédito"
 }
 
+function formatDateOnly(dateValue: string) {
+  const [year, month, day] = dateValue.split("-")
+  if (!year || !month || !day) {
+    return dateValue
+  }
+
+  return `${day}/${month}/${year}`
+}
+
+function isFallbackCreatedAt(createdAt?: string) {
+  return createdAt?.startsWith("2024-01-01T00:00:") ?? false
+}
+
+function getCreatedAtTimeLabel(transaction: Transaction) {
+  if (!transaction.createdAt || isFallbackCreatedAt(transaction.createdAt)) {
+    return null
+  }
+
+  const createdAt = new Date(transaction.createdAt)
+  if (Number.isNaN(createdAt.getTime())) {
+    return null
+  }
+
+  return createdAt.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit"
+  })
+}
+
+function getRowSortTimestamp(row: TransactionRow) {
+  if (!("isPlanned" in row) || !row.isPlanned) {
+    const transaction = row as Transaction
+    if (transaction.createdAt && !isFallbackCreatedAt(transaction.createdAt)) {
+      const createdAtTime = Date.parse(transaction.createdAt)
+      if (Number.isFinite(createdAtTime)) {
+        return createdAtTime
+      }
+    }
+  }
+
+  return Date.parse(`${row.date}T00:00:00`)
+}
+
 const Transactions = ({
   searchQuery = "",
   typeFilters = [],
@@ -452,13 +495,11 @@ const Transactions = ({
           const rightIsPlanned = "isPlanned" in right && right.isPlanned
 
           if (!leftIsPlanned && !rightIsPlanned) {
-            const leftTransaction = left as Transaction
-            const rightTransaction = right as Transaction
-            return rightTransaction.date.localeCompare(leftTransaction.date)
+            return getRowSortTimestamp(right) - getRowSortTimestamp(left)
           }
 
           if (leftIsPlanned && rightIsPlanned) {
-            return right.date.localeCompare(left.date)
+            return getRowSortTimestamp(right) - getRowSortTimestamp(left)
           }
 
           return leftIsPlanned ? 1 : -1
@@ -477,7 +518,6 @@ const Transactions = ({
   return (
     <>
       {filteredRows.map((transaction) => {
-        const splittedDate = transaction.date.split('-')
         const isPlanned = "isPlanned" in transaction && transaction.isPlanned
         const isManualInvoice = isManualInvoiceRow(transaction)
         const isFixedPlanned = isFixedPlannedRow(transaction)
@@ -490,6 +530,7 @@ const Transactions = ({
           !isPlanned &&
           (actualTransaction.categoryId === "alterar" ||
             actualTransaction.tags?.includes("app-android"))
+        const createdAtTimeLabel = !isPlanned ? getCreatedAtTimeLabel(actualTransaction) : null
         return (
           <div
             key={transaction.id}
@@ -687,7 +728,14 @@ const Transactions = ({
                   }
                 />
               ) : (
-                `${splittedDate[2]}/${splittedDate[1]}/${splittedDate[0]}`
+                <div className="flex flex-col leading-tight">
+                  <span>{formatDateOnly(transaction.date)}</span>
+                  {createdAtTimeLabel && (
+                    <span className="mt-1 text-[11px] text-zinc-500">
+                      {createdAtTimeLabel}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
             <div className="flex justify-end">
