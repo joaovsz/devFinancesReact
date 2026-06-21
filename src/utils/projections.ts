@@ -499,8 +499,19 @@ export function getInstallmentRemainingTotalAfterPaidThrough(
   const referenceMonth = isMonthKeyAfter(firstUnpaidMonth, targetMonth)
     ? firstUnpaidMonth
     : targetMonth
+  const start = monthKeyToIndex(installmentPlan.startMonth)
+  const reference = monthKeyToIndex(referenceMonth)
 
-  return getInstallmentRemainingTotal(installmentPlan, referenceMonth)
+  if (reference < start) {
+    return installmentPlan.installmentValue * installmentPlan.totalInstallments
+  }
+
+  const progress = getInstallmentProgress(installmentPlan, referenceMonth)
+  if (!progress.isActive) {
+    return 0
+  }
+
+  return installmentPlan.installmentValue * (installmentPlan.totalInstallments - progress.currentInstallment + 1)
 }
 
 export function getInstallmentTotalForMonth(

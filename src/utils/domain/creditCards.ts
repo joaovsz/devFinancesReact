@@ -8,7 +8,6 @@ import {
   getCreditFixedCostTotalForMonth,
   getCreditInstallmentStatementMonth,
   getCreditInstallmentTotalForMonth,
-  getCreditTransactionDueMonth,
   getCreditTransactionStatementMonth,
   getInstallmentProgress,
   getInstallmentRemainingTotalAfterPaidThrough,
@@ -85,7 +84,7 @@ export function getCreditCardUsageSummary(input: {
         transaction.cardId === card.id &&
         (!card.paidThroughMonth ||
           isMonthKeyAfter(
-            getCreditTransactionDueMonth(transaction.date, card),
+            getCreditTransactionStatementMonth(transaction.date, card),
             card.paidThroughMonth
           ))
     )
@@ -100,7 +99,7 @@ export function getCreditCardUsageSummary(input: {
         getCreditTransactionStatementMonth(transaction.date, card) === monthKey &&
         (!card.paidThroughMonth ||
           isMonthKeyAfter(
-            getCreditTransactionDueMonth(transaction.date, card),
+            getCreditTransactionStatementMonth(transaction.date, card),
             card.paidThroughMonth
           ))
     )

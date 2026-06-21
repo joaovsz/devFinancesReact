@@ -38,6 +38,7 @@ export const formatCurrency = (value: number | string) => {
 type TransactionsProps = {
   searchQuery?: string
   typeFilters?: string[]
+  categoryFilterId?: string
   cardFilterId?: string
   onEditTransaction?: (transaction: Transaction) => void
 }
@@ -112,6 +113,7 @@ function getRowSortTimestamp(row: TransactionRow) {
 const Transactions = ({
   searchQuery = "",
   typeFilters = [],
+  categoryFilterId,
   cardFilterId,
   onEditTransaction
 }: TransactionsProps) => {
@@ -382,6 +384,53 @@ const Transactions = ({
       : category.name
   }
 
+  function getCategoryName(categoryId?: string) {
+    if (!categoryId) {
+      return "Sem categoria"
+    }
+
+    return defaultCategories.find((item) => item.id === categoryId)?.name || "Sem categoria"
+  }
+
+  function getCategoryInfo(row: TransactionRow) {
+    if (!("isPlanned" in row) || !row.isPlanned) {
+      const transaction = row as Transaction
+      return {
+        categoryId: transaction.categoryId,
+        subcategoryId: transaction.subcategoryId,
+        label: getCategoryLabel(transaction)
+      }
+    }
+
+    if (row.plannedSourceType === "fixed" && row.sourceId) {
+      const cost = fixedCosts.find((item) => item.id === row.sourceId)
+      if (!cost) {
+        return null
+      }
+
+      const category = defaultCategories.find((item) => item.id === cost.categoryId)
+      const subcategory = category?.subcategories.find((item) => item.id === cost.subcategoryId)
+
+      return {
+        categoryId: cost.categoryId,
+        subcategoryId: cost.subcategoryId,
+        label: subcategory ? `${category?.name || "Categoria"} / ${subcategory.name}` : category?.name || "Categoria"
+      }
+    }
+
+    if (row.plannedSourceType === "income") {
+      const subcategoryId =
+        contractConfig.incomeMode === "clt" ? "salario-clt" : "faturamento-pj"
+      return {
+        categoryId: "rendas",
+        subcategoryId,
+        label: getCategoryName("rendas")
+      }
+    }
+
+    return null
+  }
+
   function getPaymentLabel(transaction: Transaction) {
     if (transaction.paymentMethod !== "credit") {
       return paymentMethodLabels[transaction.paymentMethod] || "Conta"
@@ -402,6 +451,14 @@ const Transactions = ({
     }
 
     return row.cardId ? "Cartão removido" : "Crédito sem cartão"
+  }
+
+  function getCardName(cardId?: string) {
+    if (!cardId) {
+      return "Sem cartão"
+    }
+
+    return cards.find((item) => item.id === cardId)?.name || "Cartão removido"
   }
 
   function getTypeLabel(row: TransactionRow) {
@@ -473,19 +530,26 @@ const Transactions = ({
             }
           }
 
+          if (categoryFilterId) {
+            const rowCategory = getCategoryInfo(row)
+            if (rowCategory?.categoryId !== categoryFilterId) {
+              return false
+            }
+          }
+
           if (!normalizedSearch) {
             return true
           }
 
           const labelMatch = row.label.toLowerCase().includes(normalizedSearch)
           const typeMatch = typeLabel.toLowerCase().includes(normalizedSearch)
+          const categoryMatch = getCategoryInfo(row)?.label.toLowerCase().includes(normalizedSearch)
 
           if ("isPlanned" in row && row.isPlanned) {
-            return labelMatch || typeMatch
+            return labelMatch || typeMatch || categoryMatch
           }
 
           const transaction = row as Transaction
-          const categoryMatch = getCategoryLabel(transaction).toLowerCase().includes(normalizedSearch)
           const paymentMatch = getPaymentLabel(transaction).toLowerCase().includes(normalizedSearch)
 
           return labelMatch || typeMatch || categoryMatch || paymentMatch
@@ -504,8 +568,63 @@ const Transactions = ({
 
           return leftIsPlanned ? 1 : -1
         }),
-    [allRows, typeFilters, cardFilterId, normalizedSearch]
+    [allRows, typeFilters, categoryFilterId, cardFilterId, normalizedSearch]
   )
+
+  const filteredSummary = useMemo(() => {
+    const total = filteredRows.reduce((sum, row) => sum + row.value, 0)
+    const creditExpenseByCardMap = new Map<
+      string,
+      { cardId: string; cardName: string; total: number; transactionCount: number }
+    >()
+
+    filteredRows.forEach((row) => {
+      if (!(row.type === 2 && row.paymentMethod === "credit" && row.cardId)) {
+        return
+      }
+
+      const cardName = getCreditCardLabel(row)
+      const current = creditExpenseByCardMap.get(row.cardId)
+      if (current) {
+        current.total += row.value
+        current.transactionCount += 1
+        return
+      }
+
+      creditExpenseByCardMap.set(row.cardId, {
+        cardId: row.cardId,
+        cardName,
+        total: row.value,
+        transactionCount: 1
+      })
+    })
+
+    return {
+      title: categoryFilterId
+        ? getCategoryName(categoryFilterId)
+        : cardFilterId
+          ? getCardName(cardFilterId)
+          : typeFilters.length > 0
+            ? typeFilters.join(" + ")
+            : normalizedSearch
+              ? `Busca: ${searchQuery.trim()}`
+              : "Filtros atuais",
+      rowCount: filteredRows.length,
+      total,
+      creditExpenseByCard: Array.from(creditExpenseByCardMap.values()).sort(
+        (left, right) => right.total - left.total
+      )
+    }
+  }, [
+    filteredRows,
+    categoryFilterId,
+    cardFilterId,
+    typeFilters,
+    normalizedSearch,
+    searchQuery
+  ])
+  const hasActiveSummaryFilter =
+    Boolean(categoryFilterId || cardFilterId || normalizedSearch || typeFilters.length > 0)
 
   if (filteredRows.length === 0) {
     return (
@@ -517,6 +636,51 @@ const Transactions = ({
 
   return (
     <>
+      {hasActiveSummaryFilter && (
+        <div className="border-b border-zinc-800/80 bg-zinc-950/25 px-5 py-3">
+          <div className="overflow-x-auto">
+            <div className="flex min-w-max items-center gap-2 whitespace-nowrap text-xs text-zinc-400">
+              <span className="text-zinc-200">{filteredSummary.title}</span>
+              <span className="text-zinc-700">•</span>
+              <span>
+                {filteredSummary.rowCount} {filteredSummary.rowCount === 1 ? "item" : "itens"}
+              </span>
+              <span className="text-zinc-700">•</span>
+              <span>
+                Total{" "}
+                <span className="font-semibold text-zinc-100">
+                  {formatCurrency(filteredSummary.total)}
+                </span>
+              </span>
+
+              {filteredSummary.creditExpenseByCard.length > 0 && (
+                <>
+                  <span className="text-zinc-700">•</span>
+                  <div className="flex items-center gap-2">
+                    {filteredSummary.creditExpenseByCard.map((cardSummary) => (
+                      <div
+                        key={cardSummary.cardId}
+                        className="inline-flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-xs text-zinc-300"
+                      >
+                        <span className="font-medium text-zinc-100">{cardSummary.cardName}</span>
+                        <span className="text-zinc-600">•</span>
+                        <span className="font-semibold text-amber-300">
+                          {formatCurrency(cardSummary.total)}
+                        </span>
+                        <span className="text-zinc-500">
+                          {cardSummary.transactionCount}{" "}
+                          {cardSummary.transactionCount === 1 ? "lançamento" : "lançamentos"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {filteredRows.map((transaction) => {
         const isPlanned = "isPlanned" in transaction && transaction.isPlanned
         const isManualInvoice = isManualInvoiceRow(transaction)

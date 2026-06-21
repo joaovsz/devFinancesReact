@@ -202,6 +202,64 @@ describe("creditCards domain", () => {
     expect(progress.currentInstallment).toBe(3)
   })
 
+  it("remove do limite as compras da fatura operacional ja paga", () => {
+    const card = createCard({
+      id: "card-paid-transactions",
+      limitTotal: 1000,
+      closeDay: 26,
+      dueDay: 1,
+      paidThroughMonth: "2025-05"
+    })
+    const transaction = createTransaction({
+      id: "purchase-paid-cycle",
+      cardId: card.id,
+      date: "2025-04-27",
+      value: 120
+    })
+
+    const summary = getCreditCardUsageSummary({
+      card,
+      transactions: [transaction],
+      fixedCosts: [],
+      installmentPlans: [],
+      monthKey: "2025-05"
+    })
+
+    expect(summary.currentInvoice).toBe(0)
+    expect(summary.used).toBe(0)
+    expect(summary.available).toBe(1000)
+  })
+
+  it("nao libera parcela futura antes da hora quando paidInstallments estiver adiantado", () => {
+    const card = createCard({
+      id: "card-installment-drift",
+      limitTotal: 5000,
+      closeDay: 30,
+      dueDay: 10,
+      paidThroughMonth: "2026-06"
+    })
+    const installmentPlan = createInstallmentPlan({
+      id: "installment-drift",
+      cardId: card.id,
+      startMonth: "2025-12",
+      installmentValue: 182,
+      totalInstallments: 10,
+      paidInstallments: 8,
+      chargeDay: undefined
+    })
+
+    const summary = getCreditCardUsageSummary({
+      card,
+      transactions: [],
+      fixedCosts: [],
+      installmentPlans: [installmentPlan],
+      monthKey: "2026-06"
+    })
+
+    expect(summary.used).toBe(546)
+    expect(summary.available).toBe(4454)
+  })
+
   it("nao soma parcelamento encerrado na fatura lancada", () => {
     vi.useFakeTimers()
     try {

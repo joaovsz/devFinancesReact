@@ -4,6 +4,7 @@ import { Transaction } from "../types/transaction"
 type TableProps = {
   searchQuery?: string
   typeFilters?: string[]
+  categoryFilterId?: string
   cardFilterId?: string
   onEditTransaction?: (transaction: Transaction) => void
 }
@@ -11,6 +12,7 @@ type TableProps = {
 export const Table = ({
   searchQuery = "",
   typeFilters = [],
+  categoryFilterId,
   cardFilterId,
   onEditTransaction
 }: TableProps) => {
@@ -28,6 +30,7 @@ export const Table = ({
         <Transactions
           searchQuery={searchQuery}
           typeFilters={typeFilters}
+          categoryFilterId={categoryFilterId}
           cardFilterId={cardFilterId}
           onEditTransaction={onEditTransaction}
         />

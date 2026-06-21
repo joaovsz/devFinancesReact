@@ -10,6 +10,7 @@ import { Transaction } from "../types/transaction"
 import { getCreditCardUsageSummaries } from "../utils/domain/creditCards"
 import { formatCurrencyFromNumber } from "../utils/currency-input"
 import { sortCategoriesByTransactionUsage } from "../utils/categoryUsage"
+import { isTransactionInOperationalMonth } from "../utils/domain/transactions"
 
 export const TransactionsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -23,6 +24,9 @@ export const TransactionsPage = () => {
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilters, setTypeFilters] = useState<string[]>([])
   const [selectedCardId, setSelectedCardId] = useState(searchParams.get("cardId") || "all")
+  const [selectedCategoryId, setSelectedCategoryId] = useState(
+    searchParams.get("categoryId") || "all"
+  )
   const [isGuideOpen, setIsGuideOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const quickAddCreditCardId =
@@ -76,9 +80,20 @@ export const TransactionsPage = () => {
     () => transactions.filter((t) => t.categoryId === "alterar").length,
     [transactions]
   )
+  const operationalMonthTransactions = useMemo(
+    () =>
+      transactions.filter((transaction) =>
+        isTransactionInOperationalMonth({
+          transaction,
+          cards,
+          monthKey: activeMonthKey
+        })
+      ),
+    [transactions, cards, activeMonthKey]
+  )
   const categoriesByUsage = useMemo(
-    () => sortCategoriesByTransactionUsage(defaultCategories, transactions),
-    [transactions]
+    () => sortCategoriesByTransactionUsage(defaultCategories, operationalMonthTransactions),
+    [operationalMonthTransactions]
   )
 
   function toggleTypeFilter(type: string) {
@@ -96,6 +111,17 @@ export const TransactionsPage = () => {
       next.delete("cardId")
     } else {
       next.set("cardId", cardId)
+    }
+    setSearchParams(next, { replace: true })
+  }
+
+  function handleCategoryFilterChange(categoryId: string) {
+    setSelectedCategoryId(categoryId)
+    const next = new URLSearchParams(searchParams)
+    if (categoryId === "all") {
+      next.delete("categoryId")
+    } else {
+      next.set("categoryId", categoryId)
     }
     setSearchParams(next, { replace: true })
   }
@@ -195,8 +221,8 @@ export const TransactionsPage = () => {
                   levam para a tela de Planejamento quando precisam de edição.
                 </li>
                 <li>
-                  • Use busca, filtros por tipo e filtro por cartão para revisar lançamentos
-                  sem mexer nos dados.
+                  • Use busca, filtros por tipo, categoria e cartão para revisar lançamentos
+                  e concentrar o total gasto em cada recorte.
                 </li>
               </ul>
             </motion.div>
@@ -254,6 +280,24 @@ export const TransactionsPage = () => {
         <div className="relative min-w-[220px] sm:max-w-xs">
           <select
             className={selectClassName}
+            value={selectedCategoryId}
+            onChange={(event) => handleCategoryFilterChange(event.target.value)}
+          >
+            <option value="all">Todas as categorias</option>
+            {categoriesByUsage.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={16}
+            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500"
+          />
+        </div>
+        <div className="relative min-w-[220px] sm:max-w-xs">
+          <select
+            className={selectClassName}
             value={selectedCardId}
             onChange={(event) => handleCardFilterChange(event.target.value)}
           >
@@ -306,6 +350,7 @@ export const TransactionsPage = () => {
         <Table
           searchQuery={searchQuery}
           typeFilters={typeFilters}
+          categoryFilterId={selectedCategoryId === "all" ? undefined : selectedCategoryId}
           cardFilterId={selectedCardId === "all" ? undefined : selectedCardId}
           onEditTransaction={handleEditTransaction}
         />
