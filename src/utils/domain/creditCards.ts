@@ -76,6 +76,7 @@ export function getCreditCardUsageSummary(input: {
 }): CreditCardUsageSummary {
   const { card, transactions, fixedCosts, installmentPlans, monthKey } = input
   const manualInvoiceAmount = getCardManualInvoiceAmount(card, monthKey)
+  const occurrenceMonths = [addMonths(monthKey, -2), addMonths(monthKey, -1), monthKey]
   const transactionUsage = transactions
     .filter(
       (transaction) =>
@@ -111,18 +112,23 @@ export function getCreditCardUsageSummary(input: {
     card,
     mode: "statement"
   })
-  const postedFixedUsage = fixedCosts
-    .filter(
-      (cost) =>
-        cost.paymentMethod === "credit" &&
-        cost.cardId === card.id &&
-        getCreditFixedCostStatementMonth(cost, monthKey, card) === monthKey &&
-        isCreditChargeAlreadyPosted({
-          monthKey,
-          chargeDay: cost.chargeDay
-        })
-    )
-    .reduce((sum, cost) => sum + cost.amount, 0)
+  const postedFixedUsage = occurrenceMonths.reduce((sum, occurrenceMonth) => {
+    const totalForOccurrence = fixedCosts
+      .filter(
+        (cost) =>
+          cost.paymentMethod === "credit" &&
+          cost.cardId === card.id &&
+          isFixedCostActiveForMonth(cost, occurrenceMonth) &&
+          getCreditFixedCostStatementMonth(cost, occurrenceMonth, card) === monthKey &&
+          isCreditChargeAlreadyPosted({
+            monthKey: occurrenceMonth,
+            chargeDay: cost.chargeDay
+          })
+      )
+      .reduce((occurrenceTotal, cost) => occurrenceTotal + cost.amount, 0)
+
+    return sum + totalForOccurrence
+  }, 0)
 
   const plannedInstallmentsCurrentMonth = getCreditInstallmentTotalForMonth({
     installmentPlans,
@@ -130,18 +136,23 @@ export function getCreditCardUsageSummary(input: {
     card,
     mode: "statement"
   })
-  const postedInstallmentsCurrentMonth = installmentPlans
-    .filter(
-      (plan) =>
-        plan.paymentMethod === "credit" &&
-        plan.cardId === card.id &&
-        getCreditInstallmentStatementMonth(plan, monthKey, card) === monthKey &&
-        isCreditChargeAlreadyPosted({
-          monthKey,
-          chargeDay: plan.chargeDay
-        })
-    )
-    .reduce((sum, plan) => sum + plan.installmentValue, 0)
+  const postedInstallmentsCurrentMonth = occurrenceMonths.reduce((sum, occurrenceMonth) => {
+    const totalForOccurrence = installmentPlans
+      .filter(
+        (plan) =>
+          plan.paymentMethod === "credit" &&
+          plan.cardId === card.id &&
+          getInstallmentProgress(plan, occurrenceMonth).isActive &&
+          getCreditInstallmentStatementMonth(plan, occurrenceMonth, card) === monthKey &&
+          isCreditChargeAlreadyPosted({
+            monthKey: occurrenceMonth,
+            chargeDay: plan.chargeDay
+          })
+      )
+      .reduce((occurrenceTotal, plan) => occurrenceTotal + plan.installmentValue, 0)
+
+    return sum + totalForOccurrence
+  }, 0)
 
   const plannedInstallmentsLimitUsage = installmentPlans
     .filter((plan) => plan.paymentMethod === "credit" && plan.cardId === card.id)

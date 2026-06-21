@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { CreditCard } from "../../types/card"
 import { FixedCost, InstallmentPlan } from "../../types/planning"
 import { Transaction } from "../../types/transaction"
@@ -200,6 +200,83 @@ describe("creditCards domain", () => {
     expect(summary.available).toBe(800)
     expect(progress.isActive).toBe(true)
     expect(progress.currentInstallment).toBe(3)
+  })
+
+  it("nao soma parcelamento encerrado na fatura lancada", () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date("2026-06-21T12:00:00.000Z"))
+
+      const card = createCard({
+        id: "card-completed-installment",
+        closeDay: 30,
+        dueDay: 10
+      })
+      const activeInstallment = createInstallmentPlan({
+        id: "installment-active",
+        cardId: card.id,
+        startMonth: "2026-05",
+        installmentValue: 117.49,
+        totalInstallments: 4,
+        paidInstallments: 1,
+        chargeDay: undefined
+      })
+      const completedInstallment = createInstallmentPlan({
+        id: "installment-completed",
+        cardId: card.id,
+        startMonth: "2026-01",
+        installmentValue: 367.38,
+        totalInstallments: 5,
+        paidInstallments: 5,
+        chargeDay: undefined
+      })
+
+      const summary = getCreditCardUsageSummary({
+        card,
+        transactions: [],
+        fixedCosts: [],
+        installmentPlans: [activeInstallment, completedInstallment],
+        monthKey: "2026-06"
+      })
+
+      expect(summary.currentInvoice).toBe(117.49)
+      expect(summary.postedInvoice).toBe(117.49)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("nao soma gasto fixo de credito antes do startMonth na fatura lancada", () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date("2026-06-21T12:00:00.000Z"))
+
+      const card = createCard({
+        id: "card-future-fixed",
+        closeDay: 30,
+        dueDay: 10
+      })
+      const futureFixedCost = createFixedCost({
+        id: "fixed-future",
+        cardId: card.id,
+        amount: 250,
+        startMonth: "2026-07",
+        chargeDay: undefined
+      })
+
+      const summary = getCreditCardUsageSummary({
+        card,
+        transactions: [],
+        fixedCosts: [futureFixedCost],
+        installmentPlans: [],
+        monthKey: "2026-06"
+      })
+
+      expect(summary.currentInvoice).toBe(0)
+      expect(summary.postedInvoice).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("mantem parcelamentos antigos sem chargeDay no mes correto via fallback de ciclo", () => {
