@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest"
 import { CreditCard } from "../types/card"
 import { ContractConfig, FixedCost, InstallmentPlan } from "../types/planning"
-import { getCommittedCostsForMonth, getPjProjectedRevenueForMonth } from "./projections"
+import { Transaction } from "../types/transaction"
+import {
+  buildProjectionTimeline,
+  getCommittedCostsForMonth,
+  getPjProjectedRevenueForMonth
+} from "./projections"
 
 function createPjConfig(overrides: Partial<ContractConfig> = {}): ContractConfig {
   return {
@@ -153,5 +158,92 @@ describe("non-credit due month offsets", () => {
         monthKey: "2025-05"
       }).total
     ).toBe(200)
+  })
+})
+
+describe("projection leftovers from historical costs", () => {
+  function expense(
+    id: string,
+    date: string,
+    value: number
+  ): Transaction {
+    return {
+      id,
+      createdAt: `${date}T12:00:00.000Z`,
+      label: id,
+      value,
+      date,
+      type: 2,
+      paymentMethod: "pix",
+      categoryId: "cat",
+      subcategoryId: "sub",
+      tags: []
+    }
+  }
+
+  it("uses projected revenue minus the average costs from the previous 3 months when every month has expenses", () => {
+    const [projection] = buildProjectionTimeline({
+      cards: [],
+      transactions: [
+        expense("jan", "2025-01-10", 900),
+        expense("feb", "2025-02-10", 1200),
+        expense("mar", "2025-03-10", 1500)
+      ],
+      fixedCosts: [
+        {
+          id: "rent",
+          name: "Aluguel",
+          amount: 400,
+          startMonth: "2025-04",
+          categoryId: "home",
+          subcategoryId: "rent",
+          paymentMethod: "pix"
+        }
+      ],
+      installmentPlans: [],
+      targetMonth: "2025-04",
+      monthsForward: 1,
+      projectedRevenueByMonth: {
+        "2025-01": 2500,
+        "2025-02": 3000,
+        "2025-03": 3500,
+        "2025-04": 3000
+      }
+    })
+
+    expect(projection.averageHistoricalCosts).toBe(1200)
+    expect(projection.committedCosts).toBe(1200)
+    expect(projection.projectedLeftover).toBe(1800)
+  })
+
+  it("falls back to planned commitments when one of the previous 3 months has no expenses", () => {
+    const [projection] = buildProjectionTimeline({
+      cards: [],
+      transactions: [
+        expense("jan", "2025-01-10", 900),
+        expense("mar", "2025-03-10", 1500)
+      ],
+      fixedCosts: [
+        {
+          id: "rent",
+          name: "Aluguel",
+          amount: 400,
+          startMonth: "2025-04",
+          categoryId: "home",
+          subcategoryId: "rent",
+          paymentMethod: "pix"
+        }
+      ],
+      installmentPlans: [],
+      targetMonth: "2025-04",
+      monthsForward: 1,
+      projectedRevenueByMonth: {
+        "2025-04": 3000
+      }
+    })
+
+    expect(projection.averageHistoricalCosts).toBeNull()
+    expect(projection.committedCosts).toBe(400)
+    expect(projection.projectedLeftover).toBe(2600)
   })
 })

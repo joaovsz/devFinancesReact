@@ -191,6 +191,8 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
 
   const firstMonth = timeline[0]
   const firstMonthWork = monthlyWorkMetrics[0]
+  const usesHistoricalCostAverage =
+    firstMonth ? firstMonth.averageHistoricalCosts !== null : false
   const projectedYearTotal = useMemo(
     () => timeline.reduce((sum, item) => sum + item.projectedLeftover, 0),
     [timeline]
@@ -434,9 +436,16 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
             value={firstMonth?.projectedLeftover || 0}
             format={formatCurrency}
           />
+          {usesHistoricalCostAverage && (
+            <p className="mt-1 text-xs text-zinc-500">
+              Receita menos a média de gastos dos últimos 3 meses.
+            </p>
+          )}
         </div>
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
-          <div className="text-xs uppercase tracking-wide text-zinc-400">Compromissos (mês)</div>
+          <div className="text-xs uppercase tracking-wide text-zinc-400">
+            {usesHistoricalCostAverage ? "Gastos médios (mês)" : "Compromissos (mês)"}
+          </div>
           <NumberTicker className="mt-1 text-xl font-semibold text-zinc-100" value={firstMonth?.committedCosts || 0} format={formatCurrency} />
         </div>
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">

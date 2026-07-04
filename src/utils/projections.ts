@@ -555,6 +555,18 @@ export function getMonthlyLeftoverFromTransactions(
     }, 0)
 }
 
+export function getExpenseTransactionsTotalForMonth(
+  transactions: Transaction[],
+  targetMonth: string
+) {
+  return transactions
+    .filter(
+      (transaction) =>
+        transaction.type === 2 && dateToMonthKey(transaction.date) === targetMonth
+    )
+    .reduce((total, transaction) => total + transaction.value, 0)
+}
+
 export function getIncomeTransactionsTotalForMonth(
   transactions: Transaction[],
   targetMonth: string
@@ -612,6 +624,43 @@ export function getAverageMonthlyLeftover(
 
   const total = monthlyLeftovers.reduce((sum, value) => sum + value, 0)
   return total / monthlyLeftovers.length
+}
+
+function getAverageMonthlyCostsFromPreviousMonths(input: {
+  cards: CreditCard[]
+  transactions: Transaction[]
+  fixedCosts: FixedCost[]
+  installmentPlans: InstallmentPlan[]
+  targetMonth: string
+  monthsBack?: number
+}) {
+  const monthsBack = input.monthsBack ?? 3
+  const previousMonths = Array.from({ length: monthsBack }).map((_, index) =>
+    addMonths(input.targetMonth, -(index + 1))
+  )
+
+  const allMonthsHaveExpenses = previousMonths.every(
+    (monthKey) => getExpenseTransactionsTotalForMonth(input.transactions, monthKey) > 0
+  )
+
+  if (!allMonthsHaveExpenses) {
+    return null
+  }
+
+  const monthlyCosts = previousMonths.map((monthKey) => {
+    const operational = getOperationalCostsForMonth({
+      cards: input.cards,
+      transactions: input.transactions,
+      fixedCosts: input.fixedCosts,
+      installmentPlans: input.installmentPlans,
+      monthKey
+    })
+
+    return operational.total
+  })
+
+  const total = monthlyCosts.reduce((sum, value) => sum + value, 0)
+  return total / monthlyCosts.length
 }
 
 export function hasTransactionsInMonth(
@@ -815,6 +864,14 @@ export function buildProjectionTimeline(input: {
   projectedRevenueByMonth?: Record<string, number>
 }) {
   const monthsForward = input.monthsForward ?? 12
+  const goalsMonthlyContribution = Math.max(input.goalsMonthlyContribution || 0, 0)
+  const averageHistoricalCosts = getAverageMonthlyCostsFromPreviousMonths({
+    cards: input.cards,
+    transactions: input.transactions,
+    fixedCosts: input.fixedCosts,
+    installmentPlans: input.installmentPlans,
+    targetMonth: input.targetMonth
+  })
 
   let cumulativeBalance = 0
 
@@ -826,7 +883,6 @@ export function buildProjectionTimeline(input: {
       monthKey
     )
     const projectedRevenue = projectedRevenueBase + manualIncomesForMonth
-    const goalsMonthlyContribution = Math.max(input.goalsMonthlyContribution || 0, 0)
     const operational = getOperationalCostsForMonth({
       cards: input.cards,
       transactions: input.transactions,
@@ -837,7 +893,8 @@ export function buildProjectionTimeline(input: {
 
     // Projected leftover should reflect what will remain:
     // projected revenue minus all outflows (cash + credit invoices + goals contribution).
-    const committedCosts = operational.total + goalsMonthlyContribution
+    const committedCosts =
+      (averageHistoricalCosts ?? operational.total) + goalsMonthlyContribution
     const projectedLeftover = projectedRevenue - committedCosts
     cumulativeBalance += projectedLeftover
 
@@ -849,6 +906,7 @@ export function buildProjectionTimeline(input: {
       fixedCostsTotal: operational.fixedCostsTotal,
       installmentsTotal: operational.installmentsTotal,
       goalsMonthlyContribution,
+      averageHistoricalCosts,
       cumulativeBalance
     }
   })
