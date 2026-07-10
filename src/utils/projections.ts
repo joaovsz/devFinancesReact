@@ -52,7 +52,7 @@ export function dateToMonthKey(dateString: string) {
   return `${year}-${month}`
 }
 
-function getDaysInMonth(monthKey: string) {
+export function getDaysInMonth(monthKey: string) {
   const [year, month] = monthKey.split("-").map(Number)
   return new Date(year, month, 0).getDate()
 }
@@ -624,6 +624,54 @@ export function getAverageMonthlyLeftover(
 
   const total = monthlyLeftovers.reduce((sum, value) => sum + value, 0)
   return total / monthlyLeftovers.length
+}
+
+export function getDailySpendPaceProjection(input: {
+  transactions: Transaction[]
+  monthKey: string
+  projectedRevenue: number
+  knownCommittedCosts: number
+}) {
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const daysInMonth = getDaysInMonth(input.monthKey)
+  const daysElapsed = Math.min(getTodayDayOfMonth(), daysInMonth)
+
+  // Fixed costs and installments aren't in `transactions` (they're computed
+  // separately), so this only measures ad-hoc/discretionary spending -
+  // fixed/installment commitments are added back in full via knownCommittedCosts.
+  const discretionaryExpensesSoFar = input.transactions
+    .filter(
+      (transaction) =>
+        transaction.type === 2 &&
+        transaction.date <= todayIso &&
+        dateToMonthKey(transaction.date) === input.monthKey
+    )
+    .reduce((total, transaction) => total + transaction.value, 0)
+
+  // Ad-hoc expenses already entered with a future date in this month (e.g. a
+  // tax payment scheduled for the 20th) are known, not a guess - they're added
+  // on top of the average pace instead of being left out or paced-over.
+  const knownFutureAdHocExpenses = input.transactions
+    .filter(
+      (transaction) =>
+        transaction.type === 2 &&
+        transaction.date > todayIso &&
+        dateToMonthKey(transaction.date) === input.monthKey
+    )
+    .reduce((total, transaction) => total + transaction.value, 0)
+
+  const averageDailyExpense = daysElapsed > 0 ? discretionaryExpensesSoFar / daysElapsed : 0
+  const projectedTotalExpenses = averageDailyExpense * daysInMonth + knownFutureAdHocExpenses
+  const projectedBalance =
+    input.projectedRevenue - input.knownCommittedCosts - projectedTotalExpenses
+
+  return {
+    daysElapsed,
+    daysInMonth,
+    averageDailyExpense,
+    projectedTotalExpenses,
+    projectedBalance
+  }
 }
 
 function getAverageMonthlyCostsFromPreviousMonths(input: {

@@ -16,6 +16,7 @@ import {
   buildProjectionTimeline,
   getCltProjectedRevenueForMonth,
   getCurrentMonthKey,
+  getDailySpendPaceProjection,
   getInstallmentProgress,
   getMonthLabel,
   getPjProjectedRevenueForMonth
@@ -193,6 +194,21 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
   const firstMonthWork = monthlyWorkMetrics[0]
   const usesHistoricalCostAverage =
     firstMonth ? firstMonth.averageHistoricalCosts !== null : false
+  const dailySpendPaceInsight = useMemo(() => {
+    if (targetMonth !== currentMonthKey) {
+      return null
+    }
+
+    return getDailySpendPaceProjection({
+      transactions,
+      monthKey: targetMonth,
+      projectedRevenue: firstMonth?.projectedRevenue || 0,
+      knownCommittedCosts:
+        (firstMonth?.fixedCostsTotal || 0) +
+        (firstMonth?.installmentsTotal || 0) +
+        (firstMonth?.goalsMonthlyContribution || 0)
+    })
+  }, [targetMonth, currentMonthKey, transactions, firstMonth])
   const projectedYearTotal = useMemo(
     () => timeline.reduce((sum, item) => sum + item.projectedLeftover, 0),
     [timeline]
@@ -439,6 +455,20 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
           {usesHistoricalCostAverage && (
             <p className="mt-1 text-xs text-zinc-500">
               Receita menos a média de gastos dos últimos 3 meses.
+            </p>
+          )}
+          {dailySpendPaceInsight && dailySpendPaceInsight.daysElapsed > 0 && (
+            <p className="mt-1 text-[11px] leading-snug text-zinc-500">
+              Gastando {formatCurrency(dailySpendPaceInsight.averageDailyExpense)}/dia, seu saldo no fim do mês
+              será de{" "}
+              <span
+                className={
+                  dailySpendPaceInsight.projectedBalance >= 0 ? "text-emerald-400" : "text-amber-400"
+                }
+              >
+                {formatCurrency(dailySpendPaceInsight.projectedBalance)}
+              </span>
+              .
             </p>
           )}
         </div>
