@@ -86,7 +86,7 @@ export type TransactionStore = {
   clearAllData: () => void
 }
 
-function calculateTotals(input: {
+export function calculateTotals(input: {
   activeMonthKey?: string
   transactions: Transaction[]
   cards: CreditCard[]

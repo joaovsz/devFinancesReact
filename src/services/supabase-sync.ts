@@ -1,8 +1,11 @@
 import { User } from "@supabase/supabase-js"
 import { getSupabaseClient } from "../lib/supabase"
-import { GoalStore } from "../store/useGoalStore"
-import { TransactionStore } from "../store/useTransactionStore"
+import { GoalStore, selectTotalMonthlyContribution } from "../store/useGoalStore"
+import { TransactionStore, calculateTotals } from "../store/useTransactionStore"
 import { useCommerceStore } from "../modules/commerce/store/useCommerceStore"
+import { buildPlannedEntriesForMonth } from "../utils/planningEntries"
+import { getCurrentMonthKey } from "../utils/projections"
+import { getCachedBrazilHolidays } from "./calendar"
 
 export const TRANSACTION_STORAGE_KEY = "devfinances-storage"
 export const GOALS_STORAGE_KEY = "devfinances-goals-storage"
@@ -172,6 +175,49 @@ function buildGoalStateSnapshot(state: GoalStore) {
   }
 }
 
+// "Entradas"/"Saídas"/"Saldo" mostrados no dashboard (Cards.tsx) somam receita/gastos
+// projetados (PJ ou CLT, custos fixos, parcelas, contribuição de metas) em cima das
+// transações reais — sempre para o mês REAL atual (getCurrentMonthKey), nunca o mês
+// que o usuário porventura esteja navegando na tela (activeMonthKey), já que outros
+// consumidores deste snapshot (ex.: o app Android companion) sempre querem "agora".
+// Feriados vêm do cache síncrono em localStorage: se o ano ainda não foi buscado por
+// nenhum componente, o cálculo de receita PJ roda sem feriados (mesmo fallback que a
+// tela já usa antes do fetch assíncrono terminar).
+function buildCurrentMonthSummary(transactionState: TransactionStore, goalState: GoalStore) {
+  const monthKey = getCurrentMonthKey()
+  const year = Number(monthKey.slice(0, 4))
+
+  const rawTotals = calculateTotals({
+    activeMonthKey: monthKey,
+    transactions: transactionState.transactions,
+    cards: transactionState.cards,
+    fixedCosts: transactionState.fixedCosts,
+    installmentPlans: transactionState.installmentPlans
+  })
+
+  const plannedIncomes = buildPlannedEntriesForMonth({
+    monthKey,
+    fixedCosts: transactionState.fixedCosts,
+    installmentPlans: transactionState.installmentPlans,
+    contractConfig: transactionState.contractConfig,
+    holidays: getCachedBrazilHolidays(year)
+  })
+    .filter((entry) => entry.type === 1)
+    .reduce((sum, entry) => sum + entry.value, 0)
+
+  const goalsMonthlyContribution = selectTotalMonthlyContribution(goalState)
+
+  const summaryIncomes = rawTotals.totalIncomes + plannedIncomes
+  const summaryExpenses = rawTotals.totalExpenses + goalsMonthlyContribution
+
+  return {
+    summaryMonthKey: monthKey,
+    summaryIncomes,
+    summaryExpenses,
+    summaryTotal: summaryIncomes - summaryExpenses
+  }
+}
+
 export function buildAppStateSnapshots(input: {
   transactionState: TransactionStore
   goalState: GoalStore
@@ -179,7 +225,10 @@ export function buildAppStateSnapshots(input: {
   const commerceState = useCommerceStore.getState()
   return {
     transactionStorage: {
-      state: buildTransactionStateSnapshot(input.transactionState),
+      state: {
+        ...buildTransactionStateSnapshot(input.transactionState),
+        ...buildCurrentMonthSummary(input.transactionState, input.goalState)
+      },
       version: TRANSACTION_STORAGE_VERSION
     },
     goalsStorage: {

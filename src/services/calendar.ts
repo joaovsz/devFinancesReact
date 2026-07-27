@@ -31,6 +31,13 @@ function writeHolidayCache(year: number, holidays: Holiday[]) {
   }
 }
 
+// Leitura síncrona do cache, sem fetch. Usado onde não dá para esperar uma
+// Promise (ex.: montagem do snapshot de sync, que roda a cada mudança de
+// estado) — se o ano ainda não foi buscado por nenhum componente, retorna [].
+export function getCachedBrazilHolidays(year: number): Holiday[] {
+  return readHolidayCache(year) ?? []
+}
+
 export async function fetchBrazilHolidaysByYear(year: number): Promise<Holiday[]> {
   const cached = readHolidayCache(year)
   if (cached) {
