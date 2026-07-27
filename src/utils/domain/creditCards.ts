@@ -84,7 +84,7 @@ export function getCreditCardUsageSummary(input: {
         transaction.cardId === card.id &&
         (!card.paidThroughMonth ||
           isMonthKeyAfter(
-            getCreditTransactionStatementMonth(transaction.date, card),
+            getCreditTransactionStatementMonth(transaction.date, card, transaction.statementMonth),
             card.paidThroughMonth
           ))
     )
@@ -96,10 +96,11 @@ export function getCreditCardUsageSummary(input: {
         transaction.type === 2 &&
         transaction.paymentMethod === "credit" &&
         transaction.cardId === card.id &&
-        getCreditTransactionStatementMonth(transaction.date, card) === monthKey &&
+        getCreditTransactionStatementMonth(transaction.date, card, transaction.statementMonth) ===
+          monthKey &&
         (!card.paidThroughMonth ||
           isMonthKeyAfter(
-            getCreditTransactionStatementMonth(transaction.date, card),
+            getCreditTransactionStatementMonth(transaction.date, card, transaction.statementMonth),
             card.paidThroughMonth
           ))
     )
@@ -214,7 +215,11 @@ export function getCreditCardInvoiceTransactions(input: {
         transaction.type === 2 &&
         transaction.paymentMethod === "credit" &&
         transaction.cardId === input.card.id &&
-        getCreditTransactionStatementMonth(transaction.date, input.card) === input.monthKey
+        getCreditTransactionStatementMonth(
+          transaction.date,
+          input.card,
+          transaction.statementMonth
+        ) === input.monthKey
     )
     .sort((left, right) => right.date.localeCompare(left.date))
 }

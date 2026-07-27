@@ -43,6 +43,14 @@ export function isCardInvoicePaidForMonth(card: CreditCard, monthKey: string) {
   return isMonthKeyOnOrBefore(monthKey, card.paidThroughMonth)
 }
 
+// Custos fixos de credito sem startMonth sao "ativos desde sempre"; limitamos o
+// congelamento retroativo de fatura a esta janela para evitar iteracao ilimitada.
+export const CREDIT_STATEMENT_BACKFILL_MONTHS = 36
+
+export function isValidMonthKey(value?: string): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}$/.test(value)
+}
+
 export function dateToMonthKey(dateString: string) {
   if (!dateString) {
     return getCurrentMonthKey()
@@ -230,7 +238,15 @@ export function getPjProjectedRevenueForMonth(input: {
   }).projectedRevenue
 }
 
-export function getCreditTransactionDueMonth(transactionDate: string, card: CreditCard) {
+export function getCreditTransactionDueMonth(
+  transactionDate: string,
+  card: CreditCard,
+  frozenStatementMonth?: string
+) {
+  if (isValidMonthKey(frozenStatementMonth)) {
+    return addMonths(frozenStatementMonth, 1)
+  }
+
   const closingMonth = getCreditTransactionClosingMonth(transactionDate, card)
   if (!closingMonth) {
     return dateToMonthKey(transactionDate)
@@ -253,7 +269,15 @@ function getCreditTransactionClosingMonth(transactionDate: string, card: CreditC
 
 // Mes operacional da fatura mostrado no dashboard. A fatura e nomeada pelo mes
 // anterior ao vencimento: compra 15/05 no ciclo que vence em 06 => fatura 05.
-export function getCreditTransactionStatementMonth(transactionDate: string, card: CreditCard) {
+export function getCreditTransactionStatementMonth(
+  transactionDate: string,
+  card: CreditCard,
+  frozenStatementMonth?: string
+) {
+  if (isValidMonthKey(frozenStatementMonth)) {
+    return frozenStatementMonth
+  }
+
   return addMonths(getCreditTransactionDueMonth(transactionDate, card), -1)
 }
 
@@ -264,7 +288,8 @@ export function getCreditFixedCostStatementMonth(
 ) {
   return getCreditTransactionStatementMonth(
     getMonthDateFromDay(occurrenceMonth, getCreditFixedCostChargeDay(cost, card)),
-    card
+    card,
+    cost.statementMonthByOccurrence?.[occurrenceMonth]
   )
 }
 
@@ -275,11 +300,12 @@ export function getCreditFixedCostDueMonth(
 ) {
   return getCreditTransactionDueMonth(
     getMonthDateFromDay(occurrenceMonth, getCreditFixedCostChargeDay(cost, card)),
-    card
+    card,
+    cost.statementMonthByOccurrence?.[occurrenceMonth]
   )
 }
 
-function getCreditFixedCostChargeDay(cost: FixedCost, card: CreditCard) {
+export function getCreditFixedCostChargeDay(cost: FixedCost, card: CreditCard) {
   const chargeDay = sanitizeChargeDay(cost.chargeDay)
   if (chargeDay) {
     return chargeDay
@@ -332,7 +358,8 @@ export function getCreditInstallmentStatementMonth(
 ) {
   return getCreditTransactionStatementMonth(
     getMonthDateFromDay(occurrenceMonth, getCreditInstallmentChargeDay(plan, card)),
-    card
+    card,
+    plan.statementMonthByOccurrence?.[occurrenceMonth]
   )
 }
 
@@ -343,11 +370,12 @@ export function getCreditInstallmentDueMonth(
 ) {
   return getCreditTransactionDueMonth(
     getMonthDateFromDay(occurrenceMonth, getCreditInstallmentChargeDay(plan, card)),
-    card
+    card,
+    plan.statementMonthByOccurrence?.[occurrenceMonth]
   )
 }
 
-function getCreditInstallmentChargeDay(plan: InstallmentPlan, card: CreditCard) {
+export function getCreditInstallmentChargeDay(plan: InstallmentPlan, card: CreditCard) {
   const chargeDay = sanitizeChargeDay(plan.chargeDay)
   if (chargeDay) {
     return chargeDay
@@ -360,6 +388,96 @@ function getCreditInstallmentChargeDay(plan: InstallmentPlan, card: CreditCard) 
 
 function getLegacyCreditCycleChargeDay(card: CreditCard) {
   return card.dueDay > card.closeDay ? card.closeDay + 1 : card.closeDay
+}
+
+// Congela o mes de fatura de uma transacao de credito no closeDay/dueDay vigentes.
+// Uma vez congelado, editar o cartao depois nao reclassifica mais essa transacao.
+export function freezeCreditTransactionStatementMonth(
+  transaction: Transaction,
+  card: CreditCard
+): Transaction {
+  if (transaction.paymentMethod !== "credit" || transaction.cardId !== card.id) {
+    return transaction
+  }
+
+  if (isValidMonthKey(transaction.statementMonth)) {
+    return transaction
+  }
+
+  return {
+    ...transaction,
+    statementMonth: getCreditTransactionStatementMonth(transaction.date, card)
+  }
+}
+
+// Congela, por mes de ocorrencia, o mes de fatura de custos fixos de credito ja
+// postados (isCreditChargeAlreadyPosted). Ocorrencias futuras ficam de fora de
+// proposito: continuam dinamicas ate postarem, para refletir edicoes do cartao.
+export function freezeCreditFixedCostStatementMonths(
+  cost: FixedCost,
+  card: CreditCard,
+  referenceMonthKey: string = getCurrentMonthKey()
+): FixedCost {
+  if (cost.paymentMethod !== "credit" || cost.cardId !== card.id) {
+    return cost
+  }
+
+  const earliestMonth =
+    cost.startMonth || addMonths(referenceMonthKey, -CREDIT_STATEMENT_BACKFILL_MONTHS)
+  const statementMonthByOccurrence = { ...(cost.statementMonthByOccurrence || {}) }
+  const chargeDay = getCreditFixedCostChargeDay(cost, card)
+
+  let occurrenceMonth = earliestMonth
+  while (!isMonthKeyAfter(occurrenceMonth, referenceMonthKey)) {
+    if (
+      isFixedCostActiveForMonth(cost, occurrenceMonth) &&
+      !isValidMonthKey(statementMonthByOccurrence[occurrenceMonth]) &&
+      isCreditChargeAlreadyPosted({ monthKey: occurrenceMonth, chargeDay, referenceMonthKey })
+    ) {
+      statementMonthByOccurrence[occurrenceMonth] = getCreditTransactionStatementMonth(
+        getMonthDateFromDay(occurrenceMonth, chargeDay),
+        card
+      )
+    }
+    occurrenceMonth = addMonths(occurrenceMonth, 1)
+  }
+
+  return { ...cost, statementMonthByOccurrence }
+}
+
+// Mesma logica de freezeCreditFixedCostStatementMonths, mas limitada ao intervalo
+// real do parcelamento (startMonth .. startMonth + totalInstallments - 1).
+export function freezeCreditInstallmentStatementMonths(
+  plan: InstallmentPlan,
+  card: CreditCard,
+  referenceMonthKey: string = getCurrentMonthKey()
+): InstallmentPlan {
+  if (plan.paymentMethod !== "credit" || plan.cardId !== card.id) {
+    return plan
+  }
+
+  const lastOccurrenceMonth = addMonths(plan.startMonth, plan.totalInstallments - 1)
+  const statementMonthByOccurrence = { ...(plan.statementMonthByOccurrence || {}) }
+  const chargeDay = getCreditInstallmentChargeDay(plan, card)
+
+  let occurrenceMonth = plan.startMonth
+  while (
+    !isMonthKeyAfter(occurrenceMonth, referenceMonthKey) &&
+    !isMonthKeyAfter(occurrenceMonth, lastOccurrenceMonth)
+  ) {
+    if (
+      !isValidMonthKey(statementMonthByOccurrence[occurrenceMonth]) &&
+      isCreditChargeAlreadyPosted({ monthKey: occurrenceMonth, chargeDay, referenceMonthKey })
+    ) {
+      statementMonthByOccurrence[occurrenceMonth] = getCreditTransactionStatementMonth(
+        getMonthDateFromDay(occurrenceMonth, chargeDay),
+        card
+      )
+    }
+    occurrenceMonth = addMonths(occurrenceMonth, 1)
+  }
+
+  return { ...plan, statementMonthByOccurrence }
 }
 
 export function getCreditInstallmentTotalForMonth(input: {
@@ -789,7 +907,8 @@ export function getCommittedCostsForMonth(input: {
           transaction.type === 2 &&
           transaction.paymentMethod === "credit" &&
           transaction.cardId === card.id &&
-          getCreditTransactionDueMonth(transaction.date, card) === input.monthKey
+          getCreditTransactionDueMonth(transaction.date, card, transaction.statementMonth) ===
+            input.monthKey
       )
       .reduce((total, transaction) => total + transaction.value, 0)
 
@@ -875,7 +994,7 @@ export function getOperationalCostsForMonth(input: {
 
       const card = (input.cards || []).find((item) => item.id === transaction.cardId)
       const transactionMonth = card
-        ? getCreditTransactionStatementMonth(transaction.date, card)
+        ? getCreditTransactionStatementMonth(transaction.date, card, transaction.statementMonth)
         : dateToMonthKey(transaction.date)
 
       return transactionMonth === input.monthKey

@@ -21,7 +21,7 @@ export function isTransactionInOperationalMonth(input: {
 
   const card = cards.find((item) => item.id === transaction.cardId)
   const transactionMonth = card
-    ? getCreditTransactionStatementMonth(transaction.date, card)
+    ? getCreditTransactionStatementMonth(transaction.date, card, transaction.statementMonth)
     : dateToMonthKey(transaction.date)
 
   return transactionMonth === monthKey

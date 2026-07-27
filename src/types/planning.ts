@@ -12,6 +12,7 @@ export type FixedCost = {
   subcategoryId: string
   paymentMethod: PaymentMethod
   cardId?: string
+  statementMonthByOccurrence?: Record<string, string>
 }
 
 export type InstallmentPlan = {
@@ -25,6 +26,7 @@ export type InstallmentPlan = {
   chargeDay?: number
   paymentMethod: PaymentMethod
   cardId?: string
+  statementMonthByOccurrence?: Record<string, string>
 }
 
 export type ContractConfig = {

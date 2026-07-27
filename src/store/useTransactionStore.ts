@@ -27,8 +27,12 @@ import {
   getInstallmentProgress,
   getOperationalCostsForMonth,
   isMonthKeyAfter,
+  isValidMonthKey,
   sanitizeDueOffsetMonths,
-  sanitizeChargeDay
+  sanitizeChargeDay,
+  freezeCreditTransactionStatementMonth,
+  freezeCreditFixedCostStatementMonths,
+  freezeCreditInstallmentStatementMonths
 } from "../utils/projections"
 
 export type TransactionStore = {
@@ -194,6 +198,21 @@ function normalizePaidThroughMonth(value?: string) {
   return undefined
 }
 
+function sanitizeStatementMonthByOccurrence(value?: Record<string, string>) {
+  if (!value || typeof value !== "object") {
+    return undefined
+  }
+
+  const entries = Object.entries(value).filter(
+    ([occurrenceMonth, statementMonth]) =>
+      /^\d{4}-\d{2}$/.test(occurrenceMonth) &&
+      typeof statementMonth === "string" &&
+      /^\d{4}-\d{2}$/.test(statementMonth)
+  )
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+}
+
 function sanitizeManualInvoiceByMonth(value?: Record<string, number>) {
   if (!value || typeof value !== "object") {
     return undefined
@@ -285,7 +304,11 @@ function sanitizeInstallmentPlan(plan: InstallmentPlan): InstallmentPlan {
     paidInstallments,
     dueOffsetMonths:
       plan.paymentMethod === "credit" ? undefined : sanitizeDueOffsetMonths(plan.dueOffsetMonths),
-    chargeDay: sanitizeChargeDay(plan.chargeDay)
+    chargeDay: sanitizeChargeDay(plan.chargeDay),
+    statementMonthByOccurrence:
+      plan.paymentMethod === "credit"
+        ? sanitizeStatementMonthByOccurrence(plan.statementMonthByOccurrence)
+        : undefined
   }
 }
 
@@ -299,7 +322,11 @@ function sanitizeFixedCost(cost: FixedCost): FixedCost {
     dueOffsetMonths:
       cost.paymentMethod === "credit" ? undefined : sanitizeDueOffsetMonths(cost.dueOffsetMonths),
     dueDay: cost.paymentMethod === "credit" ? undefined : sanitizeChargeDay(cost.dueDay),
-    chargeDay: cost.paymentMethod === "credit" ? sanitizeChargeDay(cost.chargeDay) : undefined
+    chargeDay: cost.paymentMethod === "credit" ? sanitizeChargeDay(cost.chargeDay) : undefined,
+    statementMonthByOccurrence:
+      cost.paymentMethod === "credit"
+        ? sanitizeStatementMonthByOccurrence(cost.statementMonthByOccurrence)
+        : undefined
   }
 }
 
@@ -374,7 +401,11 @@ function sanitizeTransaction(transaction: Transaction, index = 0): Transaction {
   return {
     ...transaction,
     createdAt,
-    tags: Array.isArray(transaction.tags) ? transaction.tags : []
+    tags: Array.isArray(transaction.tags) ? transaction.tags : [],
+    statementMonth:
+      transaction.paymentMethod === "credit" && isValidMonthKey(transaction.statementMonth)
+        ? transaction.statementMonth
+        : undefined
   }
 }
 
@@ -754,19 +785,44 @@ export const useTransactionStore = create<TransactionStore>()(
         }),
       updateCard: (card) =>
         set((state) => {
-          const cards = state.cards.map((currentCard) =>
-            currentCard.id === card.id
-              ? sanitizeCard(card, currentCard)
-              : currentCard
+          const currentCard = state.cards.find((item) => item.id === card.id)
+          const cycleChanged = Boolean(
+            currentCard &&
+              (currentCard.closeDay !== card.closeDay || currentCard.dueDay !== card.dueDay)
+          )
+
+          // Congela faturas ja postadas no ciclo antigo antes de trocar closeDay/dueDay,
+          // para que a edicao afete apenas lancamentos que ainda nao postaram.
+          const transactions = cycleChanged
+            ? state.transactions.map((transaction) =>
+                freezeCreditTransactionStatementMonth(transaction, currentCard!)
+              )
+            : state.transactions
+          const fixedCosts = cycleChanged
+            ? state.fixedCosts.map((cost) =>
+                freezeCreditFixedCostStatementMonths(cost, currentCard!)
+              )
+            : state.fixedCosts
+          const installmentPlans = cycleChanged
+            ? state.installmentPlans.map((plan) =>
+                freezeCreditInstallmentStatementMonths(plan, currentCard!)
+              )
+            : state.installmentPlans
+
+          const cards = state.cards.map((item) =>
+            item.id === card.id ? sanitizeCard(card, currentCard) : item
           )
           return {
             cards,
+            transactions,
+            fixedCosts,
+            installmentPlans,
             ...calculateTotals({
               activeMonthKey: state.activeMonthKey,
-              transactions: state.transactions,
+              transactions,
               cards,
-              fixedCosts: state.fixedCosts,
-              installmentPlans: state.installmentPlans
+              fixedCosts,
+              installmentPlans
             })
           }
         }),
@@ -804,7 +860,14 @@ export const useTransactionStore = create<TransactionStore>()(
         }),
       addTransaction: (transaction) =>
         set((state) => {
-          const transactions = [...state.transactions, sanitizeTransaction(transaction, state.transactions.length)]
+          const sanitized = sanitizeTransaction(transaction, state.transactions.length)
+          const card = sanitized.cardId
+            ? state.cards.find((item) => item.id === sanitized.cardId)
+            : undefined
+          const withStatementMonth = card
+            ? freezeCreditTransactionStatementMonth(sanitized, card)
+            : sanitized
+          const transactions = [...state.transactions, withStatementMonth]
           return {
             transactions,
             ...calculateTotals({
@@ -818,17 +881,35 @@ export const useTransactionStore = create<TransactionStore>()(
         }),
       updateTransaction: (transaction) =>
         set((state) => {
-          const transactions = state.transactions.map((currentTransaction) =>
-            currentTransaction.id === transaction.id
-              ? sanitizeTransaction(
-                  {
-                    ...transaction,
-                    createdAt: transaction.createdAt || currentTransaction.createdAt
-                  },
-                  0
-                )
-              : currentTransaction
-          )
+          const transactions = state.transactions.map((currentTransaction) => {
+            if (currentTransaction.id !== transaction.id) {
+              return currentTransaction
+            }
+
+            const merged = sanitizeTransaction(
+              {
+                ...transaction,
+                createdAt: transaction.createdAt || currentTransaction.createdAt
+              },
+              0
+            )
+
+            // So reclassifica a fatura quando data/cartao/forma de pagamento mudam.
+            // Editar so label/categoria preserva o statementMonth ja congelado.
+            const classificationChanged =
+              merged.date !== currentTransaction.date ||
+              merged.cardId !== currentTransaction.cardId ||
+              merged.paymentMethod !== currentTransaction.paymentMethod
+
+            if (!classificationChanged) {
+              return { ...merged, statementMonth: currentTransaction.statementMonth }
+            }
+
+            const card = merged.cardId
+              ? state.cards.find((item) => item.id === merged.cardId)
+              : undefined
+            return card ? freezeCreditTransactionStatementMonth(merged, card) : merged
+          })
           return {
             transactions,
             ...calculateTotals({
@@ -1165,7 +1246,7 @@ export const useTransactionStore = create<TransactionStore>()(
     }),
     {
       name: "devfinances-storage",
-      version: 34,
+      version: 35,
       storage: createJSONStorage(() => localStorage),
       migrate: (persistedState, version) => {
         if (!persistedState || typeof persistedState !== "object") {
@@ -1769,6 +1850,38 @@ export const useTransactionStore = create<TransactionStore>()(
             transactions: (state.transactions || []).map((transaction, index) =>
               sanitizeTransaction(transaction, index)
             )
+          }
+        }
+
+        if (version < 35) {
+          const state = persistedState as TransactionStore
+          const cards = (state.cards || []).map((card) => sanitizeCard(card))
+          let transactions = state.transactions || []
+          let fixedCosts = (state.fixedCosts || []).map((cost) => sanitizeFixedCost(cost))
+          let installmentPlans = (state.installmentPlans || []).map((plan) =>
+            sanitizeInstallmentPlan(plan)
+          )
+
+          // Congela, com o closeDay/dueDay atual de cada cartao, a fatura de todos
+          // os lancamentos ja postados que nunca tiveram um mes de fatura congelado.
+          cards.forEach((card) => {
+            transactions = transactions.map((transaction) =>
+              freezeCreditTransactionStatementMonth(transaction, card)
+            )
+            fixedCosts = fixedCosts.map((cost) =>
+              freezeCreditFixedCostStatementMonths(cost, card)
+            )
+            installmentPlans = installmentPlans.map((plan) =>
+              freezeCreditInstallmentStatementMonths(plan, card)
+            )
+          })
+
+          return {
+            ...state,
+            cards,
+            transactions,
+            fixedCosts,
+            installmentPlans
           }
         }
 

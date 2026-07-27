@@ -98,7 +98,11 @@ export function getCreditCardInvoiceOperationalTotalForMonth(input: {
         transaction.type === 2 &&
         transaction.paymentMethod === "credit" &&
         transaction.cardId === input.card.id &&
-        getCreditTransactionStatementMonth(transaction.date, input.card) === input.monthKey
+        getCreditTransactionStatementMonth(
+          transaction.date,
+          input.card,
+          transaction.statementMonth
+        ) === input.monthKey
     )
     .reduce((total, transaction) => total + transaction.value, 0)
 

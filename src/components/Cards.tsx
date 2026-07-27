@@ -1133,6 +1133,10 @@ export const Cards = () => {
                         </select>
                       </label>
                     </div>
+                    <p className="text-[10px] leading-snug text-zinc-500">
+                      Alterar o dia de fechamento ou vencimento afeta apenas novos lançamentos.
+                      Faturas já lançadas não são recalculadas.
+                    </p>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         className="inline-flex items-center justify-center rounded-xl border border-red-500/60 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/25"
