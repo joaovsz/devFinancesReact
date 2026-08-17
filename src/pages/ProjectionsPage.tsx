@@ -1,5 +1,5 @@
 import { SelectHTMLAttributes, useEffect, useMemo, useState } from "react"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Settings2, X } from "lucide-react"
 import ReactEChartsCore from "echarts-for-react/lib/core"
 import type { EChartsOption } from "echarts"
 import { echarts } from "../utils/echarts"
@@ -41,6 +41,34 @@ type ProjectionsPageProps = {
   embedded?: boolean
 }
 
+const OUTLIER_CAP_STORAGE_KEY = "devfinances-daily-pace-outlier-cap"
+
+type OutlierCapSettings = {
+  enabled: boolean
+  value: number
+}
+
+function loadOutlierCapSettings(): OutlierCapSettings {
+  if (typeof window === "undefined") {
+    return { enabled: false, value: 0 }
+  }
+
+  try {
+    const raw = window.localStorage.getItem(OUTLIER_CAP_STORAGE_KEY)
+    if (!raw) {
+      return { enabled: false, value: 0 }
+    }
+
+    const parsed = JSON.parse(raw)
+    return {
+      enabled: Boolean(parsed.enabled),
+      value: Number(parsed.value) || 0
+    }
+  } catch {
+    return { enabled: false, value: 0 }
+  }
+}
+
 export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
   const cards = useTransactionStore((state) => state.cards)
   const transactions = useTransactionStore((state) => state.transactions)
@@ -55,6 +83,17 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
   const [isMobile, setIsMobile] = useState(false)
   const [holidaysByYear, setHolidaysByYear] = useState<Record<number, string[]>>({})
   const [calendarError, setCalendarError] = useState("")
+  const [outlierCap, setOutlierCap] = useState<OutlierCapSettings>(() => loadOutlierCapSettings())
+  const [isOutlierModalOpen, setIsOutlierModalOpen] = useState(false)
+  const [outlierValueDraft, setOutlierValueDraft] = useState("")
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    window.localStorage.setItem(OUTLIER_CAP_STORAGE_KEY, JSON.stringify(outlierCap))
+  }, [outlierCap])
 
   const monthKeys = useMemo(
     () => Array.from({ length: 12 }).map((_, index) => addMonths(targetMonth, index)),
@@ -206,9 +245,10 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
       knownCommittedCosts:
         (firstMonth?.fixedCostsTotal || 0) +
         (firstMonth?.installmentsTotal || 0) +
-        (firstMonth?.goalsMonthlyContribution || 0)
+        (firstMonth?.goalsMonthlyContribution || 0),
+      outlierCapValue: outlierCap.enabled ? outlierCap.value : null
     })
-  }, [targetMonth, currentMonthKey, transactions, firstMonth])
+  }, [targetMonth, currentMonthKey, transactions, firstMonth, outlierCap])
   const projectedYearTotal = useMemo(
     () => timeline.reduce((sum, item) => sum + item.projectedLeftover, 0),
     [timeline]
@@ -444,7 +484,27 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
 
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
-          <div className="text-xs uppercase tracking-wide text-zinc-400">Sobra do mês (estimada)</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs uppercase tracking-wide text-zinc-400">Sobra do mês (estimada)</div>
+            {targetMonth === currentMonthKey && (
+              <button
+                type="button"
+                onClick={() => {
+                  setOutlierValueDraft(outlierCap.value ? String(outlierCap.value) : "")
+                  setIsOutlierModalOpen(true)
+                }}
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition ${
+                  outlierCap.enabled
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                    : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-zinc-200"
+                }`}
+                title="Ajustar cálculo de sobra por gasto diário"
+              >
+                <Settings2 size={11} />
+                Limite de gasto
+              </button>
+            )}
+          </div>
           <NumberTicker
             className={`mt-1 text-xl font-semibold ${
               (firstMonth?.projectedLeftover || 0) >= 0 ? "text-emerald-300" : "text-amber-300"
@@ -468,6 +528,15 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
               >
                 {formatCurrency(dailySpendPaceInsight.projectedBalance)}
               </span>
+              {outlierCap.enabled && dailySpendPaceInsight.outlierExpensesCount > 0 && (
+                <>
+                  {" "}
+                  (excluindo {dailySpendPaceInsight.outlierExpensesCount === 1
+                    ? "1 gasto pontual"
+                    : `${dailySpendPaceInsight.outlierExpensesCount} gastos pontuais`}{" "}
+                  acima de {formatCurrency(outlierCap.value)} da média diária, mas descontado do saldo)
+                </>
+              )}
               .
             </p>
           )}
@@ -651,6 +720,98 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
           </div>
         )}
       </div>
+
+      {isOutlierModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setIsOutlierModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-4 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-zinc-100">Sobra por gasto diário</h3>
+              <button
+                type="button"
+                onClick={() => setIsOutlierModalOpen(false)}
+                className="rounded-lg p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="text-xs leading-snug text-zinc-400">
+              Compras pontuais e não recorrentes (aluguel, uma compra grande) podem inflar sua média
+              de gasto diário e distorcer a projeção de sobra do mês. Ative essa opção e informe um
+              valor de limite: qualquer transação igual ou acima dele é ignorada no cálculo da
+              média diária, mas continua sendo descontada do saldo final normalmente.
+            </p>
+
+            <label className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5">
+              <span className="text-sm text-zinc-200">Ativar limite de gasto</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={outlierCap.enabled}
+                onClick={() =>
+                  setOutlierCap((current) => ({ ...current, enabled: !current.enabled }))
+                }
+                className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+                  outlierCap.enabled ? "bg-emerald-500" : "bg-zinc-700"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition ${
+                    outlierCap.enabled ? "left-5" : "left-0.5"
+                  }`}
+                />
+              </button>
+            </label>
+
+            <div className="mt-3">
+              <label className="mb-1 block text-xs text-zinc-400">
+                Considerar como gasto pontual a partir de
+              </label>
+              <input
+                type="number"
+                min={0}
+                step="1"
+                inputMode="decimal"
+                disabled={!outlierCap.enabled}
+                value={outlierValueDraft}
+                onChange={(event) => setOutlierValueDraft(event.target.value)}
+                placeholder="Ex.: 500"
+                className="h-10 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 disabled:opacity-50"
+              />
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsOutlierModalOpen(false)}
+                className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 transition hover:bg-zinc-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const parsedValue = Number(outlierValueDraft.replace(",", "."))
+                  setOutlierCap((current) => ({
+                    enabled: current.enabled,
+                    value: Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 0
+                  }))
+                  setIsOutlierModalOpen(false)
+                }}
+                className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-zinc-950 transition hover:bg-emerald-400"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

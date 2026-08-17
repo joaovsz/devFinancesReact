@@ -749,21 +749,35 @@ export function getDailySpendPaceProjection(input: {
   monthKey: string
   projectedRevenue: number
   knownCommittedCosts: number
+  outlierCapValue?: number | null
 }) {
   const todayIso = new Date().toISOString().slice(0, 10)
   const daysInMonth = getDaysInMonth(input.monthKey)
   const daysElapsed = Math.min(getTodayDayOfMonth(), daysInMonth)
+  const outlierCapValue =
+    input.outlierCapValue != null && input.outlierCapValue > 0 ? input.outlierCapValue : null
+
+  const pastExpenses = input.transactions.filter(
+    (transaction) =>
+      transaction.type === 2 &&
+      transaction.date <= todayIso &&
+      dateToMonthKey(transaction.date) === input.monthKey
+  )
+
+  // A one-off expense above the configured cap (e.g. an annual insurance
+  // payment) skews the daily average up for the rest of the month even though
+  // it won't repeat - it's excluded from the pace calculation but still
+  // subtracted from the balance in full below, since the money was spent.
+  const outlierExpenses = outlierCapValue
+    ? pastExpenses.filter((transaction) => transaction.value >= outlierCapValue)
+    : []
+  const outlierExpensesTotal = outlierExpenses.reduce((total, transaction) => total + transaction.value, 0)
 
   // Fixed costs and installments aren't in `transactions` (they're computed
   // separately), so this only measures ad-hoc/discretionary spending -
   // fixed/installment commitments are added back in full via knownCommittedCosts.
-  const discretionaryExpensesSoFar = input.transactions
-    .filter(
-      (transaction) =>
-        transaction.type === 2 &&
-        transaction.date <= todayIso &&
-        dateToMonthKey(transaction.date) === input.monthKey
-    )
+  const discretionaryExpensesSoFar = pastExpenses
+    .filter((transaction) => !outlierExpenses.includes(transaction))
     .reduce((total, transaction) => total + transaction.value, 0)
 
   // Ad-hoc expenses already entered with a future date in this month (e.g. a
@@ -779,7 +793,8 @@ export function getDailySpendPaceProjection(input: {
     .reduce((total, transaction) => total + transaction.value, 0)
 
   const averageDailyExpense = daysElapsed > 0 ? discretionaryExpensesSoFar / daysElapsed : 0
-  const projectedTotalExpenses = averageDailyExpense * daysInMonth + knownFutureAdHocExpenses
+  const projectedTotalExpenses =
+    averageDailyExpense * daysInMonth + knownFutureAdHocExpenses + outlierExpensesTotal
   const projectedBalance =
     input.projectedRevenue - input.knownCommittedCosts - projectedTotalExpenses
 
@@ -788,7 +803,9 @@ export function getDailySpendPaceProjection(input: {
     daysInMonth,
     averageDailyExpense,
     projectedTotalExpenses,
-    projectedBalance
+    projectedBalance,
+    outlierExpensesTotal,
+    outlierExpensesCount: outlierExpenses.length
   }
 }
 
