@@ -13,12 +13,17 @@ const dueOffsetInputSchema = z
   .transform((value) => Number(value || 0))
   .pipe(z.number().int().min(0).max(1))
 
+const amountModeSchema = z.enum(["fixed", "percentageOfRevenue"])
+
 export const fixedExpenseSchema = z
   .object({
     id: z.string().min(1),
     name: z.string().trim().min(1, "Nome obrigatório.").max(120),
-    amount: z.number().positive("Valor deve ser maior que zero."),
+    amount: z.number().min(0, "Valor não pode ser negativo."),
+    amountMode: amountModeSchema.optional(),
+    revenuePercentage: z.number().min(0).max(100).optional(),
     startMonth: monthKeySchema.optional(),
+    endMonth: monthKeySchema.optional(),
     dueOffsetMonths: z.number().int().min(0).max(1).optional(),
     dueDay: daySchema.optional(),
     chargeDay: daySchema.optional(),
@@ -35,16 +40,30 @@ export const fixedExpenseSchema = z
         message: "Gastos no crédito exigem um cartão."
       })
     }
+
+    if (cost.amountMode !== "percentageOfRevenue" && cost.amount <= 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["amount"],
+        message: "Valor deve ser maior que zero."
+      })
+    }
+
+    if (cost.amountMode === "percentageOfRevenue" && !cost.revenuePercentage) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["revenuePercentage"],
+        message: "Informe o percentual da receita."
+      })
+    }
   })
 
 export const fixedExpenseFormSchema = z
   .object({
     name: z.string().trim().min(1, "Nome obrigatório.").max(120),
-    amount: z
-      .string()
-      .min(1, "Informe o valor.")
-      .refine((value) => parseCurrencyInput(value) > 0, "Valor deve ser maior que zero.")
-      .transform(parseCurrencyInput),
+    amount: z.string().default(""),
+    amountMode: amountModeSchema.default("fixed"),
+    revenuePercentage: z.string().default(""),
     categoryId: z.string().min(1, "Categoria obrigatória."),
     subcategoryId: z.string().min(1, "Subcategoria obrigatória."),
     dueDay: optionalDayInputSchema,
@@ -53,12 +72,33 @@ export const fixedExpenseFormSchema = z
     paymentMethod: paymentMethodSchema,
     cardId: z.string().default("")
   })
+  .transform((cost) => ({
+    ...cost,
+    amount: parseCurrencyInput(cost.amount || "0"),
+    revenuePercentage: Number(cost.revenuePercentage.replace(",", ".")) || 0
+  }))
   .superRefine((cost, ctx) => {
     if (cost.paymentMethod === "credit" && !cost.cardId) {
       ctx.addIssue({
         code: "custom",
         path: ["cardId"],
         message: "Gastos no crédito exigem um cartão."
+      })
+    }
+
+    if (cost.amountMode === "fixed" && cost.amount <= 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["amount"],
+        message: "Valor deve ser maior que zero."
+      })
+    }
+
+    if (cost.amountMode === "percentageOfRevenue" && cost.revenuePercentage <= 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["revenuePercentage"],
+        message: "Informe o percentual da receita."
       })
     }
   })

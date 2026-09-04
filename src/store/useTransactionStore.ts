@@ -24,8 +24,11 @@ import {
   getCardManualInvoiceAmount,
   getCurrentMonthKey,
   getCommittedCostsForMonth,
+  getFixedCostAmountForMonth,
+  getFixedCostRevenueBaseForMonth,
   getInstallmentProgress,
   getOperationalCostsForMonth,
+  isFixedCostActiveForMonth,
   isMonthKeyAfter,
   isValidMonthKey,
   sanitizeDueOffsetMonths,
@@ -63,6 +66,8 @@ export type TransactionStore = {
   addFixedCost: (cost: FixedCost) => void
   updateFixedCost: (cost: FixedCost) => void
   removeFixedCost: (id: string) => void
+  stopFixedCost: (id: string) => void
+  syncPercentageFixedCosts: () => void
   addInstallmentPlan: (plan: InstallmentPlan) => void
   updateInstallmentPlan: (plan: InstallmentPlan) => void
   removeInstallmentPlan: (id: string) => void
@@ -312,13 +317,23 @@ function sanitizeInstallmentPlan(plan: InstallmentPlan): InstallmentPlan {
   }
 }
 
+function sanitizeMonthKey(value?: string) {
+  return typeof value === "string" && /^\d{4}-\d{2}$/.test(value) ? value : undefined
+}
+
 function sanitizeFixedCost(cost: FixedCost): FixedCost {
+  const amountMode = cost.amountMode === "percentageOfRevenue" ? "percentageOfRevenue" : "fixed"
+  const revenuePercentage =
+    amountMode === "percentageOfRevenue" && Number.isFinite(cost.revenuePercentage)
+      ? Math.max(cost.revenuePercentage || 0, 0)
+      : undefined
+
   return {
     ...cost,
-    startMonth:
-      typeof cost.startMonth === "string" && /^\d{4}-\d{2}$/.test(cost.startMonth)
-        ? cost.startMonth
-        : undefined,
+    startMonth: sanitizeMonthKey(cost.startMonth),
+    endMonth: sanitizeMonthKey(cost.endMonth),
+    amountMode: amountMode === "fixed" ? undefined : amountMode,
+    revenuePercentage,
     dueOffsetMonths:
       cost.paymentMethod === "credit" ? undefined : sanitizeDueOffsetMonths(cost.dueOffsetMonths),
     dueDay: cost.paymentMethod === "credit" ? undefined : sanitizeChargeDay(cost.dueDay),
@@ -328,6 +343,45 @@ function sanitizeFixedCost(cost: FixedCost): FixedCost {
         ? sanitizeStatementMonthByOccurrence(cost.statementMonthByOccurrence)
         : undefined
   }
+}
+
+// Percentage-of-revenue fixed costs (e.g. DAS) cache their computed amount in
+// `.amount` so every existing reader of FixedCost.amount stays correct without
+// having to know about revenue percentages. This keeps that cache in sync with
+// the active month's revenue instead of requiring a manual monthly edit.
+function syncPercentageFixedCosts(
+  fixedCosts: FixedCost[],
+  monthKey: string,
+  transactions: Transaction[],
+  contractConfig: ContractConfig
+): FixedCost[] {
+  let changed = false
+
+  const next = fixedCosts.map((cost) => {
+    if (
+      cost.amountMode !== "percentageOfRevenue" ||
+      !cost.revenuePercentage ||
+      !isFixedCostActiveForMonth(cost, monthKey)
+    ) {
+      return cost
+    }
+
+    const revenueBase = getFixedCostRevenueBaseForMonth({
+      transactions,
+      contractConfig,
+      monthKey
+    })
+    const resolvedAmount = getFixedCostAmountForMonth(cost, revenueBase)
+
+    if (Math.abs(resolvedAmount - cost.amount) < 0.005) {
+      return cost
+    }
+
+    changed = true
+    return { ...cost, amount: resolvedAmount }
+  })
+
+  return changed ? next : fixedCosts
 }
 
 function getTodayIsoDate() {
@@ -970,6 +1024,50 @@ export const useTransactionStore = create<TransactionStore>()(
       removeFixedCost: (id) =>
         set((state) => {
           const fixedCosts = state.fixedCosts.filter((cost) => cost.id !== id)
+          return {
+            fixedCosts,
+            ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
+              transactions: state.transactions,
+              cards: state.cards,
+              fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
+        }),
+      // Stops a fixed cost going forward instead of deleting it, so past
+      // months keep showing it in history, totals and category breakdowns.
+      stopFixedCost: (id) =>
+        set((state) => {
+          const monthKey = state.activeMonthKey || getCurrentMonthKey()
+          const fixedCosts = state.fixedCosts.map((cost) =>
+            cost.id === id ? sanitizeFixedCost({ ...cost, endMonth: monthKey }) : cost
+          )
+          return {
+            fixedCosts,
+            ...calculateTotals({
+              activeMonthKey: state.activeMonthKey,
+              transactions: state.transactions,
+              cards: state.cards,
+              fixedCosts,
+              installmentPlans: state.installmentPlans
+            })
+          }
+        }),
+      syncPercentageFixedCosts: () =>
+        set((state) => {
+          const monthKey = state.activeMonthKey || getCurrentMonthKey()
+          const fixedCosts = syncPercentageFixedCosts(
+            state.fixedCosts,
+            monthKey,
+            state.transactions,
+            state.contractConfig
+          )
+
+          if (fixedCosts === state.fixedCosts) {
+            return state
+          }
+
           return {
             fixedCosts,
             ...calculateTotals({

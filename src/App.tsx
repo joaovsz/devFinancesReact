@@ -16,6 +16,7 @@ import { useSupabaseSync } from "./hooks/useSupabaseSync"
 import { CommerceDashboardPage } from "./modules/commerce/pages/CommerceDashboardPage"
 import { canAccessCommerceModule } from "./utils/featureAccess"
 import { clearBootstrapReloadFlag, pullRemoteSnapshotIfNewer } from "./services/supabase-sync"
+import { useTransactionStore } from "./store/useTransactionStore"
 
 export type ColorTheme =
   | "indigo-calm"
@@ -67,6 +68,15 @@ function App() {
     document.documentElement.classList.add(COLOR_THEME_CLASSNAMES[colorTheme])
     localStorage.setItem(COLOR_THEME_STORAGE_KEY, colorTheme)
   }, [colorTheme])
+
+  const syncPercentageFixedCosts = useTransactionStore((state) => state.syncPercentageFixedCosts)
+  const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
+  const transactions = useTransactionStore((state) => state.transactions)
+  const contractConfig = useTransactionStore((state) => state.contractConfig)
+
+  useEffect(() => {
+    syncPercentageFixedCosts()
+  }, [activeMonthKey, transactions, contractConfig, syncPercentageFixedCosts])
 
   const isRemoteAuthEnabled =
     isConfigured && localStorage.getItem(REMOTE_AUTH_STORAGE_KEY) === "true"

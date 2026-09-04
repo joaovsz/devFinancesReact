@@ -5,6 +5,9 @@ export type FixedCost = {
   name: string
   amount: number
   startMonth?: string
+  endMonth?: string
+  amountMode?: "fixed" | "percentageOfRevenue"
+  revenuePercentage?: number
   dueOffsetMonths?: number
   dueDay?: number
   chargeDay?: number

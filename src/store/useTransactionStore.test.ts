@@ -306,3 +306,115 @@ describe("v35 migration backfills frozen statement months", () => {
     }
   })
 })
+
+describe("stopping a fixed cost instead of deleting it", () => {
+  const das: FixedCost = {
+    id: "das",
+    name: "DAS",
+    amount: 100,
+    amountMode: "percentageOfRevenue",
+    revenuePercentage: 9.21,
+    startMonth: "2025-01",
+    categoryId: "impostos-empresa",
+    subcategoryId: "das",
+    paymentMethod: "pix"
+  }
+
+  beforeEach(() => {
+    useTransactionStore.setState({
+      activeMonthKey: "2025-06",
+      bankAccounts: [],
+      cards: [],
+      transactions: [],
+      fixedCosts: [das],
+      installmentPlans: [],
+      paidPlannedItems: {},
+      contractConfig: {
+        incomeMode: "pj",
+        hourlyRate: 100,
+        hoursPerWorkday: 8,
+        cltNetSalary: 0,
+        cltPaydayDate: "2025-06-10",
+        pjPaydayDate: "2025-06-10",
+        incomeStartMonth: "2025-01",
+        localityState: "SP",
+        localityCity: "Sao Paulo",
+        useHolidayApi: false
+      }
+    })
+  })
+
+  it("keeps the fixed cost in state with an endMonth instead of removing it", () => {
+    useTransactionStore.getState().stopFixedCost("das")
+
+    const cost = useTransactionStore.getState().fixedCosts.find((item) => item.id === "das")
+    expect(cost).toBeDefined()
+    expect(cost?.endMonth).toBe("2025-06")
+  })
+
+  it("no longer counts toward totals for months after the stop, but still counts for months up to it", () => {
+    useTransactionStore.getState().stopFixedCost("das")
+
+    const totalExpensesJune = useTransactionStore.getState().totalExpenses
+    expect(totalExpensesJune).toBeGreaterThan(0)
+
+    useTransactionStore.getState().setActiveMonthKey("2025-07")
+    expect(useTransactionStore.getState().totalExpenses).toBe(0)
+  })
+})
+
+describe("syncing percentage-of-revenue fixed costs automatically", () => {
+  const das: FixedCost = {
+    id: "das",
+    name: "DAS",
+    amount: 999,
+    amountMode: "percentageOfRevenue",
+    revenuePercentage: 9.21,
+    startMonth: "2025-01",
+    categoryId: "impostos-empresa",
+    subcategoryId: "das",
+    paymentMethod: "pix"
+  }
+
+  beforeEach(() => {
+    useTransactionStore.setState({
+      activeMonthKey: "2025-06",
+      bankAccounts: [],
+      cards: [],
+      transactions: [],
+      fixedCosts: [das],
+      installmentPlans: [],
+      paidPlannedItems: {},
+      contractConfig: {
+        incomeMode: "pj",
+        hourlyRate: 100,
+        hoursPerWorkday: 8,
+        cltNetSalary: 0,
+        cltPaydayDate: "2025-06-10",
+        pjPaydayDate: "2025-06-10",
+        incomeStartMonth: "2025-01",
+        localityState: "SP",
+        localityCity: "Sao Paulo",
+        useHolidayApi: false
+      }
+    })
+  })
+
+  it("recomputes the cached amount from the current month's projected revenue", () => {
+    useTransactionStore.getState().syncPercentageFixedCosts()
+
+    const cost = useTransactionStore.getState().fixedCosts.find((item) => item.id === "das")
+    expect(cost?.amount).not.toBe(999)
+    expect(cost?.amount).toBeGreaterThan(0)
+  })
+
+  it("does not touch fixed-mode costs", () => {
+    useTransactionStore.setState({
+      fixedCosts: [{ ...das, amountMode: undefined, revenuePercentage: undefined, amount: 250 }]
+    })
+
+    useTransactionStore.getState().syncPercentageFixedCosts()
+
+    expect(useTransactionStore.getState().fixedCosts[0]?.amount).toBe(250)
+  })
+})

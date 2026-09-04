@@ -121,7 +121,9 @@ export function getMonthDateFromDay(monthKey: string, day?: number) {
 }
 
 export function isFixedCostActiveForMonth(cost: FixedCost, monthKey: string) {
-  return !cost.startMonth || !isMonthKeyAfter(cost.startMonth, monthKey)
+  const startedByThisMonth = !cost.startMonth || !isMonthKeyAfter(cost.startMonth, monthKey)
+  const notEndedYet = !cost.endMonth || !isMonthKeyAfter(monthKey, cost.endMonth)
+  return startedByThisMonth && notEndedYet
 }
 
 export function getFixedCostOccurrenceMonthForDueMonth(
@@ -704,6 +706,54 @@ export function getIncomeTransactionsTotalForMonth(
     .reduce((total, transaction) => total + transaction.value, 0)
 }
 
+export function getInvoicedPjRevenueForMonth(transactions: Transaction[], targetMonth: string) {
+  return transactions
+    .filter(
+      (transaction) =>
+        transaction.type === 1 &&
+        transaction.categoryId === "rendas" &&
+        transaction.subcategoryId === "faturamento-pj" &&
+        (transaction.competenceMonth
+          ? transaction.competenceMonth === targetMonth
+          : dateToMonthKey(transaction.date) === targetMonth)
+    )
+    .reduce((total, transaction) => total + transaction.value, 0)
+}
+
+// A percentage-of-revenue fixed cost (e.g. the Brazilian "DAS" tax) is based
+// on actual invoiced PJ revenue once it's logged for the month, falling back
+// to the projected PJ/CLT revenue formula for months with no invoice yet.
+export function getFixedCostRevenueBaseForMonth(input: {
+  transactions: Transaction[]
+  contractConfig: ContractConfig
+  monthKey: string
+  holidays?: Holiday[]
+}) {
+  const invoicedRevenue = getInvoicedPjRevenueForMonth(input.transactions, input.monthKey)
+  if (invoicedRevenue > 0) {
+    return invoicedRevenue
+  }
+
+  return input.contractConfig.incomeMode === "clt"
+    ? getCltProjectedRevenueForMonth(input.contractConfig, input.monthKey)
+    : getPjProjectedRevenueForMonth({
+        contractConfig: input.contractConfig,
+        monthKey: input.monthKey,
+        holidays: input.holidays || []
+      })
+}
+
+export function getFixedCostAmountForMonth(
+  cost: Pick<FixedCost, "amount" | "amountMode" | "revenuePercentage">,
+  revenueBase: number
+) {
+  if (cost.amountMode !== "percentageOfRevenue" || !cost.revenuePercentage) {
+    return cost.amount
+  }
+
+  return Math.round(revenueBase * (cost.revenuePercentage / 100) * 100) / 100
+}
+
 export function getExpectedIncomeForMonth(input: {
   contractConfig: ContractConfig
   transactions: Transaction[]
@@ -1045,6 +1095,138 @@ export function getOperationalCostsForMonth(input: {
   }
 }
 
+// Installments don't carry a categoryId, so they're grouped under this
+// synthetic bucket instead of being dropped from the category breakdown.
+export const INSTALLMENTS_CATEGORY_ID = "__installments__"
+// Manual invoice adjustments also have no category of their own.
+export const MANUAL_ADJUSTMENT_CATEGORY_ID = "__manual_adjustment__"
+
+export function getCategoryBreakdownForMonth(input: {
+  cards?: CreditCard[]
+  transactions?: Transaction[]
+  fixedCosts: FixedCost[]
+  installmentPlans: InstallmentPlan[]
+  monthKey: string
+  contractConfig?: ContractConfig
+}): Record<string, number> {
+  const cards = input.cards || []
+  const transactions = input.transactions || []
+  const contractConfig = input.contractConfig
+  const revenueBaseForMonth = contractConfig
+    ? getFixedCostRevenueBaseForMonth({
+        transactions,
+        contractConfig,
+        monthKey: input.monthKey
+      })
+    : 0
+  const resolveFixedCostAmount = (cost: FixedCost) =>
+    contractConfig ? getFixedCostAmountForMonth(cost, revenueBaseForMonth) : cost.amount
+  const totals: Record<string, number> = {}
+  const add = (categoryId: string, amount: number) => {
+    if (!amount) {
+      return
+    }
+
+    totals[categoryId] = (totals[categoryId] || 0) + amount
+  }
+
+  ;(input.transactions || [])
+    .filter(
+      (transaction) =>
+        transaction.type === 2 &&
+        transaction.paymentMethod !== "credit" &&
+        dateToMonthKey(transaction.date) === input.monthKey
+    )
+    .forEach((transaction) => add(transaction.categoryId, transaction.value))
+
+  ;(input.transactions || [])
+    .filter((transaction) => transaction.type === 2 && transaction.paymentMethod === "credit")
+    .forEach((transaction) => {
+      const card = cards.find((item) => item.id === transaction.cardId)
+      const statementMonth = card
+        ? getCreditTransactionStatementMonth(transaction.date, card, transaction.statementMonth)
+        : dateToMonthKey(transaction.date)
+
+      if (statementMonth === input.monthKey) {
+        add(transaction.categoryId, transaction.value)
+      }
+    })
+
+  input.fixedCosts
+    .filter(
+      (cost) => cost.paymentMethod !== "credit" && isFixedCostActiveForMonth(cost, input.monthKey)
+    )
+    .forEach((cost) => add(cost.categoryId, resolveFixedCostAmount(cost)))
+
+  const occurrenceMonths = [
+    addMonths(input.monthKey, -2),
+    addMonths(input.monthKey, -1),
+    input.monthKey
+  ]
+
+  cards.forEach((card) => {
+    occurrenceMonths.forEach((occurrenceMonth) => {
+      input.fixedCosts
+        .filter(
+          (cost) =>
+            cost.paymentMethod === "credit" &&
+            cost.cardId === card.id &&
+            isFixedCostActiveForMonth(cost, occurrenceMonth) &&
+            getCreditFixedCostStatementMonth(cost, occurrenceMonth, card) === input.monthKey
+        )
+        .forEach((cost) => add(cost.categoryId, cost.amount))
+    })
+  })
+
+  input.installmentPlans
+    .filter(
+      (plan) =>
+        plan.paymentMethod !== "credit" && getInstallmentProgress(plan, input.monthKey).isActive
+    )
+    .forEach((plan) => add(INSTALLMENTS_CATEGORY_ID, plan.installmentValue))
+
+  cards.forEach((card) => {
+    occurrenceMonths.forEach((occurrenceMonth) => {
+      input.installmentPlans
+        .filter(
+          (plan) =>
+            plan.paymentMethod === "credit" &&
+            plan.cardId === card.id &&
+            getInstallmentProgress(plan, occurrenceMonth).isActive &&
+            getCreditInstallmentStatementMonth(plan, occurrenceMonth, card) === input.monthKey
+        )
+        .forEach((plan) => add(INSTALLMENTS_CATEGORY_ID, plan.installmentValue))
+    })
+  })
+
+  cards.forEach((card) => {
+    add(MANUAL_ADJUSTMENT_CATEGORY_ID, getCardManualInvoiceAmount(card, input.monthKey))
+  })
+
+  return totals
+}
+
+export function buildCategorySpendingTimeline(input: {
+  cards: CreditCard[]
+  transactions: Transaction[]
+  fixedCosts: FixedCost[]
+  installmentPlans: InstallmentPlan[]
+  monthKeys: string[]
+  contractConfig?: ContractConfig
+}) {
+  return input.monthKeys.map((monthKey) => ({
+    monthKey,
+    categories: getCategoryBreakdownForMonth({
+      cards: input.cards,
+      transactions: input.transactions,
+      fixedCosts: input.fixedCosts,
+      installmentPlans: input.installmentPlans,
+      monthKey,
+      contractConfig: input.contractConfig
+    })
+  }))
+}
+
 export function buildProjectionTimeline(input: {
   cards: CreditCard[]
   transactions: Transaction[]
@@ -1083,6 +1265,26 @@ export function buildProjectionTimeline(input: {
       monthKey
     })
 
+    // Percentage-of-revenue fixed costs (e.g. DAS) are cached in `.amount` for
+    // whatever month the store last synced them to, so their contribution to
+    // `operational.total` above is stale for every other month in this
+    // 12-month window. Replace it with the amount each month's own revenue
+    // actually implies, so a rising/falling projected revenue is reflected.
+    const invoicedRevenueForMonth = getInvoicedPjRevenueForMonth(input.transactions, monthKey)
+    const revenueBaseForMonth =
+      invoicedRevenueForMonth > 0 ? invoicedRevenueForMonth : projectedRevenueBase
+    const percentageFixedCostsAdjustment = input.fixedCosts
+      .filter(
+        (cost) =>
+          cost.amountMode === "percentageOfRevenue" &&
+          cost.paymentMethod !== "credit" &&
+          isFixedCostActiveForMonth(cost, monthKey)
+      )
+      .reduce(
+        (sum, cost) => sum + (getFixedCostAmountForMonth(cost, revenueBaseForMonth) - cost.amount),
+        0
+      )
+
     // Projected leftover should reflect what will remain:
     // projected revenue minus all outflows (cash + credit invoices + goals contribution).
     // Structural commitments (fixed costs + installments) come from this
@@ -1092,7 +1294,8 @@ export function buildProjectionTimeline(input: {
     const structuralCosts = operational.fixedCostsTotal + operational.installmentsTotal
     const variableCosts =
       averageHistoricalCosts ?? operational.total - structuralCosts
-    const committedCosts = structuralCosts + variableCosts + goalsMonthlyContribution
+    const committedCosts =
+      structuralCosts + variableCosts + goalsMonthlyContribution + percentageFixedCostsAdjustment
     const projectedLeftover = projectedRevenue - committedCosts
     cumulativeBalance += projectedLeftover
 
@@ -1101,7 +1304,7 @@ export function buildProjectionTimeline(input: {
       projectedRevenue,
       projectedLeftover,
       committedCosts,
-      fixedCostsTotal: operational.fixedCostsTotal,
+      fixedCostsTotal: operational.fixedCostsTotal + percentageFixedCostsAdjustment,
       installmentsTotal: operational.installmentsTotal,
       goalsMonthlyContribution,
       averageHistoricalCosts,

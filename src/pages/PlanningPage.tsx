@@ -22,7 +22,12 @@ import { useSearchParams } from "react-router-dom"
 import { defaultCategories } from "../data/categories"
 import { useTransactionStore } from "../store/useTransactionStore"
 import { formatCurrency } from "../components/Transactions"
-import { getInstallmentProgress } from "../utils/projections"
+import {
+  getFixedCostAmountForMonth,
+  getFixedCostRevenueBaseForMonth,
+  getInstallmentProgress,
+  getMonthLabel
+} from "../utils/projections"
 import { PaymentMethod } from "../types/transaction"
 import {
   formatCurrencyFromNumber,
@@ -78,6 +83,8 @@ function getDefaultFixedFormValues(firstCardId: string): FixedExpenseFormValues 
   return {
     name: "",
     amount: "",
+    amountMode: "fixed",
+    revenuePercentage: "",
     categoryId: category.id,
     subcategoryId: category.subcategories[0].id,
     dueDay: "",
@@ -146,6 +153,7 @@ function InputField({ icon: Icon, ...props }: InputFieldProps) {
 export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   const [searchParams, setSearchParams] = useSearchParams()
   const cards = useTransactionStore((state) => state.cards)
+  const transactions = useTransactionStore((state) => state.transactions)
   const fixedCosts = useTransactionStore((state) => state.fixedCosts)
   const installmentPlans = useTransactionStore((state) => state.installmentPlans)
   const contractConfig = useTransactionStore((state) => state.contractConfig)
@@ -153,6 +161,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   const addFixedCost = useTransactionStore((state) => state.addFixedCost)
   const updateFixedCost = useTransactionStore((state) => state.updateFixedCost)
   const removeFixedCost = useTransactionStore((state) => state.removeFixedCost)
+  const stopFixedCost = useTransactionStore((state) => state.stopFixedCost)
   const addInstallmentPlan = useTransactionStore((state) => state.addInstallmentPlan)
   const updateInstallmentPlan = useTransactionStore((state) => state.updateInstallmentPlan)
   const removeInstallmentPlan = useTransactionStore((state) => state.removeInstallmentPlan)
@@ -187,6 +196,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   const [editingInstallmentId, setEditingInstallmentId] = useState("")
   const fixedName = fixedForm.name
   const fixedAmount = fixedForm.amount
+  const fixedAmountMode = fixedForm.amountMode
+  const fixedRevenuePercentage = fixedForm.revenuePercentage
   const fixedCategoryId = fixedForm.categoryId
   const fixedSubcategoryId = fixedForm.subcategoryId
   const fixedDueDay = fixedForm.dueDay
@@ -224,6 +235,14 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
 
   function setFixedAmount(value: string) {
     updateFixedField("amount", value)
+  }
+
+  function setFixedAmountMode(value: FixedExpenseFormValues["amountMode"]) {
+    updateFixedField("amountMode", value)
+  }
+
+  function setFixedRevenuePercentage(value: string) {
+    updateFixedField("revenuePercentage", value)
   }
 
   function setFixedCategoryId(value: string) {
@@ -397,6 +416,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setEditingFixedCostId(cost.id)
     setFixedName(cost.name)
     setFixedAmount(formatCurrencyFromNumber(cost.amount))
+    setFixedAmountMode(cost.amountMode || "fixed")
+    setFixedRevenuePercentage(cost.revenuePercentage ? String(cost.revenuePercentage) : "")
     setFixedCategoryId(cost.categoryId)
     setFixedSubcategoryId(cost.subcategoryId)
     setFixedDueDay(cost.dueDay ? String(cost.dueDay) : "")
@@ -489,10 +510,27 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     }
 
     const formData = parsedForm.data
+    const isPercentageMode = formData.amountMode === "percentageOfRevenue"
+    const resolvedAmount = isPercentageMode
+      ? getFixedCostAmountForMonth(
+          {
+            amount: 0,
+            amountMode: "percentageOfRevenue",
+            revenuePercentage: formData.revenuePercentage
+          },
+          getFixedCostRevenueBaseForMonth({
+            transactions,
+            contractConfig,
+            monthKey: activeMonthKey
+          })
+        )
+      : formData.amount
     const nextFixedCost = {
       id: editingFixedCostId || crypto.randomUUID(),
       name: formData.name,
-      amount: formData.amount,
+      amount: resolvedAmount,
+      amountMode: isPercentageMode ? ("percentageOfRevenue" as const) : undefined,
+      revenuePercentage: isPercentageMode ? formData.revenuePercentage : undefined,
       startMonth: editingFixedCostId ? undefined : activeMonthKey,
       dueOffsetMonths: formData.paymentMethod === "credit" ? undefined : formData.dueOffsetMonths,
       dueDay: formData.paymentMethod === "credit" ? undefined : formData.dueDay,
@@ -553,6 +591,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setEditingFixedCostId(cost.id)
     setFixedName(cost.name)
     setFixedAmount(formatCurrencyFromNumber(cost.amount))
+    setFixedAmountMode(cost.amountMode || "fixed")
+    setFixedRevenuePercentage(cost.revenuePercentage ? String(cost.revenuePercentage) : "")
     setFixedCategoryId(cost.categoryId)
     setFixedSubcategoryId(cost.subcategoryId)
     setFixedDueDay(cost.dueDay ? String(cost.dueDay) : "")
@@ -572,6 +612,8 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setEditingFixedCostId("")
     setFixedName("")
     setFixedAmount("")
+    setFixedAmountMode("fixed")
+    setFixedRevenuePercentage("")
     setFixedCategoryId(defaultCategories[0].id)
     setFixedSubcategoryId(defaultCategories[0].subcategories[0].id)
     setFixedDueDay("")
@@ -708,6 +750,18 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
       }
     }
 
+    setDeleteTarget(null)
+  }
+
+  function confirmStopFixedCost() {
+    if (!deleteTarget || deleteTarget.kind !== "fixed") {
+      return
+    }
+
+    stopFixedCost(deleteTarget.id)
+    if (editingFixedCostId === deleteTarget.id) {
+      cancelEditingFixed()
+    }
     setDeleteTarget(null)
   }
 
@@ -925,15 +979,75 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     value={fixedName}
                     onChange={(event) => setFixedName(event.target.value)}
                   />
-                  <InputField
-                    className={inputClassName}
-                    icon={BadgeDollarSign}
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="Valor"
-                    value={fixedAmount}
-                    onChange={(event) => setFixedAmount(formatCurrencyInput(event.target.value))}
-                  />
+                  <div className="grid gap-1">
+                    <div className="flex overflow-hidden rounded-xl border border-zinc-800">
+                      <button
+                        type="button"
+                        onClick={() => setFixedAmountMode("fixed")}
+                        className={`flex-1 px-2 py-2 text-xs font-medium transition ${
+                          fixedAmountMode === "fixed"
+                            ? "bg-emerald-500 text-zinc-950"
+                            : "bg-zinc-950 text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        Valor fixo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFixedAmountMode("percentageOfRevenue")}
+                        className={`flex-1 px-2 py-2 text-xs font-medium transition ${
+                          fixedAmountMode === "percentageOfRevenue"
+                            ? "bg-emerald-500 text-zinc-950"
+                            : "bg-zinc-950 text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        % da receita
+                      </button>
+                    </div>
+                    {fixedAmountMode === "fixed" ? (
+                      <InputField
+                        className={inputClassName}
+                        icon={BadgeDollarSign}
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="Valor"
+                        value={fixedAmount}
+                        onChange={(event) => setFixedAmount(formatCurrencyInput(event.target.value))}
+                      />
+                    ) : (
+                      <>
+                        <InputField
+                          className={inputClassName}
+                          icon={BadgeDollarSign}
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="Ex.: 9,21"
+                          value={fixedRevenuePercentage}
+                          onChange={(event) => setFixedRevenuePercentage(event.target.value)}
+                        />
+                        <p className="text-[11px] text-zinc-500">
+                          Calculado automaticamente todo mês a partir do faturamento
+                          {" "}(≈{" "}
+                          {formatCurrency(
+                            getFixedCostAmountForMonth(
+                              {
+                                amount: 0,
+                                amountMode: "percentageOfRevenue",
+                                revenuePercentage:
+                                  Number(fixedRevenuePercentage.replace(",", ".")) || 0
+                              },
+                              getFixedCostRevenueBaseForMonth({
+                                transactions,
+                                contractConfig,
+                                monthKey: activeMonthKey
+                              })
+                            )
+                          )}
+                          {" "}neste mês).
+                        </p>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
                   <SelectField
@@ -1348,7 +1462,9 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     className={`rounded-xl border px-4 py-4 text-sm text-zinc-300 ${
                       editingFixedCostId === cost.id
                         ? "border-emerald-500/60 bg-emerald-500/10"
-                        : "border-zinc-800 bg-zinc-950/70"
+                        : cost.endMonth
+                          ? "border-zinc-800/60 bg-zinc-950/40 opacity-60"
+                          : "border-zinc-800 bg-zinc-950/70"
                     }`}
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1356,7 +1472,9 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                           <span className="text-base font-medium text-zinc-100">{cost.name}</span>
                           <span className="text-sm font-semibold text-zinc-200">
-                            {formatCurrency(cost.amount)}
+                            {cost.amountMode === "percentageOfRevenue"
+                              ? `${String(cost.revenuePercentage || 0).replace(".", ",")}% da receita (${formatCurrency(cost.amount)})`
+                              : formatCurrency(cost.amount)}
                           </span>
                         </div>
                         <div className="flex flex-wrap gap-2 text-xs">
@@ -1390,6 +1508,11 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                               Cobra dia {cost.chargeDay}
                             </span>
                           )}
+                          {cost.endMonth && (
+                            <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-rose-300">
+                              Encerrado em {getMonthLabel(cost.endMonth)}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-2 self-start">
@@ -1409,7 +1532,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                           type="button"
                         >
                           <Trash2 size={14} />
-                          Excluir
+                          Remover
                         </button>
                       </div>
                     </div>
@@ -1516,13 +1639,22 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-2 text-base font-semibold text-zinc-100">
-              Confirmar exclusão
+              {deleteTarget.kind === "fixed" ? "Remover gasto fixo" : "Confirmar exclusão"}
             </div>
-            <p className="text-sm leading-6 text-zinc-400">
-              Remover <span className="font-medium text-zinc-200">{deleteTarget.label}</span> da
-              lista de {deleteTarget.kind === "fixed" ? "gastos fixos" : "parcelamentos"}?
-            </p>
-            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            {deleteTarget.kind === "fixed" ? (
+              <p className="text-sm leading-6 text-zinc-400">
+                O que fazer com{" "}
+                <span className="font-medium text-zinc-200">{deleteTarget.label}</span>?
+                Parar a cobrança mantém o histórico dos meses anteriores intacto; excluir
+                remove o gasto de tudo, inclusive do histórico.
+              </p>
+            ) : (
+              <p className="text-sm leading-6 text-zinc-400">
+                Remover <span className="font-medium text-zinc-200">{deleteTarget.label}</span> da
+                lista de parcelamentos?
+              </p>
+            )}
+            <div className={`mt-5 grid gap-2 ${deleteTarget.kind === "fixed" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
               <button
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
                 onClick={() => setDeleteTarget(null)}
@@ -1531,6 +1663,15 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                 <X size={16} />
                 Cancelar
               </button>
+              {deleteTarget.kind === "fixed" && (
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-zinc-950 transition hover:bg-emerald-400"
+                  onClick={confirmStopFixedCost}
+                  type="button"
+                >
+                  Parar cobrança
+                </button>
+              )}
               <button
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-rose-400"
                 onClick={confirmDeleteTarget}

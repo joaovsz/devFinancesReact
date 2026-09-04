@@ -8,11 +8,17 @@ import {
   freezeCreditFixedCostStatementMonths,
   freezeCreditInstallmentStatementMonths,
   freezeCreditTransactionStatementMonth,
+  getCategoryBreakdownForMonth,
   getCommittedCostsForMonth,
   getCreditFixedCostStatementMonth,
   getCreditInstallmentStatementMonth,
   getCreditTransactionStatementMonth,
-  getPjProjectedRevenueForMonth
+  getFixedCostAmountForMonth,
+  getFixedCostRevenueBaseForMonth,
+  getInvoicedPjRevenueForMonth,
+  getPjProjectedRevenueForMonth,
+  isFixedCostActiveForMonth,
+  INSTALLMENTS_CATEGORY_ID
 } from "./projections"
 
 function createPjConfig(overrides: Partial<ContractConfig> = {}): ContractConfig {
@@ -482,5 +488,182 @@ describe("projection leftovers from historical costs", () => {
     expect(projection.averageHistoricalCosts).toBeNull()
     expect(projection.committedCosts).toBe(400)
     expect(projection.projectedLeftover).toBe(2600)
+  })
+})
+
+describe("getCategoryBreakdownForMonth", () => {
+  function expenseWithCategory(
+    id: string,
+    date: string,
+    value: number,
+    categoryId: string
+  ): Transaction {
+    return {
+      id,
+      createdAt: `${date}T12:00:00.000Z`,
+      label: id,
+      value,
+      date,
+      type: 2,
+      paymentMethod: "pix",
+      categoryId,
+      subcategoryId: "sub",
+      tags: []
+    }
+  }
+
+  it("groups cash transactions and fixed costs by category for the given month", () => {
+    const breakdown = getCategoryBreakdownForMonth({
+      cards: [],
+      transactions: [
+        expenseWithCategory("market", "2025-05-10", 300, "alimentacao"),
+        expenseWithCategory("market-2", "2025-05-20", 100, "alimentacao"),
+        expenseWithCategory("gas", "2025-05-05", 50, "transporte")
+      ],
+      fixedCosts: [
+        {
+          id: "rent",
+          name: "Aluguel",
+          amount: 1200,
+          startMonth: "2025-01",
+          categoryId: "moradia",
+          subcategoryId: "aluguel",
+          paymentMethod: "pix"
+        }
+      ],
+      installmentPlans: [],
+      monthKey: "2025-05"
+    })
+
+    expect(breakdown.alimentacao).toBe(400)
+    expect(breakdown.transporte).toBe(50)
+    expect(breakdown.moradia).toBe(1200)
+  })
+
+  it("buckets installments (which have no category) under the synthetic installments category", () => {
+    const breakdown = getCategoryBreakdownForMonth({
+      cards: [],
+      transactions: [],
+      fixedCosts: [],
+      installmentPlans: [
+        {
+          id: "phone",
+          name: "Celular",
+          startMonth: "2025-04",
+          paymentMethod: "pix",
+          installmentValue: 300,
+          paidInstallments: 0,
+          totalInstallments: 3
+        }
+      ],
+      monthKey: "2025-05"
+    })
+
+    expect(breakdown[INSTALLMENTS_CATEGORY_ID]).toBe(300)
+    expect(breakdown.moradia).toBeUndefined()
+  })
+})
+
+describe("fixed cost end month", () => {
+  it("stays active up to and including endMonth, then stops", () => {
+    const cost: FixedCost = {
+      id: "streaming",
+      name: "Streaming",
+      amount: 40,
+      startMonth: "2025-01",
+      endMonth: "2025-06",
+      categoryId: "lazer-assinaturas",
+      subcategoryId: "streaming",
+      paymentMethod: "pix"
+    }
+
+    expect(isFixedCostActiveForMonth(cost, "2025-05")).toBe(true)
+    expect(isFixedCostActiveForMonth(cost, "2025-06")).toBe(true)
+    expect(isFixedCostActiveForMonth(cost, "2025-07")).toBe(false)
+  })
+})
+
+describe("percentage-of-revenue fixed costs (DAS)", () => {
+  function dasFixedCost(overrides: Partial<FixedCost> = {}): FixedCost {
+    return {
+      id: "das",
+      name: "DAS",
+      amount: 100,
+      amountMode: "percentageOfRevenue",
+      revenuePercentage: 9.21,
+      startMonth: "2025-01",
+      categoryId: "impostos-empresa",
+      subcategoryId: "das",
+      paymentMethod: "pix",
+      ...overrides
+    }
+  }
+
+  it("computes the amount from the revenue base, ignoring the stale cached amount", () => {
+    const amount = getFixedCostAmountForMonth(dasFixedCost({ amount: 999 }), 10000)
+    expect(amount).toBe(921)
+  })
+
+  it("returns the plain amount for fixed-mode costs", () => {
+    const amount = getFixedCostAmountForMonth(
+      { ...dasFixedCost(), amountMode: "fixed", amount: 250 },
+      10000
+    )
+    expect(amount).toBe(250)
+  })
+
+  it("bases the revenue on invoiced PJ transactions when present, else the projected formula", () => {
+    const contractConfig = createPjConfig({ hourlyRate: 100, hoursPerWorkday: 8 })
+    const invoicedTransaction: Transaction = {
+      id: "invoice",
+      label: "Nota fiscal",
+      value: 8000,
+      date: "2025-06-05",
+      type: 1,
+      paymentMethod: "pix",
+      categoryId: "rendas",
+      subcategoryId: "faturamento-pj",
+      tags: []
+    }
+
+    const withInvoice = getFixedCostRevenueBaseForMonth({
+      transactions: [invoicedTransaction],
+      contractConfig,
+      monthKey: "2025-06"
+    })
+    expect(withInvoice).toBe(8000)
+
+    const withoutInvoice = getFixedCostRevenueBaseForMonth({
+      transactions: [],
+      contractConfig,
+      monthKey: "2025-06"
+    })
+    expect(withoutInvoice).toBeGreaterThan(0)
+    expect(getInvoicedPjRevenueForMonth([], "2025-06")).toBe(0)
+  })
+
+  it("keeps the projection's committed costs scaled to each month's own revenue, not a stale cached amount", () => {
+    const das = dasFixedCost({ amount: 999 })
+
+    const timeline = buildProjectionTimeline({
+      cards: [],
+      transactions: [],
+      fixedCosts: [das],
+      installmentPlans: [],
+      targetMonth: "2025-06",
+      monthsForward: 2,
+      projectedRevenueByMonth: {
+        "2025-06": 10000,
+        "2025-07": 5000
+      }
+    })
+
+    expect(timeline[0].fixedCostsTotal).toBeCloseTo(921, 5)
+    expect(timeline[0].committedCosts).toBeCloseTo(921, 5)
+    expect(timeline[0].projectedLeftover).toBeCloseTo(10000 - 921, 5)
+
+    expect(timeline[1].fixedCostsTotal).toBeCloseTo(460.5, 5)
+    expect(timeline[1].committedCosts).toBeCloseTo(460.5, 5)
+    expect(timeline[1].projectedLeftover).toBeCloseTo(5000 - 460.5, 5)
   })
 })

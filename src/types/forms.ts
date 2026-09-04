@@ -3,6 +3,8 @@ import { PaymentMethod } from "./transaction"
 export type FixedExpenseFormValues = {
   name: string
   amount: string
+  amountMode: "fixed" | "percentageOfRevenue"
+  revenuePercentage: string
   categoryId: string
   subcategoryId: string
   dueDay: string

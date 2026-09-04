@@ -11,16 +11,53 @@ import { selectTotalMonthlyContribution, useGoalStore } from "../store/useGoalSt
 import { fetchBrazilHolidaysByYear } from "../services/calendar"
 import { getWorkingMonthMetrics } from "../utils/business-days"
 import { buildMonthlyPayables } from "../utils/domain/monthly-payments"
+import { defaultCategories } from "../data/categories"
 import {
   addMonths,
+  buildCategorySpendingTimeline,
   buildProjectionTimeline,
   getCltProjectedRevenueForMonth,
   getCurrentMonthKey,
   getDailySpendPaceProjection,
   getInstallmentProgress,
+  getInstallmentRemainingCount,
   getMonthLabel,
-  getPjProjectedRevenueForMonth
+  getPjProjectedRevenueForMonth,
+  INSTALLMENTS_CATEGORY_ID,
+  MANUAL_ADJUSTMENT_CATEGORY_ID,
+  monthKeyToIndex
 } from "../utils/projections"
+
+const CATEGORY_NAME_BY_ID = Object.fromEntries(
+  defaultCategories.map((category) => [category.id, category.name])
+)
+const OTHER_CATEGORIES_ID = "__others__"
+const MAX_CATEGORY_SERIES = 6
+const CATEGORY_CHART_COLORS = [
+  "#a3e635",
+  "#22d3ee",
+  "#f59e0b",
+  "#f97316",
+  "#60a5fa",
+  "#c084fc",
+  "#71717a"
+]
+
+function getCategoryDisplayName(categoryId: string) {
+  if (categoryId === INSTALLMENTS_CATEGORY_ID) {
+    return "Parcelamentos"
+  }
+
+  if (categoryId === MANUAL_ADJUSTMENT_CATEGORY_ID) {
+    return "Ajuste de fatura"
+  }
+
+  if (categoryId === OTHER_CATEGORIES_ID) {
+    return "Outras categorias"
+  }
+
+  return CATEGORY_NAME_BY_ID[categoryId] || categoryId
+}
 
 const selectClassName =
   "w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 pr-9 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
@@ -80,6 +117,7 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
   const currentMonthKey = getCurrentMonthKey()
   const [targetMonth, setTargetMonth] = useState(currentMonthKey)
   const [visibleMonths, setVisibleMonths] = useState(6)
+  const [categoryMonthsWindow, setCategoryMonthsWindow] = useState(6)
   const [isMobile, setIsMobile] = useState(false)
   const [holidaysByYear, setHolidaysByYear] = useState<Record<number, string[]>>({})
   const [calendarError, setCalendarError] = useState("")
@@ -256,6 +294,197 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
   const visibleTimeline = useMemo(
     () => timeline.slice(0, visibleMonths),
     [timeline, visibleMonths]
+  )
+  const categoryMonthKeys = useMemo(
+    () =>
+      Array.from({ length: categoryMonthsWindow }).map((_, index) =>
+        addMonths(targetMonth, -(categoryMonthsWindow - 1 - index))
+      ),
+    [targetMonth, categoryMonthsWindow]
+  )
+  const categorySpendingTimeline = useMemo(
+    () =>
+      buildCategorySpendingTimeline({
+        cards,
+        transactions,
+        fixedCosts,
+        installmentPlans,
+        monthKeys: categoryMonthKeys,
+        contractConfig
+      }),
+    [cards, transactions, fixedCosts, installmentPlans, categoryMonthKeys, contractConfig]
+  )
+  const categoryChartSeriesIds = useMemo(() => {
+    const totalsByCategory: Record<string, number> = {}
+    categorySpendingTimeline.forEach((month) => {
+      Object.entries(month.categories).forEach(([categoryId, amount]) => {
+        totalsByCategory[categoryId] = (totalsByCategory[categoryId] || 0) + amount
+      })
+    })
+
+    const sortedCategoryIds = Object.entries(totalsByCategory)
+      .sort((left, right) => right[1] - left[1])
+      .map(([categoryId]) => categoryId)
+
+    const topCategoryIds = sortedCategoryIds.slice(0, MAX_CATEGORY_SERIES)
+    return sortedCategoryIds.length > MAX_CATEGORY_SERIES
+      ? [...topCategoryIds, OTHER_CATEGORIES_ID]
+      : topCategoryIds
+  }, [categorySpendingTimeline])
+  const categoryChartOption = useMemo<EChartsOption>(
+    () => ({
+      backgroundColor: "transparent",
+      color: CATEGORY_CHART_COLORS,
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "shadow" },
+        valueFormatter: (value) => formatCurrency(Number(value || 0))
+      },
+      legend: {
+        top: 0,
+        type: "scroll",
+        textStyle: { color: "#a1a1aa", fontSize: 11 }
+      },
+      grid: {
+        left: 16,
+        right: 16,
+        top: 40,
+        bottom: 16,
+        containLabel: true
+      },
+      xAxis: {
+        type: "category",
+        data: categorySpendingTimeline.map((month) => getMonthLabel(month.monthKey)),
+        axisLabel: { color: "#a1a1aa", fontSize: 11 },
+        axisLine: { lineStyle: { color: "#3f3f46" } }
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: {
+          color: "#a1a1aa",
+          formatter: (value: number) => `R$ ${Math.round(value).toLocaleString("pt-BR")}`
+        },
+        splitLine: { lineStyle: { color: "#27272a" } }
+      },
+      series: categoryChartSeriesIds.map((categoryId) => ({
+        name: getCategoryDisplayName(categoryId),
+        type: "bar",
+        stack: "categorias",
+        barMaxWidth: 42,
+        data: categorySpendingTimeline.map((month) => {
+          if (categoryId !== OTHER_CATEGORIES_ID) {
+            return month.categories[categoryId] || 0
+          }
+
+          const topIds = new Set(categoryChartSeriesIds)
+          return Object.entries(month.categories).reduce(
+            (sum, [id, amount]) => (topIds.has(id) ? sum : sum + amount),
+            0
+          )
+        })
+      }))
+    }),
+    [categorySpendingTimeline, categoryChartSeriesIds]
+  )
+  const installmentTimelineRows = useMemo(() => {
+    if (monthKeys.length === 0) {
+      return []
+    }
+
+    const windowStartIndex = monthKeyToIndex(monthKeys[0])
+    const windowEndIndex = monthKeyToIndex(monthKeys[monthKeys.length - 1])
+
+    return installmentPlans
+      .map((plan) => {
+        const planStartIndex = monthKeyToIndex(plan.startMonth)
+        const planEndIndex = planStartIndex + plan.totalInstallments - 1
+
+        if (planEndIndex < windowStartIndex || planStartIndex > windowEndIndex) {
+          return null
+        }
+
+        return {
+          id: plan.id,
+          name: plan.name,
+          installmentValue: plan.installmentValue,
+          totalInstallments: plan.totalInstallments,
+          remainingCount: getInstallmentRemainingCount(plan, targetMonth),
+          startIndex: Math.max(planStartIndex, windowStartIndex) - windowStartIndex,
+          endIndex: Math.min(planEndIndex, windowEndIndex) - windowStartIndex
+        }
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null)
+      .sort((left, right) => left.endIndex - right.endIndex || left.startIndex - right.startIndex)
+  }, [installmentPlans, monthKeys, targetMonth])
+  const installmentGanttOption = useMemo<EChartsOption>(
+    () => ({
+      backgroundColor: "transparent",
+      tooltip: {
+        trigger: "item",
+        formatter: (params: unknown) => {
+          const { dataIndex, seriesName } = params as { dataIndex: number; seriesName: string }
+          if (seriesName !== "Ativo") {
+            return ""
+          }
+
+          const row = installmentTimelineRows[dataIndex]
+          if (!row) {
+            return ""
+          }
+
+          return `${row.name}<br/>${formatCurrency(row.installmentValue)}/mês · ${row.totalInstallments}x total · ${row.remainingCount} restante(s)`
+        }
+      },
+      grid: { left: 16, right: 16, top: 8, bottom: 24, containLabel: true },
+      xAxis: {
+        type: "value",
+        min: 0,
+        max: monthKeys.length,
+        interval: 1,
+        axisLabel: {
+          color: "#a1a1aa",
+          fontSize: 11,
+          formatter: (value: number) => getMonthLabel(monthKeys[value] || "")
+        },
+        splitLine: { lineStyle: { color: "#27272a" } }
+      },
+      yAxis: {
+        type: "category",
+        data: installmentTimelineRows.map((row) => row.name),
+        axisLabel: { color: "#a1a1aa", fontSize: 11 },
+        axisLine: { lineStyle: { color: "#3f3f46" } }
+      },
+      series: [
+        {
+          name: "offset",
+          type: "bar",
+          stack: "gantt",
+          silent: true,
+          tooltip: { show: false },
+          itemStyle: { color: "transparent" },
+          data: installmentTimelineRows.map((row) => row.startIndex)
+        },
+        {
+          name: "Ativo",
+          type: "bar",
+          stack: "gantt",
+          barWidth: 14,
+          itemStyle: { color: "#22d3ee", borderRadius: 4 },
+          label: {
+            show: true,
+            position: "insideLeft",
+            color: "#0f172a",
+            fontSize: 11,
+            formatter: (params: unknown) => {
+              const { dataIndex } = params as { dataIndex: number }
+              return formatCurrency(installmentTimelineRows[dataIndex]?.installmentValue || 0)
+            }
+          },
+          data: installmentTimelineRows.map((row) => row.endIndex - row.startIndex + 1)
+        }
+      ]
+    }),
+    [installmentTimelineRows, monthKeys]
   )
   const installmentDropInsight = useMemo(() => {
     let bestDrop = 0
@@ -718,6 +947,61 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
               ))}
             </div>
           </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
+        <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-100">Gastos por categoria ao longo dos meses</h2>
+            <p className="text-xs text-zinc-500">
+              Composição real dos gastos (transações, custos fixos e parcelas) até {getMonthLabel(targetMonth)}.
+            </p>
+          </div>
+          <SelectField
+            className="h-9 py-2 text-xs"
+            value={String(categoryMonthsWindow)}
+            onChange={(event) => setCategoryMonthsWindow(Number(event.target.value))}
+          >
+            <option value="3">3 meses</option>
+            <option value="6">6 meses</option>
+            <option value="12">12 meses</option>
+          </SelectField>
+        </div>
+        {categorySpendingTimeline.some((month) => Object.keys(month.categories).length > 0) ? (
+          <ReactEChartsCore
+            echarts={echarts}
+            option={categoryChartOption}
+            style={{ height: 280, width: "100%" }}
+            notMerge
+            lazyUpdate
+          />
+        ) : (
+          <p className="py-6 text-center text-sm text-zinc-400">
+            Sem gastos registrados no período selecionado.
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-zinc-100">Linha do tempo dos parcelamentos</h2>
+          <p className="text-xs text-zinc-500">
+            Quando cada parcelamento ativo termina, a partir de {getMonthLabel(monthKeys[0])}.
+          </p>
+        </div>
+        {installmentTimelineRows.length > 0 ? (
+          <ReactEChartsCore
+            echarts={echarts}
+            option={installmentGanttOption}
+            style={{ height: Math.max(120, installmentTimelineRows.length * 34 + 40), width: "100%" }}
+            notMerge
+            lazyUpdate
+          />
+        ) : (
+          <p className="py-6 text-center text-sm text-zinc-400">
+            Nenhum parcelamento ativo nos próximos 12 meses.
+          </p>
         )}
       </div>
 

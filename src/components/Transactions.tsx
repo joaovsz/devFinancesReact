@@ -124,7 +124,7 @@ const Transactions = ({
   const contractConfig = useTransactionStore((state) => state.contractConfig)
   const removeTransaction = useTransactionStore((state) => state.removeTransaction)
   const updateFixedCost = useTransactionStore((state) => state.updateFixedCost)
-  const removeFixedCost = useTransactionStore((state) => state.removeFixedCost)
+  const stopFixedCost = useTransactionStore((state) => state.stopFixedCost)
   const removeInstallmentPlan = useTransactionStore((state) => state.removeInstallmentPlan)
   const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
   const setCardManualInvoiceAmountForMonth = useTransactionStore(
@@ -284,11 +284,19 @@ const Transactions = ({
         return
       }
 
+      const isPercentageMode = targetCost.amountMode === "percentageOfRevenue"
       const parsedValue = parseCurrencyInput(draft.value)
       updateFixedCost({
         ...targetCost,
         name: draft.label.trim() || targetCost.name,
-        amount: parsedValue > 0 ? parsedValue : targetCost.amount
+        // Percentage-of-revenue costs (e.g. DAS) have their amount computed
+        // automatically every month — editing it here would just be
+        // overwritten on the next sync, so it's left untouched.
+        amount: isPercentageMode
+          ? targetCost.amount
+          : parsedValue > 0
+            ? parsedValue
+            : targetCost.amount
       })
       setEditingId(null)
       return
@@ -335,7 +343,9 @@ const Transactions = ({
     if (!entry.sourceId) {
       return
     }
-    removeFixedCost(entry.sourceId)
+    // Stops the fixed cost from now on instead of deleting it, so it keeps
+    // showing up correctly in past months' history and totals.
+    stopFixedCost(entry.sourceId)
     setEditingId((current) => (current === entry.id ? null : current))
   }
 
@@ -976,8 +986,8 @@ const Transactions = ({
                       </button>
                     )}
                     <button
-                      aria-label="Remover gasto fixo"
-                      title="Remover gasto fixo"
+                      aria-label="Parar cobrança deste gasto fixo"
+                      title="Parar cobrança a partir deste mês"
                       className="rounded-lg p-1 text-red-400 transition hover:bg-red-500/15 hover:text-red-300"
                       onClick={() => removeFixedEntry(transaction)}
                     >
