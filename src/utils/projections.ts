@@ -153,6 +153,10 @@ export function getOperationalDateForMonth(monthKey: string) {
   return buildMonthDate(monthKey, getTodayDayOfMonth())
 }
 
+export function getTodayDateKey() {
+  return buildMonthDate(getCurrentMonthKey(), getTodayDayOfMonth())
+}
+
 export function isCreditChargeAlreadyPosted(input: {
   monthKey: string
   chargeDay?: number

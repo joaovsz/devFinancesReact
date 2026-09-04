@@ -11,8 +11,7 @@ import {
   transactionSchema
 } from "../../schemas"
 import { parseCurrencyInput } from "../../utils/currency-input"
-import { useTransactionStore } from "../../store/useTransactionStore"
-import { getOperationalDateForMonth } from "../../utils/projections"
+import { getTodayDateKey } from "../../utils/projections"
 
 type TransactionFormProps = {
   categories: Category[]
@@ -70,7 +69,6 @@ function getInitialPaymentMethod(cards: CreditCard[], initialCreditCardId?: stri
 function getDefaultFormValues(
   categories: Category[],
   cards: CreditCard[],
-  activeMonthKey: string,
   initialCreditCardId?: string
 ): TransactionFormValues {
   const firstCategory = categories.find((category) => category.id !== "rendas") || categories[0]
@@ -79,7 +77,7 @@ function getDefaultFormValues(
   return {
     label: "",
     amountCents: 0,
-    date: getOperationalDateForMonth(activeMonthKey),
+    date: getTodayDateKey(),
     type: 2,
     paymentMethod: getInitialPaymentMethod(cards, initialCreditCardId),
     cardId: getInitialCardId(cards, initialCreditCardId),
@@ -122,9 +120,7 @@ export const TransactionForm = ({
   onSubmitTransaction,
   onCancelEdit
 }: TransactionFormProps) => {
-  const activeMonthKey = useTransactionStore((state) => state.activeMonthKey)
   const {
-    getValues,
     handleSubmit,
     reset,
     setError,
@@ -132,7 +128,7 @@ export const TransactionForm = ({
     watch,
     formState: { errors }
   } = useForm<TransactionFormValues>({
-    defaultValues: getDefaultFormValues(categories, cards, activeMonthKey, initialCreditCardId)
+    defaultValues: getDefaultFormValues(categories, cards, initialCreditCardId)
   })
   const [showMissingCardModal, setShowMissingCardModal] = useState(false)
   const dateInputRef = useRef<HTMLInputElement>(null)
@@ -201,17 +197,6 @@ export const TransactionForm = ({
   }, [initialCreditCardId, cards, editingTransaction])
 
   useEffect(() => {
-    if (editingTransaction) {
-      return
-    }
-
-    updateField("date", getOperationalDateForMonth(activeMonthKey))
-    if (getValues("competenceMonth")) {
-      updateField("competenceMonth", activeMonthKey)
-    }
-  }, [activeMonthKey, editingTransaction])
-
-  useEffect(() => {
     if (!editingTransaction) {
       return
     }
@@ -236,7 +221,7 @@ export const TransactionForm = ({
   }
 
   function resetValues() {
-    reset(getDefaultFormValues(categories, cards, activeMonthKey, initialCreditCardId))
+    reset(getDefaultFormValues(categories, cards, initialCreditCardId))
   }
 
   function addQuickValue(amount: number) {
