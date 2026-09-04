@@ -83,8 +83,6 @@ function getDefaultFixedFormValues(firstCardId: string): FixedExpenseFormValues 
   return {
     name: "",
     amount: "",
-    amountMode: "fixed",
-    revenuePercentage: "",
     categoryId: category.id,
     subcategoryId: category.subcategories[0].id,
     dueDay: "",
@@ -196,8 +194,6 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   const [editingInstallmentId, setEditingInstallmentId] = useState("")
   const fixedName = fixedForm.name
   const fixedAmount = fixedForm.amount
-  const fixedAmountMode = fixedForm.amountMode
-  const fixedRevenuePercentage = fixedForm.revenuePercentage
   const fixedCategoryId = fixedForm.categoryId
   const fixedSubcategoryId = fixedForm.subcategoryId
   const fixedDueDay = fixedForm.dueDay
@@ -235,14 +231,6 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
 
   function setFixedAmount(value: string) {
     updateFixedField("amount", value)
-  }
-
-  function setFixedAmountMode(value: FixedExpenseFormValues["amountMode"]) {
-    updateFixedField("amountMode", value)
-  }
-
-  function setFixedRevenuePercentage(value: string) {
-    updateFixedField("revenuePercentage", value)
   }
 
   function setFixedCategoryId(value: string) {
@@ -318,6 +306,67 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
   const [cltNetSalaryInput, setCltNetSalaryInput] = useState(
     formatCurrencyFromNumber(contractConfig.cltNetSalary)
   )
+
+  // The automatic revenue tax (e.g. DAS) is stored as a regular FixedCost
+  // under the hood, but it's configured here in Faturamento mensal instead
+  // of in Gastos fixos — it's excluded from that list.
+  const autoTaxFixedCost = fixedCosts.find(
+    (cost) => cost.amountMode === "percentageOfRevenue" && !cost.endMonth
+  )
+  const [autoTaxPercentageInput, setAutoTaxPercentageInput] = useState(
+    autoTaxFixedCost?.revenuePercentage ? String(autoTaxFixedCost.revenuePercentage) : ""
+  )
+  const autoTaxRevenueBase = getFixedCostRevenueBaseForMonth({
+    transactions,
+    contractConfig,
+    monthKey: activeMonthKey
+  })
+  const autoTaxPreviewAmount = getFixedCostAmountForMonth(
+    {
+      amount: 0,
+      amountMode: "percentageOfRevenue",
+      revenuePercentage: Number(autoTaxPercentageInput.replace(",", ".")) || 0
+    },
+    autoTaxRevenueBase
+  )
+
+  function commitAutoTaxPercentage(rawValue: string) {
+    const percentage = Number(rawValue.replace(",", ".")) || 0
+
+    if (percentage <= 0) {
+      setAutoTaxPercentageInput("")
+      if (autoTaxFixedCost) {
+        stopFixedCost(autoTaxFixedCost.id)
+      }
+      return
+    }
+
+    const resolvedAmount = getFixedCostAmountForMonth(
+      { amount: 0, amountMode: "percentageOfRevenue", revenuePercentage: percentage },
+      autoTaxRevenueBase
+    )
+
+    if (autoTaxFixedCost) {
+      updateFixedCost({
+        ...autoTaxFixedCost,
+        revenuePercentage: percentage,
+        amount: resolvedAmount
+      })
+      return
+    }
+
+    addFixedCost({
+      id: crypto.randomUUID(),
+      name: "Imposto sobre faturamento",
+      amount: resolvedAmount,
+      amountMode: "percentageOfRevenue",
+      revenuePercentage: percentage,
+      startMonth: activeMonthKey,
+      categoryId: "impostos-empresa",
+      subcategoryId: "das",
+      paymentMethod: "pix"
+    })
+  }
 
   const [wizardStep, setWizardStep] = useState<0 | 1>(0)
   const [listModal, setListModal] = useState<"fixed" | "installment" | null>(null)
@@ -416,8 +465,6 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setEditingFixedCostId(cost.id)
     setFixedName(cost.name)
     setFixedAmount(formatCurrencyFromNumber(cost.amount))
-    setFixedAmountMode(cost.amountMode || "fixed")
-    setFixedRevenuePercentage(cost.revenuePercentage ? String(cost.revenuePercentage) : "")
     setFixedCategoryId(cost.categoryId)
     setFixedSubcategoryId(cost.subcategoryId)
     setFixedDueDay(cost.dueDay ? String(cost.dueDay) : "")
@@ -510,27 +557,10 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     }
 
     const formData = parsedForm.data
-    const isPercentageMode = formData.amountMode === "percentageOfRevenue"
-    const resolvedAmount = isPercentageMode
-      ? getFixedCostAmountForMonth(
-          {
-            amount: 0,
-            amountMode: "percentageOfRevenue",
-            revenuePercentage: formData.revenuePercentage
-          },
-          getFixedCostRevenueBaseForMonth({
-            transactions,
-            contractConfig,
-            monthKey: activeMonthKey
-          })
-        )
-      : formData.amount
     const nextFixedCost = {
       id: editingFixedCostId || crypto.randomUUID(),
       name: formData.name,
-      amount: resolvedAmount,
-      amountMode: isPercentageMode ? ("percentageOfRevenue" as const) : undefined,
-      revenuePercentage: isPercentageMode ? formData.revenuePercentage : undefined,
+      amount: formData.amount,
       startMonth: editingFixedCostId ? undefined : activeMonthKey,
       dueOffsetMonths: formData.paymentMethod === "credit" ? undefined : formData.dueOffsetMonths,
       dueDay: formData.paymentMethod === "credit" ? undefined : formData.dueDay,
@@ -591,8 +621,6 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setEditingFixedCostId(cost.id)
     setFixedName(cost.name)
     setFixedAmount(formatCurrencyFromNumber(cost.amount))
-    setFixedAmountMode(cost.amountMode || "fixed")
-    setFixedRevenuePercentage(cost.revenuePercentage ? String(cost.revenuePercentage) : "")
     setFixedCategoryId(cost.categoryId)
     setFixedSubcategoryId(cost.subcategoryId)
     setFixedDueDay(cost.dueDay ? String(cost.dueDay) : "")
@@ -612,8 +640,6 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
     setEditingFixedCostId("")
     setFixedName("")
     setFixedAmount("")
-    setFixedAmountMode("fixed")
-    setFixedRevenuePercentage("")
     setFixedCategoryId(defaultCategories[0].id)
     setFixedSubcategoryId(defaultCategories[0].subcategories[0].id)
     setFixedDueDay("")
@@ -936,6 +962,29 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
               Usar API de feriados nacionais (BrasilAPI)
             </label>
           )}
+
+          {contractConfig.incomeMode === "pj" && (
+            <div className="mt-4 border-t border-zinc-800 pt-3">
+              <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
+                Imposto automático sobre faturamento (ex.: DAS)
+                <input
+                  className={inputClassName}
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Ex.: 9,21 (%)"
+                  value={autoTaxPercentageInput}
+                  onChange={(event) => setAutoTaxPercentageInput(event.target.value)}
+                  onBlur={() => commitAutoTaxPercentage(autoTaxPercentageInput)}
+                />
+              </label>
+              <p className="mt-1 text-[11px] leading-5 text-zinc-500">
+                {autoTaxPreviewAmount > 0
+                  ? `Calculado automaticamente todo mês a partir do faturamento (≈ ${formatCurrency(autoTaxPreviewAmount)} neste mês).`
+                  : "Deixe em branco para não cobrar imposto automático."}
+              </p>
+            </div>
+          )}
+
           <p className="mt-3 text-xs leading-5 text-zinc-500">
             O mês inicial de competência define quando a recorrência começa. A data de
             recebimento define quando o dinheiro entra.
@@ -979,75 +1028,15 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                     value={fixedName}
                     onChange={(event) => setFixedName(event.target.value)}
                   />
-                  <div className="grid gap-1">
-                    <div className="flex overflow-hidden rounded-xl border border-zinc-800">
-                      <button
-                        type="button"
-                        onClick={() => setFixedAmountMode("fixed")}
-                        className={`flex-1 px-2 py-2 text-xs font-medium transition ${
-                          fixedAmountMode === "fixed"
-                            ? "bg-emerald-500 text-zinc-950"
-                            : "bg-zinc-950 text-zinc-400 hover:text-zinc-200"
-                        }`}
-                      >
-                        Valor fixo
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFixedAmountMode("percentageOfRevenue")}
-                        className={`flex-1 px-2 py-2 text-xs font-medium transition ${
-                          fixedAmountMode === "percentageOfRevenue"
-                            ? "bg-emerald-500 text-zinc-950"
-                            : "bg-zinc-950 text-zinc-400 hover:text-zinc-200"
-                        }`}
-                      >
-                        % da receita
-                      </button>
-                    </div>
-                    {fixedAmountMode === "fixed" ? (
-                      <InputField
-                        className={inputClassName}
-                        icon={BadgeDollarSign}
-                        type="text"
-                        inputMode="decimal"
-                        placeholder="Valor"
-                        value={fixedAmount}
-                        onChange={(event) => setFixedAmount(formatCurrencyInput(event.target.value))}
-                      />
-                    ) : (
-                      <>
-                        <InputField
-                          className={inputClassName}
-                          icon={BadgeDollarSign}
-                          type="text"
-                          inputMode="decimal"
-                          placeholder="Ex.: 9,21"
-                          value={fixedRevenuePercentage}
-                          onChange={(event) => setFixedRevenuePercentage(event.target.value)}
-                        />
-                        <p className="text-[11px] text-zinc-500">
-                          Calculado automaticamente todo mês a partir do faturamento
-                          {" "}(≈{" "}
-                          {formatCurrency(
-                            getFixedCostAmountForMonth(
-                              {
-                                amount: 0,
-                                amountMode: "percentageOfRevenue",
-                                revenuePercentage:
-                                  Number(fixedRevenuePercentage.replace(",", ".")) || 0
-                              },
-                              getFixedCostRevenueBaseForMonth({
-                                transactions,
-                                contractConfig,
-                                monthKey: activeMonthKey
-                              })
-                            )
-                          )}
-                          {" "}neste mês).
-                        </p>
-                      </>
-                    )}
-                  </div>
+                  <InputField
+                    className={inputClassName}
+                    icon={BadgeDollarSign}
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Valor"
+                    value={fixedAmount}
+                    onChange={(event) => setFixedAmount(formatCurrencyInput(event.target.value))}
+                  />
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
                   <SelectField
@@ -1456,7 +1445,9 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
 
             <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
               {listModal === "fixed" &&
-                fixedCosts.map((cost) => (
+                fixedCosts
+                  .filter((cost) => cost.amountMode !== "percentageOfRevenue")
+                  .map((cost) => (
                   <div
                     key={cost.id}
                     className={`rounded-xl border px-4 py-4 text-sm text-zinc-300 ${
@@ -1472,9 +1463,7 @@ export const PlanningPage = ({ embedded = false }: PlanningPageProps) => {
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                           <span className="text-base font-medium text-zinc-100">{cost.name}</span>
                           <span className="text-sm font-semibold text-zinc-200">
-                            {cost.amountMode === "percentageOfRevenue"
-                              ? `${String(cost.revenuePercentage || 0).replace(".", ",")}% da receita (${formatCurrency(cost.amount)})`
-                              : formatCurrency(cost.amount)}
+                            {formatCurrency(cost.amount)}
                           </span>
                         </div>
                         <div className="flex flex-wrap gap-2 text-xs">
