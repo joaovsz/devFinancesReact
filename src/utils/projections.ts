@@ -830,7 +830,11 @@ function getAverageMonthlyCostsFromPreviousMonths(input: {
     return null
   }
 
-  const monthlyCosts = previousMonths.map((monthKey) => {
+  // Only the variable (day-to-day) portion of past spending is averaged here.
+  // Structural commitments (fixed costs, installments) are always recomputed
+  // per projected month below, so a plan ending/starting mid-window is
+  // reflected immediately instead of being masked by a frozen historical total.
+  const monthlyVariableCosts = previousMonths.map((monthKey) => {
     const operational = getOperationalCostsForMonth({
       cards: input.cards,
       transactions: input.transactions,
@@ -839,11 +843,11 @@ function getAverageMonthlyCostsFromPreviousMonths(input: {
       monthKey
     })
 
-    return operational.total
+    return operational.total - operational.fixedCostsTotal - operational.installmentsTotal
   })
 
-  const total = monthlyCosts.reduce((sum, value) => sum + value, 0)
-  return total / monthlyCosts.length
+  const total = monthlyVariableCosts.reduce((sum, value) => sum + value, 0)
+  return total / monthlyVariableCosts.length
 }
 
 export function hasTransactionsInMonth(
@@ -1077,8 +1081,14 @@ export function buildProjectionTimeline(input: {
 
     // Projected leftover should reflect what will remain:
     // projected revenue minus all outflows (cash + credit invoices + goals contribution).
-    const committedCosts =
-      (averageHistoricalCosts ?? operational.total) + goalsMonthlyContribution
+    // Structural commitments (fixed costs + installments) come from this
+    // month's actual plan data, so a plan ending/starting is picked up right
+    // away. Only the variable/day-to-day portion falls back to the
+    // historical average when this month has no transactions of its own yet.
+    const structuralCosts = operational.fixedCostsTotal + operational.installmentsTotal
+    const variableCosts =
+      averageHistoricalCosts ?? operational.total - structuralCosts
+    const committedCosts = structuralCosts + variableCosts + goalsMonthlyContribution
     const projectedLeftover = projectedRevenue - committedCosts
     cumulativeBalance += projectedLeftover
 

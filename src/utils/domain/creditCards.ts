@@ -12,6 +12,7 @@ import {
   getInstallmentProgress,
   getInstallmentRemainingTotalAfterPaidThrough,
   getMonthDateFromDay,
+  isCardInvoicePaidForMonth,
   isCreditChargeAlreadyPosted,
   isFixedCostActiveForMonth,
   isMonthKeyAfter
@@ -106,13 +107,20 @@ export function getCreditCardUsageSummary(input: {
     )
     .reduce((sum, transaction) => sum + transaction.value, 0)
 
-  const plannedFixedUsage = getCreditFixedCostTotalForMonth({
-    fixedCosts,
-    monthKey,
-    card,
-    mode: "statement"
-  })
-  const postedFixedUsage = occurrenceMonths.reduce((sum, occurrenceMonth) => {
+  // Once this month's invoice has been marked paid, fixed costs and
+  // installments charged in it are settled — only unpaid transactions
+  // (already filtered above) can still contribute.
+  const invoiceAlreadyPaid = isCardInvoicePaidForMonth(card, monthKey)
+
+  const plannedFixedUsage = invoiceAlreadyPaid
+    ? 0
+    : getCreditFixedCostTotalForMonth({
+        fixedCosts,
+        monthKey,
+        card,
+        mode: "statement"
+      })
+  const postedFixedUsage = invoiceAlreadyPaid ? 0 : occurrenceMonths.reduce((sum, occurrenceMonth) => {
     const totalForOccurrence = fixedCosts
       .filter(
         (cost) =>
@@ -130,13 +138,15 @@ export function getCreditCardUsageSummary(input: {
     return sum + totalForOccurrence
   }, 0)
 
-  const plannedInstallmentsCurrentMonth = getCreditInstallmentTotalForMonth({
-    installmentPlans,
-    monthKey,
-    card,
-    mode: "statement"
-  })
-  const postedInstallmentsCurrentMonth = occurrenceMonths.reduce((sum, occurrenceMonth) => {
+  const plannedInstallmentsCurrentMonth = invoiceAlreadyPaid
+    ? 0
+    : getCreditInstallmentTotalForMonth({
+        installmentPlans,
+        monthKey,
+        card,
+        mode: "statement"
+      })
+  const postedInstallmentsCurrentMonth = invoiceAlreadyPaid ? 0 : occurrenceMonths.reduce((sum, occurrenceMonth) => {
     const totalForOccurrence = installmentPlans
       .filter(
         (plan) =>

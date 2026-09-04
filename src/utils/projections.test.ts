@@ -408,9 +408,49 @@ describe("projection leftovers from historical costs", () => {
       }
     })
 
+    // The 1200 average reflects only historical variable spending; the rent
+    // starting this month is added on top instead of being masked by it.
     expect(projection.averageHistoricalCosts).toBe(1200)
-    expect(projection.committedCosts).toBe(1200)
-    expect(projection.projectedLeftover).toBe(1800)
+    expect(projection.committedCosts).toBe(1600)
+    expect(projection.projectedLeftover).toBe(1400)
+  })
+
+  it("drops committed costs once a structural commitment ends, even while using the historical average", () => {
+    const timeline = buildProjectionTimeline({
+      cards: [],
+      transactions: [
+        expense("jan", "2025-01-10", 900),
+        expense("feb", "2025-02-10", 1200),
+        expense("mar", "2025-03-10", 1500)
+      ],
+      fixedCosts: [],
+      installmentPlans: [
+        {
+          id: "phone",
+          name: "Celular",
+          startMonth: "2025-04",
+          paymentMethod: "pix",
+          installmentValue: 300,
+          paidInstallments: 0,
+          totalInstallments: 1
+        }
+      ],
+      targetMonth: "2025-04",
+      monthsForward: 2,
+      projectedRevenueByMonth: {
+        "2025-01": 2500,
+        "2025-02": 3000,
+        "2025-03": 3500,
+        "2025-04": 3000,
+        "2025-05": 3000
+      }
+    })
+
+    // April: installment active, so it's added on top of the 1200 average variable cost.
+    expect(timeline[0].committedCosts).toBe(1500)
+    // May: the single installment already finished, so committed costs drop
+    // back down to just the historical average instead of staying frozen.
+    expect(timeline[1].committedCosts).toBe(1200)
   })
 
   it("falls back to planned commitments when one of the previous 3 months has no expenses", () => {
