@@ -17,6 +17,8 @@ export const manualInvoiceByMonthSchema = z.record(
 )
 
 export const creditCardFormSchema = z.object({
+  name: z.string().trim().max(80).optional(),
+  cardType: z.string().trim().max(40).optional(),
   limit: z
     .string()
     .min(1, "Informe o limite.")
@@ -30,8 +32,9 @@ export const creditCardSchema = z.object({
   id: z.string().min(1),
   bankId: z.string().min(1).optional(),
   name: z.string().trim().min(1, "Nome do cartão obrigatório.").max(80),
+  cardType: z.string().trim().max(40).optional(),
   brandColor: z.string().trim().min(1),
-  logoUrl: z.string().url().optional(),
+  logoUrl: z.string().trim().optional(),
   limitTotal: z.number().nonnegative("Limite não pode ser negativo."),
   closeDay: z.number().int().min(1).max(31),
   dueDay: z.number().int().min(1).max(31),

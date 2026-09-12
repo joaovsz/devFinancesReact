@@ -187,12 +187,25 @@ function normalizeCardBrandColor(card: CreditCard) {
   if (cardName.includes("ourocard")) {
     return "#FFCD00"
   }
+  if (
+    cardName.includes("azul") &&
+    (!card.brandColor ||
+      card.brandColor === "#64748B" ||
+      card.brandColor === "#005183" ||
+      card.brandColor === "#EC7000")
+  ) {
+    return "#002C6C"
+  }
 
   return card.brandColor
 }
 
 function normalizeCardLogoUrl(card: CreditCard) {
-  return normalizeLegacyLogoUrl(card.logoUrl)
+  const normalized = normalizeLegacyLogoUrl(card.logoUrl)
+  if (!normalized && card.name.toLowerCase().includes("azul")) {
+    return "https://www.google.com/s2/favicons?domain=voeazul.com.br&sz=128"
+  }
+  return normalized
 }
 
 function normalizePaidThroughMonth(value?: string) {
@@ -274,6 +287,7 @@ function sanitizeCard(card: CreditCard, fallback?: CreditCard): CreditCard {
     id: card.id || fallback?.id || crypto.randomUUID(),
     bankId: card.bankId ?? fallback?.bankId,
     name: card.name || fallback?.name || "Cartão",
+    cardType: card.cardType ?? fallback?.cardType,
     brandColor: normalizeCardBrandColor({
       ...card,
       brandColor: card.brandColor || fallback?.brandColor || "#64748B"

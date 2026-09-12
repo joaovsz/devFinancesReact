@@ -80,7 +80,7 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement("a")
     anchor.href = url
-    anchor.download = `devfinances-backup-${stamp}.json`
+    anchor.download = `swiftfinances-backup-${stamp}.json`
     anchor.click()
     URL.revokeObjectURL(url)
     setStatusMessage("Backup exportado com sucesso.")

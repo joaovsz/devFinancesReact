@@ -417,4 +417,35 @@ describe("syncing percentage-of-revenue fixed costs automatically", () => {
 
     expect(useTransactionStore.getState().fixedCosts[0]?.amount).toBe(250)
   })
+
+  it("updates card with cardType Platinum and Azul branding", () => {
+    const itauCard: CreditCard = {
+      id: "card-itau-1",
+      bankId: "itau",
+      name: "Itaú",
+      brandColor: "#EC7000",
+      limitTotal: 5000,
+      closeDay: 10,
+      dueDay: 17,
+      manualInvoiceAmount: 0
+    }
+
+    useTransactionStore.setState({
+      cards: [itauCard]
+    })
+
+    useTransactionStore.getState().updateCard({
+      ...itauCard,
+      name: "Azul Itaú",
+      cardType: "Platinum",
+      bankId: "azul-itau",
+      brandColor: "#002C6C"
+    })
+
+    const updated = useTransactionStore.getState().cards[0]
+    expect(updated?.name).toBe("Azul Itaú")
+    expect(updated?.cardType).toBe("Platinum")
+    expect(updated?.brandColor).toBe("#002C6C")
+    expect(updated?.logoUrl).toContain("voeazul.com.br")
+  })
 })

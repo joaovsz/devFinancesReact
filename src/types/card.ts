@@ -2,6 +2,7 @@ export type CreditCard = {
   id: string
   bankId?: string
   name: string
+  cardType?: string
   brandColor: string
   logoUrl?: string
   limitTotal: number

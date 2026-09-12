@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { Menu, Moon, RefreshCw, Sun, User } from "lucide-react"
-import { NavLink } from "react-router-dom"
+import { Link, NavLink } from "react-router-dom"
 import Logo from "./icons/Logo"
 import { getDockItems } from "./MagicDock"
 import { useTransactionStore } from "../store/useTransactionStore"
@@ -56,62 +56,9 @@ export const Header = ({
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-3 px-4 py-4 md:px-8 xl:max-w-7xl xl:px-10 2xl:max-w-[1500px] 2xl:px-12">
         <div className="flex w-full items-center justify-between md:w-auto md:justify-start md:gap-3">
           <div className="flex items-center gap-3">
-            <motion.button
-              whileHover={{ y: -2, scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
-              onClick={onToggleTheme}
-              className={`flex h-10 w-10 items-center justify-center rounded-xl border transition ${
-                theme === "dark"
-                  ? "border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-zinc-100"
-                  : "border-zinc-300 bg-white text-zinc-700 hover:text-zinc-900"
-              }`}
-              title={theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro"}
-              aria-label={theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro"}
-            >
-              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-            </motion.button>
-            {onSync && (
-              <motion.button
-                whileHover={{ y: -2, scale: 1.03 }}
-                whileTap={{ scale: 0.96 }}
-                disabled={syncState === "loading"}
-                onClick={async () => {
-                  setSyncState("loading")
-                  const hasNew = await onSync()
-                  if (hasNew) {
-                    setSyncState("updated")
-                    setTimeout(() => window.location.reload(), 800)
-                  } else {
-                    setSyncState("ok")
-                    setTimeout(() => setSyncState("idle"), 2500)
-                  }
-                }}
-                className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-xs font-medium transition disabled:cursor-wait ${
-                  syncState === "ok"
-                    ? "border-emerald-600 bg-emerald-500/15 text-emerald-400"
-                    : syncState === "updated"
-                      ? "border-emerald-600 bg-emerald-500/15 text-emerald-400"
-                      : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-zinc-100"
-                }`}
-                title="Sincronizar dados do app Android"
-                aria-label="Sincronizar"
-              >
-                <RefreshCw
-                  size={14}
-                  className={syncState === "loading" ? "animate-spin" : ""}
-                />
-                <span className="hidden sm:inline">
-                  {syncState === "loading"
-                    ? "Sincronizando..."
-                    : syncState === "ok"
-                      ? "Atualizado"
-                      : syncState === "updated"
-                        ? "Novo dado!"
-                        : "Sincronizar"}
-                </span>
-              </motion.button>
-            )}
-            <Logo className="text-zinc-100" />
+            <Link to="/" className="transition hover:opacity-90 inline-flex items-center" title="Swift Finances">
+              <Logo className="text-zinc-100" />
+            </Link>
           </div>
 
           <div className="relative shrink-0 md:hidden" ref={navMenuRef}>
@@ -194,6 +141,62 @@ export const Header = ({
               </button>
             </div>
           </div>
+          {onSync && (
+            <motion.button
+              whileHover={{ y: -2, scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
+              disabled={syncState === "loading"}
+              onClick={async () => {
+                setSyncState("loading")
+                const hasNew = await onSync()
+                if (hasNew) {
+                  setSyncState("updated")
+                  setTimeout(() => window.location.reload(), 800)
+                } else {
+                  setSyncState("ok")
+                  setTimeout(() => setSyncState("idle"), 2500)
+                }
+              }}
+              className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-xs font-medium transition disabled:cursor-wait shrink-0 ${
+                syncState === "ok"
+                  ? "border-emerald-600 bg-emerald-500/15 text-emerald-400"
+                  : syncState === "updated"
+                    ? "border-emerald-600 bg-emerald-500/15 text-emerald-400"
+                    : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-zinc-100"
+              }`}
+              title="Sincronizar dados do app Android"
+              aria-label="Sincronizar"
+            >
+              <RefreshCw
+                size={14}
+                className={syncState === "loading" ? "animate-spin" : ""}
+              />
+              <span className="hidden sm:inline">
+                {syncState === "loading"
+                  ? "Sincronizando..."
+                  : syncState === "ok"
+                    ? "Atualizado"
+                    : syncState === "updated"
+                      ? "Novo dado!"
+                      : "Sincronizar"}
+              </span>
+            </motion.button>
+          )}
+
+          <motion.button
+            whileHover={{ y: -2, scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={onToggleTheme}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition ${
+              theme === "dark"
+                ? "border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-zinc-100"
+                : "border-zinc-300 bg-white text-zinc-700 hover:text-zinc-900"
+            }`}
+            title={theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro"}
+            aria-label={theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro"}
+          >
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          </motion.button>
 
           <div className="relative shrink-0" ref={accountMenuRef}>
             <button

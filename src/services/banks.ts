@@ -13,6 +13,11 @@ type BrasilApiBank = {
 }
 
 const domainByKeyword: Array<{ keywords: string[]; domain: string }> = [
+  { keywords: ["azul itau", "tudoazul", "azul", "voeazul"], domain: "voeazul.com.br" },
+  { keywords: ["latam pass", "latam"], domain: "latamairlines.com" },
+  { keywords: ["smiles"], domain: "smiles.com.br" },
+  { keywords: ["btg"], domain: "btgpactual.com" },
+  { keywords: ["xp"], domain: "xpi.com.br" },
   { keywords: ["nubank"], domain: "nubank.com.br" },
   { keywords: ["banco do brasil", "bb "], domain: "bb.com.br" },
   { keywords: ["mercado pago"], domain: "mercadopago.com.br" },

@@ -1,13 +1,10 @@
-import { MouseEvent, useEffect, useMemo, useState } from "react"
-import { useForm } from "react-hook-form"
+import { useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import {
   Activity,
   Beef,
   BriefcaseBusiness,
   ChartLine,
-  Check,
-  ChevronDown,
   CreditCard,
   Gamepad2,
   GraduationCap,
@@ -32,7 +29,6 @@ import {
 } from "../utils/projections"
 import { isTransactionInOperationalMonth } from "../utils/domain/transactions"
 import {
-  calculateManualInvoiceAdjustment,
   CreditCardInvoicePlannedItem,
   getCreditCardInvoicePlannedItems,
   getCreditCardInvoiceTransactions,
@@ -44,22 +40,16 @@ import { NumberTicker } from "./magic/NumberTicker"
 import { formatCurrency } from "./Transactions"
 import { bankPresets, BankPreset } from "../data/banks"
 import { selectTotalMonthlyContribution, useGoalStore } from "../store/useGoalStore"
-import {
-  formatCurrencyFromNumber,
-  formatCurrencyInput,
-  parseCurrencyInput
-} from "../utils/currency-input"
 import { fetchBankInstitutions } from "../services/banks"
 import { CreditCard as CardType } from "../types/card"
 import { DismissibleInfoCard } from "./ui/DismissibleInfoCard"
 import { CardInvoiceModal } from "./cards/CardInvoiceModal"
+import { CardModal, PRESET_BRAND_COLORS } from "./cards/CardModal"
 import { defaultCategories } from "../data/categories"
 import { echarts } from "../utils/echarts"
-import {
-  CreditCardFormValues,
-  creditCardFormSchema,
-  creditCardSchema
-} from "../schemas"
+import { creditCardSchema } from "../schemas"
+
+export { PRESET_BRAND_COLORS }
 
 type CategoryExpenseBucket = {
   categoryId: string
@@ -72,8 +62,6 @@ type CategoryDrillItem = {
   label: string
   value: number
 }
-
-const otherBankOption: BankPreset = { id: "other", name: "Outros", brandColor: "#64748B" }
 
 export const Cards = () => {
   const navigate = useNavigate()
@@ -100,38 +88,14 @@ export const Cards = () => {
   )
   const currentMonth = activeMonthKey
   const [holidays, setHolidays] = useState<Holiday[]>([])
-  const [showAddCardForm, setShowAddCardForm] = useState(false)
-  const [expandedCardId, setExpandedCardId] = useState<string | null>(null)
   const [institutions, setInstitutions] = useState<BankPreset[]>(bankPresets)
-  const [selectedBankId, setSelectedBankId] = useState(bankPresets[0]?.id || "other")
-  const [bankSearch, setBankSearch] = useState(bankPresets[0]?.name || "")
-  const [showBankOptions, setShowBankOptions] = useState(false)
-  const {
-    handleSubmit: handleSubmitCard,
-    reset: resetCardForm,
-    setError: setCardFormError,
-    setValue: setCardFormValue,
-    watch: watchCardForm,
-    formState: { errors: cardFormErrors }
-  } = useForm<CreditCardFormValues>({
-    defaultValues: {
-      limit: "",
-      closeDay: "",
-      dueDay: ""
-    }
-  })
-  const newCardForm = watchCardForm()
+  const [cardModalState, setCardModalState] = useState<{
+    isOpen: boolean
+    card: CardType | null
+  }>({ isOpen: false, card: null })
   const [invoiceCardId, setInvoiceCardId] = useState<string | null>(null)
   const [selectedCategoryDrillId, setSelectedCategoryDrillId] = useState<string | null>(null)
   const [themeVersion, setThemeVersion] = useState(0)
-  const [invoiceTotalDraftByCard, setInvoiceTotalDraftByCard] = useState<
-    Record<string, string>
-  >({})
-  const dayOptions = Array.from({ length: 31 }, (_, index) => String(index + 1))
-  const cardBankOptions = [...institutions, otherBankOption]
-  const filteredBankOptions = cardBankOptions.filter((bank) =>
-    bank.name.toLowerCase().includes(bankSearch.trim().toLowerCase())
-  )
 
   useEffect(() => {
     let ignore = false
@@ -168,24 +132,12 @@ export const Cards = () => {
         return
       }
       setInstitutions(items)
-      if (!items.some((item) => item.id === selectedBankId)) {
-        setSelectedBankId(items[0].id)
-      }
     })
 
     return () => {
       ignore = true
     }
   }, [])
-
-  useEffect(() => {
-    const selected =
-      institutions.find((bank) => bank.id === selectedBankId) ||
-      (selectedBankId === otherBankOption.id ? otherBankOption : undefined)
-    if (selected) {
-      setBankSearch(selected.name)
-    }
-  }, [selectedBankId, institutions])
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -583,7 +535,21 @@ export const Cards = () => {
   const totalCreditLimit = cardUsage.reduce((sum, card) => sum + card.limitTotal, 0)
 
   function getCardBrandColor(cardName: string, currentColor: string) {
-    return cardName.toLowerCase().includes("ourocard") ? "#FFCD00" : currentColor
+    const lower = cardName.toLowerCase()
+    if (lower.includes("ourocard")) {
+      return "#FFCD00"
+    }
+    if (
+      lower.includes("azul") &&
+      (!currentColor ||
+        currentColor === "#005183" ||
+        currentColor === "#64748B" ||
+        currentColor === "#10B981" ||
+        currentColor === "#EC7000")
+    ) {
+      return "#002C6C"
+    }
+    return currentColor || "#10B981"
   }
 
   function getCategoryIcon(categoryId: string, subcategoryId?: string): LucideIcon {
@@ -638,110 +604,70 @@ export const Cards = () => {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`
   }
 
-  function updateCardField(
-    card: CardType,
-    field: "limitTotal" | "closeDay" | "dueDay",
-    value: string
-  ) {
-    const numericValue = field === "limitTotal" ? parseCurrencyInput(value) : Number(value)
-    if (Number.isNaN(numericValue)) {
-      return
-    }
-
-    const parsedCard = creditCardSchema.safeParse({
-      ...card,
-      [field]: numericValue
-    })
-    if (!parsedCard.success) {
-      return
-    }
-
-    updateCard(parsedCard.data)
+  function handleOpenAddCard() {
+    setCardModalState({ isOpen: true, card: null })
   }
 
-  function setInvoiceTotalDraft(cardId: string, inputValue: string) {
-    setInvoiceTotalDraftByCard((current) => ({
-      ...current,
-      [cardId]: inputValue
-    }))
+  function handleOpenEditCard(card: CardType) {
+    setCardModalState({ isOpen: true, card })
   }
 
-  function getInvoiceTotalDraft(cardId: string) {
-    return invoiceTotalDraftByCard[cardId]
+  function handleCloseCardModal() {
+    setCardModalState({ isOpen: false, card: null })
   }
 
-  function clearInvoiceTotalDraft(cardId: string) {
-    setInvoiceTotalDraftByCard((current) => {
-      if (!(cardId in current)) {
-        return current
+  function handleSaveCard(cardData: {
+    id?: string
+    bankId?: string
+    name: string
+    brandColor: string
+    logoUrl?: string
+    limitTotal: number
+    closeDay: number
+    dueDay: number
+  }) {
+    if (cardData.id) {
+      const existingCard = cards.find((c) => c.id === cardData.id)
+      if (!existingCard) return
+      const updated = {
+        ...existingCard,
+        bankId: cardData.bankId || existingCard.bankId,
+        name: cardData.name,
+        brandColor: cardData.brandColor,
+        logoUrl: cardData.logoUrl,
+        limitTotal: cardData.limitTotal,
+        closeDay: cardData.closeDay,
+        dueDay: cardData.dueDay
       }
-
-      const next = { ...current }
-      delete next[cardId]
-      return next
-    })
-  }
-
-  function commitInvoiceTotalFromDraft(
-    card: CardType & { currentInvoice: number; postedInvoice: number; manualInvoiceAmount: number }
-  ) {
-    const draftValue = getInvoiceTotalDraft(card.id)
-    if (draftValue === undefined) {
-      return
+      const parsed = creditCardSchema.safeParse(updated)
+      if (parsed.success) {
+        updateCard(parsed.data)
+      }
+    } else {
+      const newCard = {
+        id: crypto.randomUUID(),
+        bankId: cardData.bankId || "other",
+        name: cardData.name,
+        brandColor: cardData.brandColor,
+        logoUrl: cardData.logoUrl,
+        limitTotal: cardData.limitTotal,
+        closeDay: cardData.closeDay,
+        dueDay: cardData.dueDay,
+        manualInvoiceAmount: 0
+      }
+      const parsed = creditCardSchema.safeParse(newCard)
+      if (parsed.success) {
+        addCard(parsed.data)
+      }
     }
-
-    const nextManualAdjustment = calculateManualInvoiceAdjustment({
-      realInvoiceTotal: parseCurrencyInput(draftValue),
-      currentInvoice: card.currentInvoice,
-      manualAdjustmentValue: card.manualInvoiceAmount || 0
-    })
-    setCardManualInvoiceAmountForMonth(card.id, currentMonth, nextManualAdjustment)
-    clearInvoiceTotalDraft(card.id)
-  }
-
-  function handleAddCard(values: CreditCardFormValues) {
-    const parsedForm = creditCardFormSchema.safeParse(values)
-    if (!parsedForm.success) {
-      setCardFormError("root", {
-        message: parsedForm.error.issues[0]?.message || "Revise os dados do cartão."
-      })
-      return
-    }
-
-    const normalizedSearch = bankSearch.trim().toLowerCase()
-    const selectedBank =
-      cardBankOptions.find((bank) => bank.id === selectedBankId) ||
-      cardBankOptions.find((bank) => bank.name.toLowerCase() === normalizedSearch) ||
-      filteredBankOptions[0]
-    const nextCard = {
-      id: crypto.randomUUID(),
-      bankId: selectedBank?.id || "other",
-      name: selectedBank?.name || "Outros",
-      brandColor: selectedBank?.brandColor || "#64748B",
-      logoUrl: selectedBank?.logoUrl,
-      limitTotal: parsedForm.data.limit,
-      closeDay: parsedForm.data.closeDay,
-      dueDay: parsedForm.data.dueDay,
-      manualInvoiceAmount: 0
-    }
-    const parsedCard = creditCardSchema.safeParse(nextCard)
-    if (!parsedCard.success) {
-      setCardFormError("root", {
-        message: parsedCard.error.issues[0]?.message || "Revise os dados do cartão."
-      })
-      return
-    }
-
-    addCard(parsedCard.data)
-
-    resetCardForm()
-    setShowAddCardForm(false)
   }
 
   function handleRemoveCard(cardId: string) {
     removeCard(cardId)
-    setExpandedCardId((current) => (current === cardId ? null : current))
-    setInvoiceCardId((current) => (current === cardId ? null : current))
+    if (invoiceCardId === cardId) {
+      setInvoiceCardId(null)
+    }
+    handleCloseCardModal()
   }
 
   function openCardInvoice(cardId: string) {
@@ -994,179 +920,54 @@ export const Cards = () => {
           title="Como usar Meus Cartões"
           description="Aqui você acompanha limite usado/disponível e gerencia cada cartão."
           items={[
-            "Dê duplo clique no cartão para abrir edição.",
-            "No modo edição você pode alterar limite, fechamento e vencimento.",
-            "Também é possível remover o cartão."
+            "Clique em 'Editar' ou dê duplo clique no cartão para abrir a edição.",
+            "Você pode alterar limite, fechamento, vencimento, cor da marca ou remover.",
+            "Acompanhe o limite e faturas previstas vs. lançadas em tempo real."
           ]}
         />
         <div className="mb-4">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">Meus cartões</h2>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {cardUsage.map((card) => (
-            (() => {
-              const brandColor = getCardBrandColor(card.name, card.brandColor)
-              const isExpanded = expandedCardId === card.id
-              return (
-            <div
-              key={card.id}
-              className="w-full self-start rounded-xl border p-2.5 select-none"
-              style={{
-                aspectRatio: isExpanded ? undefined : "2.2 / 1",
-                borderColor: hexToRgba(brandColor, 0.65),
-                background: `linear-gradient(135deg, ${hexToRgba(brandColor, 0.22)}, var(--card-gradient-end))`
-              }}
-              onDoubleClick={(event: MouseEvent<HTMLElement>) => {
-                const target = event.target as HTMLElement
-                if (target.closest("input, select, button, textarea")) {
-                  return
-                }
-                setExpandedCardId((currentCardId) =>
-                  currentCardId === card.id ? null : card.id
-                )
-                if (expandedCardId === card.id) {
-                  clearInvoiceTotalDraft(card.id)
-                }
-              }}
-            >
-              <div className="flex h-full flex-col justify-between">
-                <div className="flex min-w-0 items-center justify-between gap-2">
-                  <span className="block max-w-[48%] truncate whitespace-nowrap text-sm font-medium text-zinc-100">
-                    {card.name}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] text-zinc-100">
-                      Fechamento {card.closeDay} | Vencimento {card.dueDay}
+          {cardUsage.map((card) => {
+            const brandColor = getCardBrandColor(card.name, card.brandColor)
+            return (
+              <div
+                key={card.id}
+                className="group relative w-full self-start rounded-xl border p-2.5 select-none transition hover:border-zinc-500"
+                style={{
+                  aspectRatio: "2.2 / 1",
+                  borderColor: hexToRgba(brandColor, 0.65),
+                  background: `linear-gradient(135deg, ${hexToRgba(brandColor, 0.22)}, var(--card-gradient-end))`
+                }}
+                onDoubleClick={() => handleOpenEditCard(card)}
+              >
+                <div className="flex h-full flex-col justify-between">
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="truncate text-sm font-semibold text-zinc-100" title={card.name}>
+                      {card.name}
                     </span>
-                    {card.logoUrl ? (
-                      <img
-                        src={card.logoUrl}
-                        alt={card.name}
-                        className="h-6 w-6 rounded-full bg-white/90 object-contain p-0.5"
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: brandColor }} />
-                    )}
-                  </div>
-                </div>
-                {isExpanded ? (
-                  <div className="mt-2 grid gap-2 rounded-xl border border-zinc-700/80 bg-zinc-900/30 p-2">
-                    <label className="grid gap-1 text-[11px] uppercase tracking-wide text-zinc-400">
-                      Limite total
-                      <input
-                        className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs normal-case text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                        type="text"
-                        inputMode="decimal"
-                        value={formatCurrencyFromNumber(card.limitTotal)}
-                        onChange={(event) =>
-                          updateCardField(
-                            card,
-                            "limitTotal",
-                            event.target.value
-                          )
-                        }
-                      />
-                    </label>
-                    <label className="grid gap-1 text-[11px] uppercase tracking-wide text-zinc-400">
-                      Valor total da fatura
-                      <input
-                        className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs normal-case text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                        type="text"
-                        inputMode="decimal"
-                        value={
-                          getInvoiceTotalDraft(card.id) ??
-                          formatCurrencyFromNumber(card.currentInvoice)
-                        }
-                        onFocus={() =>
-                          setInvoiceTotalDraft(
-                            card.id,
-                            formatCurrencyFromNumber(card.currentInvoice)
-                          )
-                        }
-                        onChange={(event) =>
-                          setInvoiceTotalDraft(card.id, formatCurrencyInput(event.target.value))
-                        }
-                        onBlur={() => commitInvoiceTotalFromDraft(card)}
-                      />
-                    </label>
-                    {card.pendingInvoice > 0 && (
-                      <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-[11px] text-sky-200">
-                        Ainda faltam cobranças previstas para este ciclo:{" "}
-                        <span className="font-semibold">
-                          {formatCurrency(card.pendingInvoice)}
-                        </span>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 gap-2">
-                      <label className="grid gap-1 text-[11px] uppercase tracking-wide text-zinc-400">
-                        Dia de fechamento
-                        <select
-                          size={1}
-                          className="h-10 max-h-10 w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs normal-case text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                          value={String(card.closeDay)}
-                          onChange={(event) =>
-                            updateCardField(card, "closeDay", event.target.value)
-                          }
-                        >
-                          {dayOptions.map((day) => (
-                            <option key={`card-close-${card.id}-${day}`} value={day}>
-                              {day}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="grid gap-1 text-[11px] uppercase tracking-wide text-zinc-400">
-                        Dia de vencimento
-                        <select
-                          size={1}
-                          className="h-10 max-h-10 w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs normal-case text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                          value={String(card.dueDay)}
-                          onChange={(event) => updateCardField(card, "dueDay", event.target.value)}
-                        >
-                          {dayOptions.map((day) => (
-                            <option key={`card-due-${card.id}-${day}`} value={day}>
-                              {day}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-                    <p className="text-[10px] leading-snug text-zinc-500">
-                      Alterar o dia de fechamento ou vencimento afeta apenas novos lançamentos.
-                      Faturas já lançadas não são recalculadas.
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        className="inline-flex items-center justify-center rounded-xl border border-red-500/60 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/25"
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          handleRemoveCard(card.id)
-                        }}
-                        type="button"
-                      >
-                        Remover cartão
-                      </button>
-                      <button
-                        className="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-500/60 bg-emerald-500/15 px-3 py-2 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/25"
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          commitInvoiceTotalFromDraft(card)
-                          setExpandedCardId(null)
-                        }}
-                        type="button"
-                        aria-label="Salvar cartão"
-                        title="Salvar cartão"
-                      >
-                        <Check size={14} />
-                        Salvar
-                      </button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-[9px] text-zinc-300">
+                        Fech. {card.closeDay} | Venc. {card.dueDay}
+                      </span>
+                      {card.logoUrl ? (
+                        <img
+                          src={card.logoUrl}
+                          alt={card.name}
+                          className="h-6 w-6 rounded-full bg-white object-contain p-0.5 shadow-sm"
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = "none"
+                          }}
+                        />
+                      ) : (
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: brandColor }} />
+                      )}
                     </div>
                   </div>
-                ) : (
+
                   <div>
                     <div className="mb-1 h-2 w-full rounded-full bg-zinc-800">
                       <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${card.usagePercentage}%` }} />
@@ -1187,150 +988,54 @@ export const Cards = () => {
                           Lançada: {formatCurrency(card.postedInvoice)}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => openCardInvoice(card.id)}
-                        className="text-[11px] text-zinc-500 underline-offset-2 transition hover:text-zinc-300 hover:underline"
-                      >
-                        Ver fatura
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditCard(card)}
+                          className="text-[11px] text-zinc-400 underline-offset-2 transition hover:text-zinc-200 hover:underline"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openCardInvoice(card.id)}
+                          className="text-[11px] text-zinc-500 underline-offset-2 transition hover:text-zinc-300 hover:underline"
+                        >
+                          Ver fatura
+                        </button>
+                      </div>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
-            </div>
-              )
-            })()
-          ))}
+            )
+          })}
           <div
             className="w-full self-start rounded-xl border border-zinc-700/80 bg-zinc-950 p-2.5"
-            style={{ aspectRatio: showAddCardForm ? undefined : "2.2 / 1" }}
+            style={{ aspectRatio: "2.2 / 1" }}
           >
-            {!showAddCardForm ? (
-              <button
-                className="flex h-full w-full flex-col items-center justify-center gap-2 text-zinc-400 transition hover:text-zinc-200"
-                onClick={() => setShowAddCardForm(true)}
-              >
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-zinc-200">
-                  <Plus size={20} />
-                </span>
-                <span className="text-xs font-medium">Adicionar cartão</span>
-              </button>
-            ) : (
-              <form className="grid gap-2" onSubmit={handleSubmitCard(handleAddCard)}>
-                <div className="relative">
-                  <input
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 pr-8 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                    type="text"
-                    placeholder="Pesquisar banco"
-                    value={bankSearch}
-                    onFocus={() => setShowBankOptions(true)}
-                    onChange={(event) => {
-                      setBankSearch(event.target.value)
-                      setShowBankOptions(true)
-                    }}
-                  />
-                  <button
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500"
-                    type="button"
-                    onClick={() => setShowBankOptions((current) => !current)}
-                  >
-                    <ChevronDown size={14} />
-                  </button>
-                  {showBankOptions && (
-                    <div className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-900 p-1">
-                      {filteredBankOptions.length === 0 && (
-                        <div className="px-2 py-1.5 text-xs text-zinc-500">Nenhum banco encontrado</div>
-                      )}
-                      {filteredBankOptions.map((bank) => (
-                        <button
-                          key={bank.id}
-                          className="w-full rounded-lg px-2 py-1.5 text-left text-xs text-zinc-200 transition hover:bg-zinc-800"
-                          type="button"
-                          onClick={() => {
-                            setSelectedBankId(bank.id)
-                            setBankSearch(bank.name)
-                            setShowBankOptions(false)
-                          }}
-                        >
-                          {bank.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <input
-                  className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="Limite"
-                  value={newCardForm.limit}
-                  onChange={(event) =>
-                    setCardFormValue("limit", formatCurrencyInput(event.target.value), {
-                      shouldDirty: true
-                    })
-                  }
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    size={1}
-                    className="h-10 max-h-10 w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                    value={newCardForm.closeDay}
-                    onChange={(event) =>
-                      setCardFormValue("closeDay", event.target.value, { shouldDirty: true })
-                    }
-                  >
-                    <option value="">Fech.</option>
-                    {dayOptions.map((day) => (
-                      <option key={`home-close-${day}`} value={day}>
-                        {day}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    size={1}
-                    className="h-10 max-h-10 w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
-                    value={newCardForm.dueDay}
-                    onChange={(event) =>
-                      setCardFormValue("dueDay", event.target.value, { shouldDirty: true })
-                    }
-                  >
-                    <option value="">Venc.</option>
-                    {dayOptions.map((day) => (
-                      <option key={`home-due-${day}`} value={day}>
-                        {day}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {cardFormErrors.root?.message && (
-                  <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-                    {cardFormErrors.root.message}
-                  </p>
-                )}
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    className="rounded-xl border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
-                    onClick={() => {
-                      resetCardForm()
-                      setShowAddCardForm(false)
-                    }}
-                    type="button"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    className="rounded-xl bg-emerald-500 px-2 py-2 text-xs font-medium text-white transition hover:bg-emerald-400"
-                    type="submit"
-                  >
-                    Salvar
-                  </button>
-                </div>
-              </form>
-            )}
+            <button
+              className="flex h-full w-full flex-col items-center justify-center gap-2 text-zinc-400 transition hover:text-zinc-200"
+              onClick={handleOpenAddCard}
+              type="button"
+            >
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-zinc-200">
+                <Plus size={20} />
+              </span>
+              <span className="text-xs font-medium">Adicionar cartão</span>
+            </button>
           </div>
         </div>
       </article>
+
+      <CardModal
+        isOpen={cardModalState.isOpen}
+        editingCard={cardModalState.card}
+        institutions={institutions}
+        onClose={handleCloseCardModal}
+        onSave={handleSaveCard}
+        onRemove={handleRemoveCard}
+      />
 
       <CardInvoiceModal
         isOpen={Boolean(selectedInvoiceCard)}
