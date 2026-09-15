@@ -22,10 +22,11 @@ import { defaultCategories } from "../../data/categories"
 import { formatCurrency } from "../Transactions"
 import { NumberTicker } from "../magic/NumberTicker"
 import {
-  addDaysToDateKey,
-  computeSevenDaysExpenses,
-  getLastSevenDaysStartDate,
+  computeMonthToDateExpenses,
+  computeMonthWeekExpenses,
+  getMonthWeeks,
   getTodayDateString,
+  getWeekForDate,
   loadOutlierCapSettings,
   OUTLIER_CAP_STORAGE_KEY,
   OutlierCapSettings
@@ -76,18 +77,19 @@ export function WeeklyDailyExpenses({
   onOpenOutlierModal
 }: WeeklyDailyExpensesProps) {
   const todayKey = useMemo(() => getTodayDateString(), [])
-  const defaultStartDate = useMemo(() => {
-    if (targetMonth) {
-      const todayMonth = todayKey.slice(0, 7)
-      if (targetMonth === todayMonth) {
-        return getLastSevenDaysStartDate(todayKey)
-      }
-      return `${targetMonth}-01`
-    }
-    return getLastSevenDaysStartDate(todayKey)
-  }, [targetMonth, todayKey])
+  const currentMonthKey = useMemo(() => todayKey.slice(0, 7), [todayKey])
+  const activeMonthKey = targetMonth || currentMonthKey
 
-  const [startDate, setStartDate] = useState(defaultStartDate)
+  const weeks = useMemo(() => getMonthWeeks(activeMonthKey), [activeMonthKey])
+
+  const initialWeekNumber = useMemo(() => {
+    if (activeMonthKey === currentMonthKey) {
+      return getWeekForDate(activeMonthKey, todayKey)
+    }
+    return 1
+  }, [activeMonthKey, currentMonthKey, todayKey])
+
+  const [activeWeekNumber, setActiveWeekNumber] = useState<number>(initialWeekNumber)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("")
   const [manuallyExcludedIds, setManuallyExcludedIds] = useState<string[]>(() =>
     loadManualExclusions()
@@ -112,27 +114,34 @@ export function WeeklyDailyExpenses({
     )
   }, [manuallyExcludedIds])
 
-  // Sync with targetMonth changes if user changes month in parent
+  // Sync active week when month changes
   useEffect(() => {
-    if (targetMonth) {
-      const todayMonth = todayKey.slice(0, 7)
-      if (targetMonth === todayMonth) {
-        setStartDate(getLastSevenDaysStartDate(todayKey))
-      } else {
-        setStartDate(`${targetMonth}-01`)
-      }
+    if (activeMonthKey === currentMonthKey) {
+      setActiveWeekNumber(getWeekForDate(activeMonthKey, todayKey))
+    } else {
+      setActiveWeekNumber(1)
     }
-  }, [targetMonth, todayKey])
+  }, [activeMonthKey, currentMonthKey, todayKey])
+
+  // Ensure activeWeekNumber is within bounds of available weeks
+  useEffect(() => {
+    if (activeWeekNumber > weeks.length) {
+      setActiveWeekNumber(weeks.length)
+    } else if (activeWeekNumber < 1) {
+      setActiveWeekNumber(1)
+    }
+  }, [weeks, activeWeekNumber])
 
   const effectiveOutlierCapValue =
     activeOutlierCap && activeOutlierCap.enabled && activeOutlierCap.value > 0
       ? activeOutlierCap.value
       : null
 
-  const weeklyData = useMemo(() => {
-    return computeSevenDaysExpenses({
+  const weekData = useMemo(() => {
+    return computeMonthWeekExpenses({
       transactions,
-      startDateKey: startDate,
+      monthKey: activeMonthKey,
+      weekNumber: activeWeekNumber,
       referenceToday: todayKey,
       outlierCapValue: effectiveOutlierCapValue,
       excludedTransactionIds: manuallyExcludedIds,
@@ -140,7 +149,26 @@ export function WeeklyDailyExpenses({
     })
   }, [
     transactions,
-    startDate,
+    activeMonthKey,
+    activeWeekNumber,
+    todayKey,
+    effectiveOutlierCapValue,
+    manuallyExcludedIds,
+    selectedCategoryId
+  ])
+
+  const monthToDateData = useMemo(() => {
+    return computeMonthToDateExpenses({
+      transactions,
+      monthKey: activeMonthKey,
+      referenceToday: todayKey,
+      outlierCapValue: effectiveOutlierCapValue,
+      excludedTransactionIds: manuallyExcludedIds,
+      categoryId: selectedCategoryId || null
+    })
+  }, [
+    transactions,
+    activeMonthKey,
     todayKey,
     effectiveOutlierCapValue,
     manuallyExcludedIds,
@@ -172,41 +200,57 @@ export function WeeklyDailyExpenses({
 
   // Selected day for inspection (defaults to today if present in window, or first day with expense, or latest day)
   const [selectedDateKey, setSelectedDateKey] = useState<string>(() => {
-    if (weeklyData.isLatestSevenDays) {
+    const todayInWeek = weekData.days.find((d) => d.dateKey === todayKey)
+    if (todayInWeek) {
       return todayKey
     }
-    return weeklyData.days[weeklyData.days.length - 1].dateKey
+    if (weekData.maxDay && weekData.maxDay.totalExpense > 0) {
+      return weekData.maxDay.dateKey
+    }
+    return weekData.days[0]?.dateKey || todayKey
   })
 
-  // Keep selected day within the current window when range changes
+  // Keep selected day within the current window when week changes
   useEffect(() => {
-    const isSelectedInWindow = weeklyData.days.some((d) => d.dateKey === selectedDateKey)
+    const isSelectedInWindow = weekData.days.some((d) => d.dateKey === selectedDateKey)
     if (!isSelectedInWindow) {
-      if (weeklyData.isLatestSevenDays) {
+      const todayInWeek = weekData.days.find((d) => d.dateKey === todayKey)
+      if (todayInWeek) {
         setSelectedDateKey(todayKey)
-      } else if (weeklyData.maxDay && weeklyData.maxDay.totalExpense > 0) {
-        setSelectedDateKey(weeklyData.maxDay.dateKey)
+      } else if (weekData.maxDay && weekData.maxDay.totalExpense > 0) {
+        setSelectedDateKey(weekData.maxDay.dateKey)
       } else {
-        setSelectedDateKey(weeklyData.days[weeklyData.days.length - 1].dateKey)
+        setSelectedDateKey(weekData.days[0]?.dateKey || todayKey)
       }
     }
-  }, [weeklyData, selectedDateKey, todayKey])
+  }, [weekData, selectedDateKey, todayKey])
 
   const selectedDayData = useMemo(() => {
-    return weeklyData.days.find((d) => d.dateKey === selectedDateKey) || weeklyData.days[0]
-  }, [weeklyData, selectedDateKey])
+    return weekData.days.find((d) => d.dateKey === selectedDateKey) || weekData.days[0]
+  }, [weekData, selectedDateKey])
 
-  const handlePrev7Days = () => {
-    setStartDate((prev) => addDaysToDateKey(prev, -7))
+  const canGoPrevWeek = activeWeekNumber > 1
+  const canGoNextWeek = activeWeekNumber < weeks.length
+
+  const handlePrevWeek = () => {
+    if (canGoPrevWeek) {
+      setActiveWeekNumber((prev) => prev - 1)
+    }
   }
 
-  const handleNext7Days = () => {
-    setStartDate((prev) => addDaysToDateKey(prev, 7))
+  const handleNextWeek = () => {
+    if (canGoNextWeek) {
+      setActiveWeekNumber((prev) => prev + 1)
+    }
   }
 
-  const handleResetToLatestSevenDays = () => {
-    setStartDate(getLastSevenDaysStartDate(todayKey))
-    setSelectedDateKey(todayKey)
+  const handleResetToCurrentWeek = () => {
+    if (activeMonthKey === currentMonthKey) {
+      setActiveWeekNumber(getWeekForDate(activeMonthKey, todayKey))
+      setSelectedDateKey(todayKey)
+    } else {
+      setActiveWeekNumber(1)
+    }
   }
 
   const toggleExcludeTransaction = (txId: string) => {
@@ -216,19 +260,19 @@ export function WeeklyDailyExpenses({
   }
 
   const maxEffectiveDailyExpense = useMemo(() => {
-    return Math.max(...weeklyData.days.map((d) => d.discretionaryExpense), 0)
-  }, [weeklyData.days])
+    return Math.max(...weekData.days.map((d) => d.discretionaryExpense), 0)
+  }, [weekData.days])
 
   const maxEffectiveDay = useMemo(() => {
     return (
-      weeklyData.days.find(
+      weekData.days.find(
         (d) => d.discretionaryExpense === maxEffectiveDailyExpense && d.discretionaryExpense > 0
       ) || null
     )
-  }, [weeklyData.days, maxEffectiveDailyExpense])
+  }, [weekData.days, maxEffectiveDailyExpense])
 
-  const hasExclusionsInWeek = weeklyData.outlierExpensesCount > 0
-  const isLatestSevenDays = weeklyData.isLatestSevenDays
+  const hasExclusionsInWeek = weekData.outlierExpensesCount > 0
+  const isCurrentWeek = weekData.isCurrentWeek
 
   return (
     <article className="w-full max-w-full overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5">
@@ -239,21 +283,23 @@ export function WeeklyDailyExpenses({
             <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">
               Gastos diários
             </h2>
-            {isLatestSevenDays ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Últimos 7 dias
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={handleResetToLatestSevenDays}
-                className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-950 px-2.5 py-0.5 text-[11px] font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
-                title="Voltar para os últimos 7 dias"
-              >
-                <RotateCcw size={11} />
-                <span>Hoje</span>
-              </button>
+            {activeMonthKey === currentMonthKey && (
+              isCurrentWeek ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Semana atual
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResetToCurrentWeek}
+                  className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-950 px-2.5 py-0.5 text-[11px] font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+                  title="Voltar para a semana atual"
+                >
+                  <RotateCcw size={11} />
+                  <span>Semana atual</span>
+                </button>
+              )
             )}
             <button
               type="button"
@@ -279,11 +325,11 @@ export function WeeklyDailyExpenses({
             </button>
           </div>
           <p className="mt-1 text-xs text-zinc-500">
-            Ritmo de consumo diário nos 7 dias selecionados
+            Ritmo de consumo por semanas do mês e média acumulada desde o dia 01
           </p>
         </div>
 
-        {/* Action Controls: Category Filter + Period Navigation */}
+        {/* Action Controls: Category Filter + Week Navigation */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Category Filter Select */}
           <div className="relative min-w-[160px] flex-1 sm:w-auto sm:flex-none">
@@ -319,34 +365,63 @@ export function WeeklyDailyExpenses({
             </button>
           )}
 
-          {/* 7-Day Range Navigation with Arrows */}
+          {/* Week Navigation with Arrows */}
           <div className="inline-flex h-9 items-center rounded-xl border border-zinc-700 bg-zinc-950 p-0.5">
             <button
               type="button"
-              onClick={handlePrev7Days}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-100 active:scale-95"
-              aria-label="7 dias anteriores"
-              title="7 dias anteriores"
+              onClick={handlePrevWeek}
+              disabled={!canGoPrevWeek}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-100 active:scale-95 disabled:pointer-events-none disabled:opacity-30"
+              aria-label="Semana anterior"
+              title={canGoPrevWeek ? "Semana anterior" : "Primeira semana do mês"}
             >
               <ChevronLeft size={16} />
             </button>
 
-            <div className="flex min-w-0 items-center gap-1.5 px-2 text-xs font-medium text-zinc-200">
+            <div className="flex min-w-0 items-center gap-1.5 px-2.5 text-xs font-medium text-zinc-200">
               <Calendar size={13} className="shrink-0 text-zinc-400" />
-              <span className="truncate">{weeklyData.rangeLabel}</span>
+              <span className="truncate">
+                Semana {weekData.week.weekNumber}: {weekData.week.shortLabel}
+              </span>
             </div>
 
             <button
               type="button"
-              onClick={handleNext7Days}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-100 active:scale-95"
-              aria-label="Próximos 7 dias"
-              title="Próximos 7 dias"
+              onClick={handleNextWeek}
+              disabled={!canGoNextWeek}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-100 active:scale-95 disabled:pointer-events-none disabled:opacity-30"
+              aria-label="Próxima semana"
+              title={canGoNextWeek ? "Próxima semana" : "Última semana do mês"}
             >
               <ChevronRight size={16} />
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Week Selector Pills (01 a 07, 08 a 14, 15 a 21, etc.) */}
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-zinc-800/80 pt-3">
+        <span className="mr-1 text-[11px] font-medium text-zinc-400">Semanas:</span>
+        {weeks.map((w) => {
+          const isActive = w.weekNumber === activeWeekNumber
+          const containsToday = todayKey >= w.startDateKey && todayKey <= w.endDateKey
+          return (
+            <button
+              key={w.weekNumber}
+              type="button"
+              onClick={() => setActiveWeekNumber(w.weekNumber)}
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                isActive
+                  ? "border border-emerald-500/60 bg-emerald-500/15 text-emerald-300 shadow-sm ring-1 ring-emerald-500/30"
+                  : "border border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+              }`}
+            >
+              {containsToday && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+              <span>Semana {w.weekNumber}</span>
+              <span className="text-[10px] opacity-70">({w.shortLabel})</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Category filter active tag */}
@@ -373,10 +448,10 @@ export function WeeklyDailyExpenses({
           <div className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
             <span>
-              {weeklyData.outlierExpensesCount === 1
+              {weekData.outlierExpensesCount === 1
                 ? "1 gasto pontual desconsiderado da média"
-                : `${weeklyData.outlierExpensesCount} gastos pontuais desconsiderados da média`}{" "}
-              ({formatCurrency(weeklyData.outlierWeekExpense)} fora do ritmo).
+                : `${weekData.outlierExpensesCount} gastos pontuais desconsiderados da média`}{" "}
+              ({formatCurrency(weekData.outlierWeekExpense)} fora do ritmo).
             </span>
           </div>
           {manuallyExcludedIds.length > 0 && (
@@ -391,42 +466,59 @@ export function WeeklyDailyExpenses({
         </div>
       )}
 
-      {/* Stats row: Totals and Insights for the 7-day period */}
-      <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        {/* Total do período */}
+      {/* Stats row: Cards for Month-To-Date and Week daily pace */}
+      <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+        {/* 1. Média diária (01 até hoje / data atual) */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
           <div className="flex items-center justify-between text-xs text-zinc-400">
-            <span>Total (7 dias)</span>
+            <span>Média 01 até {monthToDateData.isCurrentMonth ? "hoje" : "fim"}</span>
+            <Calendar size={13} className="text-emerald-400" />
+          </div>
+          <div className="mt-1 text-lg font-semibold text-emerald-300">
+            <NumberTicker value={monthToDateData.averageDailyExpense} format={formatCurrency} />
+            <span className="text-[11px] font-normal text-zinc-500">/dia</span>
+          </div>
+          <p className="mt-0.5 text-[10px] text-zinc-500">
+            {monthToDateData.daysElapsed} {monthToDateData.daysElapsed === 1 ? "dia decorrido" : "dias decorridos"} no mês
+            {monthToDateData.outlierExpensesCount > 0 && ` (${monthToDateData.outlierExpensesCount} pontual)`}
+          </p>
+        </div>
+
+        {/* 2. Média da semana selecionada (01 a 07, 08 a 14, etc.) */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
+          <div className="flex items-center justify-between text-xs text-zinc-400">
+            <span>Média semana ({weekData.week.shortLabel})</span>
+            <TrendingDown size={13} className="text-zinc-400" />
+          </div>
+          <div className="mt-1 text-lg font-semibold text-zinc-200">
+            <NumberTicker value={weekData.averageDailyExpense} format={formatCurrency} />
+            <span className="text-[11px] font-normal text-zinc-500">/dia</span>
+          </div>
+          <p className="mt-0.5 text-[10px] text-zinc-500">
+            {weekData.isCurrentWeek
+              ? `${weekData.daysElapsedCount} de ${weekData.week.daysCount} dias decorridos`
+              : `${weekData.week.daysCount} dias da semana`}
+            {weekData.outlierExpensesCount > 0 && " (sem pontuais)"}
+          </p>
+        </div>
+
+        {/* 3. Total da semana */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
+          <div className="flex items-center justify-between text-xs text-zinc-400">
+            <span>Total da semana</span>
             <Wallet size={13} className="text-zinc-500" />
           </div>
           <div className="mt-1 text-lg font-semibold text-rose-300">
-            <NumberTicker value={weeklyData.totalWeekExpense} format={formatCurrency} />
+            <NumberTicker value={weekData.totalWeekExpense} format={formatCurrency} />
           </div>
-          {hasExclusionsInWeek && (
-            <p className="mt-0.5 text-[10px] text-zinc-500">
-              {formatCurrency(weeklyData.discretionaryWeekExpense)} recorrentes
-            </p>
-          )}
+          <p className="mt-0.5 text-[10px] text-zinc-500">
+            {hasExclusionsInWeek
+              ? `${formatCurrency(weekData.discretionaryWeekExpense)} recorrentes`
+              : `${weekData.days.reduce((acc, d) => acc + d.count, 0)} lançamentos`}
+          </p>
         </div>
 
-        {/* Média diária */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
-            <span>Média diária</span>
-            <TrendingDown size={13} className="text-zinc-500" />
-          </div>
-          <div className="mt-1 text-lg font-semibold text-zinc-200">
-            <NumberTicker value={weeklyData.averageDailyExpense} format={formatCurrency} />
-            <span className="text-[11px] font-normal text-zinc-500">/dia</span>
-          </div>
-          {hasExclusionsInWeek && (
-            <p className="mt-0.5 text-[10px] text-emerald-400">
-              Sem gastos pontuais
-            </p>
-          )}
-        </div>
-
-        {/* Pico de gasto */}
+        {/* 4. Maior gasto */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
           <div className="flex items-center justify-between text-xs text-zinc-400">
             <span>Maior gasto</span>
@@ -446,25 +538,33 @@ export function WeeklyDailyExpenses({
               <span className="text-sm font-normal text-zinc-500">Nenhum</span>
             )}
           </div>
+          <p className="mt-0.5 text-[10px] text-zinc-500">
+            {maxEffectiveDay ? maxEffectiveDay.formattedDay : "Sem despesas"}
+          </p>
         </div>
 
-        {/* Dias sem gastos */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
+        {/* 5. Dias sem gastos */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5 col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between text-xs text-zinc-400">
             <span>Dias sem gastos</span>
             <Sparkles size={13} className="text-emerald-400" />
           </div>
           <div className="mt-1 flex items-baseline gap-1 text-lg font-semibold text-emerald-300">
-            <span>{weeklyData.daysWithoutExpensesCount}</span>
-            <span className="text-xs font-normal text-zinc-500">de 7 dias</span>
+            <span>{weekData.daysWithoutExpensesCount}</span>
+            <span className="text-xs font-normal text-zinc-500">de {weekData.week.daysCount} dias</span>
           </div>
+          <p className="mt-0.5 text-[10px] text-zinc-500">Na semana selecionada</p>
         </div>
       </div>
 
-      {/* 7-Day Interactive Columns Grid */}
+      {/* Week Interactive Columns Grid */}
       <div className="mt-4">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-7">
-          {weeklyData.days.map((day) => {
+        <div
+          className={`grid grid-cols-2 gap-2 sm:grid-cols-4 ${
+            weekData.week.daysCount <= 4 ? "md:grid-cols-4" : "md:grid-cols-7"
+          }`}
+        >
+          {weekData.days.map((day) => {
             const isSelected = day.dateKey === selectedDateKey
             const dayAmount = day.discretionaryExpense
             const percentage =
