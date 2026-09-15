@@ -125,7 +125,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-zinc-950 text-zinc-100">
       <Header
         theme={theme}
         onToggleTheme={() =>

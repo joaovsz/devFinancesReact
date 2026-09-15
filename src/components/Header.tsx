@@ -120,13 +120,13 @@ export const Header = ({
         </div>
 
         <div className="flex w-full items-center gap-2 md:ml-auto md:w-auto">
-          <div className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 md:w-auto">
+          <div className="flex-1 min-w-0 rounded-xl border border-zinc-800 bg-zinc-900 px-2.5 py-2 sm:px-3 md:flex-none md:w-auto">
             <div className="text-[10px] uppercase tracking-wide text-zinc-500">
               Mês operacional
             </div>
-            <div className="mt-1 flex items-center gap-2">
+            <div className="mt-1 flex items-center gap-1.5 sm:gap-2">
               <input
-                className="h-9 flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 md:flex-none"
+                className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-xs sm:text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 md:flex-none"
                 type="month"
                 value={activeMonthKey}
                 onChange={(event) => setActiveMonthKey(event.target.value)}
@@ -135,7 +135,7 @@ export const Header = ({
                 type="button"
                 onClick={resetActiveMonthKey}
                 disabled={isCurrentOperationalMonth}
-                className="rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-2 text-xs text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="shrink-0 rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-2 text-xs text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Hoje
               </button>

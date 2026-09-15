@@ -11,6 +11,7 @@ import { selectTotalMonthlyContribution, useGoalStore } from "../store/useGoalSt
 import { fetchBrazilHolidaysByYear } from "../services/calendar"
 import { getWorkingMonthMetrics } from "../utils/business-days"
 import { buildMonthlyPayables } from "../utils/domain/monthly-payments"
+import { WeeklyDailyExpenses } from "../components/projections/WeeklyDailyExpenses"
 import { defaultCategories } from "../data/categories"
 import {
   addMonths,
@@ -689,6 +690,7 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
           description="Projeções simulam os próximos meses com base no histórico e no planejamento."
           items={[
             "Selecione o mês inicial para recalcular a janela de 12 meses.",
+            "Acompanhe os gastos diários semana a semana navegando pelas setas.",
             "Veja compromissos (incluindo aportes de metas), receita projetada e saldo acumulado no gráfico.",
             "Funciona para PJ e CLT, respeitando o modo de renda configurado no planejamento."
           ]}
@@ -891,6 +893,16 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
           )}
         </div>
       </div>
+
+      <WeeklyDailyExpenses
+        transactions={transactions}
+        targetMonth={targetMonth}
+        outlierCap={outlierCap}
+        onOpenOutlierModal={() => {
+          setOutlierValueDraft(outlierCap.value ? String(outlierCap.value) : "")
+          setIsOutlierModalOpen(true)
+        }}
+      />
 
       {calendarError && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
