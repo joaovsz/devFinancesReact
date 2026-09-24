@@ -1,0 +1,330 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1050 780" width="100%" height="100%" style="background-color: #09090b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c0d11" />
+      <stop offset="100%" stop-color="#09090b" />
+    </linearGradient>
+
+    <!-- Table Header Gradients -->
+    <linearGradient id="headerBlue" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+
+    <linearGradient id="headerEmerald" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#064e3b" />
+      <stop offset="100%" stop-color="#022c22" />
+    </linearGradient>
+
+    <linearGradient id="headerIndigo" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#312e81" />
+      <stop offset="100%" stop-color="#1e1b4b" />
+    </linearGradient>
+
+    <linearGradient id="headerAmber" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#78350f" />
+      <stop offset="100%" stop-color="#451a03" />
+    </linearGradient>
+
+    <!-- Markers -->
+    <marker id="dot" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6">
+      <circle cx="5" cy="5" r="3" fill="#10b981" />
+    </marker>
+    <marker id="arrowRel" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 7 5 L 1 8 z" fill="#6366f1" />
+    </marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 7 5 L 1 8 z" fill="#f59e0b" />
+    </marker>
+    <marker id="arrowEmerald" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 7 5 L 1 8 z" fill="#10b981" />
+    </marker>
+  </defs>
+
+  <rect width="1050" height="780" fill="url(#bgGrad)" />
+
+  <!-- Grid overlay -->
+  <g opacity="0.04" stroke="#ffffff" stroke-width="1">
+    <path d="M 0,50 L 1050,50 M 0,100 L 1050,100 M 0,150 L 1050,150 M 0,200 L 1050,200 M 0,250 L 1050,250 M 0,300 L 1050,300 M 0,350 L 1050,350 M 0,400 L 1050,400 M 0,450 L 1050,450 M 0,500 L 1050,500 M 0,550 L 1050,550 M 0,600 L 1050,600 M 0,650 L 1050,650 M 0,700 L 1050,700 M 0,750 L 1050,750"/>
+    <path d="M 50,0 L 50,780 M 100,0 L 100,780 M 150,0 L 150,780 M 200,0 L 200,780 M 250,0 L 250,780 M 300,0 L 300,780 M 350,0 L 350,780 M 400,0 L 400,780 M 450,0 L 450,780 M 500,0 L 500,780 M 550,0 L 550,780 M 600,0 L 600,780 M 650,0 L 650,780 M 700,0 L 700,780 M 750,0 L 750,780 M 800,0 L 800,780 M 850,0 L 850,780 M 900,0 L 900,780 M 950,0 L 950,780 M 1000,0 L 1000,780"/>
+  </g>
+
+  <!-- Title Header -->
+  <g transform="translate(45, 42)">
+    <text x="0" y="0" fill="#f4f4f5" font-size="22" font-weight="700" letter-spacing="-0.5">Swift Finances — Diagrama de Entidade-Relacionamento (DER)</text>
+    <text x="0" y="22" fill="#71717a" font-size="13">Modelagem de Domínio Relacional &amp; Armazenamento Híbrido com PostgreSQL + Row Level Security (RLS)</text>
+  </g>
+
+  <!-- ================= RELAÇÕES (Linhas) ================= -->
+  <!-- USER_APP_STATE -> TRANSACTION (1 : N) -->
+  <path d="M 315, 215 L 375, 215" stroke="#6366f1" stroke-width="1.8" stroke-dasharray="4,4" marker-start="url(#dot)" marker-end="url(#arrowRel)" />
+
+  <!-- TRANSACTION -> CREDIT_CARD (N : 1) -->
+  <path d="M 650, 215 L 710, 215" stroke="#f59e0b" stroke-width="1.8" marker-start="url(#dot)" marker-end="url(#arrowAmber)" />
+
+  <!-- TRANSACTION -> CATEGORY (N : 1) -->
+  <path d="M 515, 345 L 515, 375" stroke="#10b981" stroke-width="1.8" marker-start="url(#dot)" marker-end="url(#arrowEmerald)" />
+
+  <!-- CREDIT_CARD -> INVOICE (1 : N) -->
+  <path d="M 855, 345 L 855, 375" stroke="#f59e0b" stroke-width="1.8" marker-start="url(#dot)" marker-end="url(#arrowAmber)" />
+
+  <!-- ================= ENTIDADES ================= -->
+
+  <!-- ENTIDADE: USER_APP_STATE (Supabase / Postgres) -->
+  <g transform="translate(45, 95)">
+    <rect width="270" height="250" rx="8" fill="#18181b" stroke="#312e81" stroke-width="1.4" />
+    <rect width="270" height="34" rx="8" fill="url(#headerIndigo)" />
+    <text x="14" y="22" fill="#c7d2fe" font-size="12" font-weight="700">public.user_app_state</text>
+    <text x="210" y="22" fill="#818cf8" font-size="10" font-weight="700">PG + RLS</text>
+
+    <!-- Columns -->
+    <g transform="translate(14, 48)" font-size="11.5">
+      <text y="18" fill="#fbbf24" font-weight="700">PK</text>
+      <text x="30" y="18" fill="#f4f4f5" font-weight="600">user_id</text>
+      <text x="195" y="18" fill="#a1a1aa">uuid</text>
+      <line x1="0" y1="28" x2="242" y2="28" stroke="#27272a" stroke-width="1"/>
+
+      <text y="46" fill="#71717a"> </text>
+      <text x="30" y="46" fill="#f4f4f5">transaction_storage</text>
+      <text x="195" y="46" fill="#a1a1aa">jsonb</text>
+      <line x1="0" y1="56" x2="242" y2="56" stroke="#27272a" stroke-width="1"/>
+
+      <text y="74" fill="#71717a"> </text>
+      <text x="30" y="74" fill="#f4f4f5">goals_storage</text>
+      <text x="195" y="74" fill="#a1a1aa">jsonb</text>
+      <line x1="0" y1="84" x2="242" y2="84" stroke="#27272a" stroke-width="1"/>
+
+      <text y="102" fill="#71717a"> </text>
+      <text x="30" y="102" fill="#f4f4f5">updated_at</text>
+      <text x="170" y="102" fill="#a1a1aa">timestamptz</text>
+
+      <!-- Security note -->
+      <rect x="0" y="122" width="242" height="64" rx="6" fill="#09090b" stroke="#27272a" />
+      <text x="10" y="142" fill="#10b981" font-size="10.5" font-weight="700">RLS: auth.uid() = user_id</text>
+      <text x="10" y="158" fill="#a1a1aa" font-size="10">Proc: append_transaction</text>
+      <text x="10" y="172" fill="#71717a" font-size="9.5">Lock pessimista: FOR UPDATE</text>
+    </g>
+  </g>
+
+  <!-- ENTIDADE: TRANSACTION -->
+  <g transform="translate(380, 95)">
+    <rect width="270" height="250" rx="8" fill="#18181b" stroke="#059669" stroke-width="1.4" />
+    <rect width="270" height="34" rx="8" fill="url(#headerEmerald)" />
+    <text x="14" y="22" fill="#a7f3d0" font-size="12" font-weight="700">Transaction</text>
+    <text x="205" y="22" fill="#34d399" font-size="10" font-weight="700">Entidade</text>
+
+    <g transform="translate(14, 48)" font-size="11.5">
+      <text y="18" fill="#fbbf24" font-weight="700">PK</text>
+      <text x="30" y="18" fill="#f4f4f5" font-weight="600">id</text>
+      <text x="195" y="18" fill="#a1a1aa">string</text>
+      <line x1="0" y1="28" x2="242" y2="28" stroke="#27272a" stroke-width="1"/>
+
+      <text y="46" fill="#71717a"> </text>
+      <text x="30" y="46" fill="#f4f4f5">description</text>
+      <text x="195" y="46" fill="#a1a1aa">string</text>
+      <line x1="0" y1="56" x2="242" y2="56" stroke="#27272a" stroke-width="1"/>
+
+      <text y="74" fill="#71717a"> </text>
+      <text x="30" y="74" fill="#f4f4f5">amount</text>
+      <text x="190" y="74" fill="#a1a1aa">number</text>
+      <line x1="0" y1="84" x2="242" y2="84" stroke="#27272a" stroke-width="1"/>
+
+      <text y="102" fill="#71717a"> </text>
+      <text x="30" y="102" fill="#f4f4f5">type ('in' | 'out')</text>
+      <text x="195" y="102" fill="#a1a1aa">string</text>
+      <line x1="0" y1="112" x2="242" y2="112" stroke="#27272a" stroke-width="1"/>
+
+      <text y="130" fill="#71717a"> </text>
+      <text x="30" y="130" fill="#f4f4f5">date</text>
+      <text x="195" y="130" fill="#a1a1aa">string</text>
+      <line x1="0" y1="140" x2="242" y2="140" stroke="#27272a" stroke-width="1"/>
+
+      <text y="158" fill="#38bdf8" font-weight="700">FK</text>
+      <text x="30" y="158" fill="#f4f4f5">categoryId</text>
+      <text x="195" y="158" fill="#a1a1aa">string</text>
+      <line x1="0" y1="168" x2="242" y2="168" stroke="#27272a" stroke-width="1"/>
+
+      <text y="186" fill="#38bdf8" font-weight="700">FK</text>
+      <text x="30" y="186" fill="#f4f4f5">cardId?</text>
+      <text x="195" y="186" fill="#a1a1aa">string</text>
+    </g>
+  </g>
+
+  <!-- ENTIDADE: CREDIT_CARD -->
+  <g transform="translate(715, 95)">
+    <rect width="290" height="250" rx="8" fill="#18181b" stroke="#d97706" stroke-width="1.4" />
+    <rect width="290" height="34" rx="8" fill="url(#headerAmber)" />
+    <text x="14" y="22" fill="#fde68a" font-size="12" font-weight="700">CreditCard</text>
+    <text x="225" y="22" fill="#f59e0b" font-size="10" font-weight="700">Entidade</text>
+
+    <g transform="translate(14, 48)" font-size="11.5">
+      <text y="18" fill="#fbbf24" font-weight="700">PK</text>
+      <text x="30" y="18" fill="#f4f4f5" font-weight="600">id</text>
+      <text x="210" y="18" fill="#a1a1aa">string</text>
+      <line x1="0" y1="28" x2="262" y2="28" stroke="#27272a" stroke-width="1"/>
+
+      <text y="46" fill="#71717a"> </text>
+      <text x="30" y="46" fill="#f4f4f5">name</text>
+      <text x="210" y="46" fill="#a1a1aa">string</text>
+      <line x1="0" y1="56" x2="262" y2="56" stroke="#27272a" stroke-width="1"/>
+
+      <text y="74" fill="#71717a"> </text>
+      <text x="30" y="74" fill="#f4f4f5">limit</text>
+      <text x="205" y="74" fill="#a1a1aa">number</text>
+      <line x1="0" y1="84" x2="262" y2="84" stroke="#27272a" stroke-width="1"/>
+
+      <text y="102" fill="#71717a"> </text>
+      <text x="30" y="102" fill="#f4f4f5">closingDay</text>
+      <text x="205" y="102" fill="#a1a1aa">number</text>
+      <line x1="0" y1="112" x2="262" y2="112" stroke="#27272a" stroke-width="1"/>
+
+      <text y="130" fill="#71717a"> </text>
+      <text x="30" y="130" fill="#f4f4f5">dueDay</text>
+      <text x="205" y="130" fill="#a1a1aa">number</text>
+      <line x1="0" y1="140" x2="262" y2="140" stroke="#27272a" stroke-width="1"/>
+
+      <text y="158" fill="#71717a"> </text>
+      <text x="30" y="158" fill="#10b981">availableLimit (calc)</text>
+      <text x="205" y="158" fill="#10b981">getter</text>
+    </g>
+  </g>
+
+  <!-- ENTIDADE: GOAL -->
+  <g transform="translate(45, 380)">
+    <rect width="270" height="190" rx="8" fill="#18181b" stroke="#27272a" stroke-width="1.2" />
+    <rect width="270" height="32" rx="8" fill="url(#headerBlue)" />
+    <text x="14" y="21" fill="#e2e8f0" font-size="12" font-weight="700">Goal (Metas Financeiras)</text>
+
+    <g transform="translate(14, 46)" font-size="11.5">
+      <text y="18" fill="#fbbf24" font-weight="700">PK</text>
+      <text x="30" y="18" fill="#f4f4f5" font-weight="600">id</text>
+      <text x="195" y="18" fill="#a1a1aa">string</text>
+      <line x1="0" y1="28" x2="242" y2="28" stroke="#27272a" stroke-width="1"/>
+
+      <text y="46" fill="#71717a"> </text>
+      <text x="30" y="46" fill="#f4f4f5">title</text>
+      <text x="195" y="46" fill="#a1a1aa">string</text>
+      <line x1="0" y1="56" x2="242" y2="56" stroke="#27272a" stroke-width="1"/>
+
+      <text y="74" fill="#71717a"> </text>
+      <text x="30" y="74" fill="#f4f4f5">targetAmount / saved</text>
+      <text x="190" y="74" fill="#a1a1aa">number</text>
+      <line x1="0" y1="84" x2="242" y2="84" stroke="#27272a" stroke-width="1"/>
+
+      <text y="102" fill="#71717a"> </text>
+      <text x="30" y="102" fill="#f4f4f5">monthlyContribution</text>
+      <text x="190" y="102" fill="#a1a1aa">number</text>
+    </g>
+  </g>
+
+  <!-- ENTIDADE: CATEGORY -->
+  <g transform="translate(380, 380)">
+    <rect width="270" height="190" rx="8" fill="#18181b" stroke="#27272a" stroke-width="1.2" />
+    <rect width="270" height="32" rx="8" fill="url(#headerBlue)" />
+    <text x="14" y="21" fill="#e2e8f0" font-size="12" font-weight="700">Category</text>
+
+    <g transform="translate(14, 46)" font-size="11.5">
+      <text y="18" fill="#fbbf24" font-weight="700">PK</text>
+      <text x="30" y="18" fill="#f4f4f5" font-weight="600">id</text>
+      <text x="195" y="18" fill="#a1a1aa">string</text>
+      <line x1="0" y1="28" x2="242" y2="28" stroke="#27272a" stroke-width="1"/>
+
+      <text y="46" fill="#71717a"> </text>
+      <text x="30" y="46" fill="#f4f4f5">name</text>
+      <text x="195" y="46" fill="#a1a1aa">string</text>
+      <line x1="0" y1="56" x2="242" y2="56" stroke="#27272a" stroke-width="1"/>
+
+      <text y="74" fill="#71717a"> </text>
+      <text x="30" y="74" fill="#f4f4f5">icon &amp; color</text>
+      <text x="195" y="74" fill="#a1a1aa">string</text>
+      <line x1="0" y1="84" x2="242" y2="84" stroke="#27272a" stroke-width="1"/>
+
+      <text y="102" fill="#38bdf8" font-weight="700">FK</text>
+      <text x="30" y="102" fill="#f4f4f5">parentId?</text>
+      <text x="195" y="102" fill="#a1a1aa">string</text>
+    </g>
+  </g>
+
+  <!-- ENTIDADE: INVOICE -->
+  <g transform="translate(715, 380)">
+    <rect width="290" height="190" rx="8" fill="#18181b" stroke="#27272a" stroke-width="1.2" />
+    <rect width="290" height="32" rx="8" fill="url(#headerAmber)" />
+    <text x="14" y="21" fill="#fde68a" font-size="12" font-weight="700">Invoice (Fatura Operacional)</text>
+
+    <g transform="translate(14, 46)" font-size="11.5">
+      <text y="18" fill="#38bdf8" font-weight="700">FK</text>
+      <text x="30" y="18" fill="#f4f4f5">cardId</text>
+      <text x="210" y="18" fill="#a1a1aa">string</text>
+      <line x1="0" y1="28" x2="262" y2="28" stroke="#27272a" stroke-width="1"/>
+
+      <text y="46" fill="#71717a"> </text>
+      <text x="30" y="46" fill="#f4f4f5">month (YYYY-MM)</text>
+      <text x="210" y="46" fill="#a1a1aa">string</text>
+      <line x1="0" y1="56" x2="262" y2="56" stroke="#27272a" stroke-width="1"/>
+
+      <text y="74" fill="#71717a"> </text>
+      <text x="30" y="74" fill="#f4f4f5">status (open/closed/paid)</text>
+      <text x="210" y="74" fill="#a1a1aa">string</text>
+      <line x1="0" y1="84" x2="262" y2="84" stroke="#27272a" stroke-width="1"/>
+
+      <text y="102" fill="#71717a"> </text>
+      <text x="30" y="102" fill="#f4f4f5">manualAdjustment</text>
+      <text x="205" y="102" fill="#a1a1aa">number</text>
+    </g>
+  </g>
+
+  <!-- ENTIDADE: INSTALLMENT_PLAN (Card Horizontal) -->
+  <g transform="translate(45, 600)">
+    <rect width="460" height="125" rx="8" fill="#18181b" stroke="#312e81" stroke-width="1.2" />
+    <rect width="460" height="30" rx="8" fill="url(#headerIndigo)" />
+    <text x="14" y="20" fill="#c7d2fe" font-size="12" font-weight="700">InstallmentPlan (Amortização Iterativa de Parcelas)</text>
+
+    <g transform="translate(14, 44)" font-size="11.5">
+      <!-- Coluna 1 -->
+      <g transform="translate(0, 0)">
+        <text y="18" fill="#fbbf24" font-weight="700">PK <tspan fill="#f4f4f5" font-weight="600">id</tspan>: string</text>
+        <text y="42" fill="#38bdf8" font-weight="700">FK <tspan fill="#f4f4f5">cardId</tspan>: string</text>
+      </g>
+      <!-- Coluna 2 -->
+      <g transform="translate(150, 0)">
+        <text y="18" fill="#f4f4f5">totalAmount: number</text>
+        <text y="42" fill="#a1a1aa">installmentAmount: number</text>
+      </g>
+      <!-- Colura 3 -->
+      <g transform="translate(330, 0)">
+        <text y="18" fill="#10b981" font-weight="600">current / total</text>
+        <text y="42" fill="#a1a1aa">startMonth</text>
+      </g>
+
+      <line x1="0" y1="56" x2="432" y2="56" stroke="#27272a" stroke-width="1"/>
+      <text y="70" fill="#71717a" font-size="10.5">Iterador mensal: decrementa automaticamente até quitação integral</text>
+    </g>
+  </g>
+
+  <!-- ENTIDADE: CONTRACT_CONFIG (PJ) -->
+  <g transform="translate(545, 600)">
+    <rect width="460" height="125" rx="8" fill="#18181b" stroke="#1e293b" stroke-width="1.2" />
+    <rect width="460" height="30" rx="8" fill="url(#headerBlue)" />
+    <text x="14" y="20" fill="#e2e8f0" font-size="12" font-weight="700">ContractConfig (Faturamento PJ &amp; BrasilAPI)</text>
+
+    <g transform="translate(14, 44)" font-size="11.5">
+      <!-- Coluna 1 -->
+      <g transform="translate(0, 0)">
+        <text y="18" fill="#f4f4f5">hourlyRate: number</text>
+        <text y="42" fill="#f4f4f5">dailyHours: number</text>
+      </g>
+      <!-- Coluna 2 -->
+      <g transform="translate(180, 0)">
+        <text y="18" fill="#10b981" font-weight="600">diasUteis (BrasilAPI)</text>
+        <text y="42" fill="#a1a1aa">deduz feriados bancários</text>
+      </g>
+
+      <line x1="0" y1="56" x2="432" y2="56" stroke="#27272a" stroke-width="1"/>
+      <text y="70" fill="#71717a" font-size="10.5">Fórmula: Faturamento = diasÚteis (seg-sex - feriados) * horas * valorHora</text>
+    </g>
+  </g>
+
+  <!-- Footer -->
+  <text x="45" y="755" fill="#52525b" font-size="11">Engenharia de Software • Modelagem de Dados • Swift Finances</text>
+</svg>

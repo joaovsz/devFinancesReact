@@ -1,0 +1,233 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800" width="100%" height="100%" style="background-color: #09090b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c0d11" />
+      <stop offset="100%" stop-color="#09090b" />
+    </linearGradient>
+
+    <linearGradient id="cardBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#131316" />
+    </linearGradient>
+
+    <linearGradient id="subCardBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#242429" />
+      <stop offset="100%" stop-color="#1c1c20" />
+    </linearGradient>
+
+    <linearGradient id="domainCardBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#10251d" />
+      <stop offset="100%" stop-color="#0c1b15" />
+    </linearGradient>
+
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+
+    <linearGradient id="indigoGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#818cf8" />
+      <stop offset="100%" stop-color="#4f46e5" />
+    </linearGradient>
+
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+
+    <linearGradient id="amberGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+
+    <!-- Marker Arrow -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 7 5 L 1 8 z" fill="#71717a" />
+    </marker>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="1000" height="800" fill="url(#bgGrad)" />
+
+  <!-- Grid pattern overlay -->
+  <g opacity="0.04" stroke="#ffffff" stroke-width="1">
+    <path d="M 0,50 L 1000,50 M 0,100 L 1000,100 M 0,150 L 1000,150 M 0,200 L 1000,200 M 0,250 L 1000,250 M 0,300 L 1000,300 M 0,350 L 1000,350 M 0,400 L 1000,400 M 0,450 L 1000,450 M 0,500 L 1000,500 M 0,550 L 1000,550 M 0,600 L 1000,600 M 0,650 L 1000,650 M 0,700 L 1000,700 M 0,750 L 1000,750"/>
+    <path d="M 50,0 L 50,800 M 100,0 L 100,800 M 150,0 L 150,800 M 200,0 L 200,800 M 250,0 L 250,800 M 300,0 L 300,800 M 350,0 L 350,800 M 400,0 L 400,800 M 450,0 L 450,800 M 500,0 L 500,800 M 550,0 L 550,800 M 600,0 L 600,800 M 650,0 L 650,800 M 700,0 L 700,800 M 750,0 L 750,800 M 800,0 L 800,800 M 850,0 L 850,800 M 900,0 L 900,800 M 950,0 L 950,800"/>
+  </g>
+
+  <!-- Title Header -->
+  <g transform="translate(50, 42)">
+    <text x="0" y="0" fill="#f4f4f5" font-size="22" font-weight="700" letter-spacing="-0.5">Swift Finances — Arquitetura de Software</text>
+    <text x="0" y="22" fill="#71717a" font-size="13">Visão em Camadas: Client-Side Local-First, Domínio Puro &amp; Nuvem Híbrida</text>
+  </g>
+
+  <!-- Badges -->
+  <g transform="translate(680, 28)">
+    <rect x="0" y="0" width="125" height="26" rx="13" fill="#18181b" stroke="#27272a" />
+    <circle cx="12" cy="13" r="4.5" fill="#10b981" />
+    <text x="24" y="17" fill="#a1a1aa" font-size="11" font-weight="600">React 19 + Vite</text>
+
+    <rect x="135" y="0" width="135" height="26" rx="13" fill="#18181b" stroke="#27272a" />
+    <circle cx="147" cy="13" r="4.5" fill="#6366f1" />
+    <text x="159" y="17" fill="#a1a1aa" font-size="11" font-weight="600">82 Testes (Vitest)</text>
+  </g>
+
+  <!-- ==================== CAMADA 1: APRESENTAÇÃO (UI / UX) ==================== -->
+  <g transform="translate(50, 85)">
+    <rect width="900" height="135" rx="12" fill="url(#cardBg)" stroke="#27272a" stroke-width="1.2" />
+    <rect x="0" y="0" width="6" height="135" rx="3" fill="url(#cyanGrad)" />
+    
+    <text x="24" y="28" fill="#38bdf8" font-size="12" font-weight="700" letter-spacing="1">CAMADA DE APRESENTAÇÃO (UI / UX)</text>
+    <text x="24" y="45" fill="#71717a" font-size="11">React 19 • Tailwind CSS • Magic UI • Framer Motion • Apache ECharts</text>
+
+    <!-- Sub-card 1 -->
+    <g transform="translate(24, 58)">
+      <rect width="200" height="58" rx="8" fill="url(#subCardBg)" stroke="#3f3f46" stroke-width="1"/>
+      <text x="14" y="24" fill="#f4f4f5" font-size="13" font-weight="600">Single Page App</text>
+      <text x="14" y="44" fill="#a1a1aa" font-size="11">React Router (6 Rotas)</text>
+    </g>
+
+    <!-- Sub-card 2 -->
+    <g transform="translate(242, 58)">
+      <rect width="200" height="58" rx="8" fill="url(#subCardBg)" stroke="#3f3f46" stroke-width="1"/>
+      <text x="14" y="24" fill="#f4f4f5" font-size="13" font-weight="600">Bento Grid &amp; Dock</text>
+      <text x="14" y="44" fill="#a1a1aa" font-size="11">Magic UI &amp; Calm Theme</text>
+    </g>
+
+    <!-- Sub-card 3 -->
+    <g transform="translate(460, 58)">
+      <rect width="200" height="58" rx="8" fill="url(#subCardBg)" stroke="#3f3f46" stroke-width="1"/>
+      <text x="14" y="24" fill="#f4f4f5" font-size="13" font-weight="600">Gráficos ECharts</text>
+      <text x="14" y="44" fill="#a1a1aa" font-size="11">Gastos Diários &amp; Previsões</text>
+    </g>
+
+    <!-- Sub-card 4 -->
+    <g transform="translate(678, 58)">
+      <rect width="198" height="58" rx="8" fill="url(#subCardBg)" stroke="#3f3f46" stroke-width="1"/>
+      <text x="14" y="24" fill="#f4f4f5" font-size="13" font-weight="600">Formulários Tipados</text>
+      <text x="14" y="44" fill="#a1a1aa" font-size="11">react-hook-form + Zod</text>
+    </g>
+  </g>
+
+  <!-- Connector Arrow 1 -> 2 -->
+  <path d="M 500, 220 L 500, 245" stroke="#71717a" stroke-width="1.8" stroke-dasharray="4,4" marker-end="url(#arrow)" />
+
+  <!-- ==================== CAMADA 2: ESTADO & VALIDAÇÃO ==================== -->
+  <g transform="translate(50, 250)">
+    <rect width="900" height="120" rx="12" fill="url(#cardBg)" stroke="#27272a" stroke-width="1.2" />
+    <rect x="0" y="0" width="6" height="120" rx="3" fill="url(#indigoGrad)" />
+
+    <text x="24" y="27" fill="#818cf8" font-size="12" font-weight="700" letter-spacing="1">GERENCIAMENTO DE ESTADO &amp; VALIDAÇÃO (STATE LAYER)</text>
+    <text x="24" y="44" fill="#71717a" font-size="11">Fluxo unidirecional reativo desacoplado de framework</text>
+
+    <!-- Sub-card 1 -->
+    <g transform="translate(24, 54)">
+      <rect width="270" height="50" rx="8" fill="url(#subCardBg)" stroke="#3f3f46" stroke-width="1"/>
+      <text x="14" y="22" fill="#e4e4e7" font-size="13" font-weight="600">useTransactionStore</text>
+      <text x="14" y="38" fill="#a1a1aa" font-size="11">Zustand • Transações &amp; Faturas</text>
+    </g>
+
+    <!-- Sub-card 2 -->
+    <g transform="translate(314, 54)">
+      <rect width="270" height="50" rx="8" fill="url(#subCardBg)" stroke="#3f3f46" stroke-width="1"/>
+      <text x="14" y="22" fill="#e4e4e7" font-size="13" font-weight="600">useGoalStore</text>
+      <text x="14" y="38" fill="#a1a1aa" font-size="11">Zustand • Metas &amp; Conquistas</text>
+    </g>
+
+    <!-- Sub-card 3 -->
+    <g transform="translate(604, 54)">
+      <rect width="272" height="50" rx="8" fill="url(#subCardBg)" stroke="#3f3f46" stroke-width="1"/>
+      <text x="14" y="22" fill="#e4e4e7" font-size="13" font-weight="600">Zod Validation Schemas</text>
+      <text x="14" y="38" fill="#a1a1aa" font-size="11">Validação Estrita de Dados</text>
+    </g>
+  </g>
+
+  <!-- Connector Arrow 2 -> 3 -->
+  <path d="M 500, 370 L 500, 395" stroke="#71717a" stroke-width="1.8" stroke-dasharray="4,4" marker-end="url(#arrow)" />
+
+  <!-- ==================== CAMADA 3: NÚCLEO DE DOMÍNIO PURO ==================== -->
+  <g transform="translate(50, 400)">
+    <rect width="900" height="155" rx="12" fill="url(#cardBg)" stroke="#10b981" stroke-width="1.4" />
+    <rect x="0" y="0" width="6" height="155" rx="3" fill="url(#emeraldGrad)" />
+
+    <text x="24" y="28" fill="#34d399" font-size="12" font-weight="700" letter-spacing="1">NÚCLEO DE DOMÍNIO FINANCEIRO PURO (DOMAIN-DRIVEN CORE)</text>
+    <text x="24" y="45" fill="#71717a" font-size="11">Funções puras e imutáveis • 100% desacopladas de UI • 82 testes unitários</text>
+
+    <!-- Domain Box 1 -->
+    <g transform="translate(24, 58)">
+      <rect width="160" height="80" rx="8" fill="url(#domainCardBg)" stroke="#059669" stroke-width="1"/>
+      <text x="12" y="22" fill="#6ee7b7" font-size="12" font-weight="700">creditCards.ts</text>
+      <text x="12" y="44" fill="#e4e4e7" font-size="11">Ciclo Operacional</text>
+      <text x="12" y="62" fill="#a1a1aa" font-size="10.5">vs Vencimento Fatura</text>
+    </g>
+
+    <!-- Domain Box 2 -->
+    <g transform="translate(196, 58)">
+      <rect width="160" height="80" rx="8" fill="url(#domainCardBg)" stroke="#059669" stroke-width="1"/>
+      <text x="12" y="22" fill="#6ee7b7" font-size="12" font-weight="700">projections.ts</text>
+      <text x="12" y="44" fill="#e4e4e7" font-size="11">Sobra Líquida Futura</text>
+      <text x="12" y="62" fill="#a1a1aa" font-size="10.5">Fluxo de Caixa Mensal</text>
+    </g>
+
+    <!-- Domain Box 3 -->
+    <g transform="translate(368, 58)">
+      <rect width="160" height="80" rx="8" fill="url(#domainCardBg)" stroke="#059669" stroke-width="1"/>
+      <text x="12" y="22" fill="#6ee7b7" font-size="12" font-weight="700">monthly-payments.ts</text>
+      <text x="12" y="44" fill="#e4e4e7" font-size="11">Motor Iterativo</text>
+      <text x="12" y="62" fill="#a1a1aa" font-size="10.5">Amortização Parcelas</text>
+    </g>
+
+    <!-- Domain Box 4 -->
+    <g transform="translate(540, 58)">
+      <rect width="160" height="80" rx="8" fill="url(#domainCardBg)" stroke="#059669" stroke-width="1"/>
+      <text x="12" y="22" fill="#6ee7b7" font-size="12" font-weight="700">business-days.ts</text>
+      <text x="12" y="44" fill="#e4e4e7" font-size="11">Faturamento PJ</text>
+      <text x="12" y="62" fill="#a1a1aa" font-size="10.5">Dedução de Feriados</text>
+    </g>
+
+    <!-- Domain Box 5 -->
+    <g transform="translate(712, 58)">
+      <rect width="164" height="80" rx="8" fill="url(#domainCardBg)" stroke="#059669" stroke-width="1"/>
+      <text x="12" y="22" fill="#6ee7b7" font-size="12" font-weight="700">goalProjections.ts</text>
+      <text x="12" y="44" fill="#e4e4e7" font-size="11">Regra do Mês Cheio</text>
+      <text x="12" y="62" fill="#a1a1aa" font-size="10.5">Alerta de Sobrecarga</text>
+    </g>
+  </g>
+
+  <!-- Connector Arrow 3 -> 4 -->
+  <path d="M 500, 555 L 500, 580" stroke="#71717a" stroke-width="1.8" stroke-dasharray="4,4" marker-end="url(#arrow)" />
+
+  <!-- ==================== CAMADA 4: PERSISTÊNCIA & INTEGRAÇÃO ==================== -->
+  <g transform="translate(50, 585)">
+    <rect width="900" height="135" rx="12" fill="url(#cardBg)" stroke="#27272a" stroke-width="1.2" />
+    <rect x="0" y="0" width="6" height="135" rx="3" fill="url(#amberGrad)" />
+
+    <text x="24" y="28" fill="#fbbf24" font-size="12" font-weight="700" letter-spacing="1">PERSISTÊNCIA DE DADOS &amp; INTEGRAÇÕES EXTERNAS</text>
+    <text x="24" y="45" fill="#71717a" font-size="11">Privacidade local-first combinada com sincronização nuvem multi-dispositivo</text>
+
+    <!-- Storage 1 -->
+    <g transform="translate(24, 58)">
+      <rect width="270" height="60" rx="8" fill="url(#subCardBg)" stroke="#3f3f46" stroke-width="1"/>
+      <text x="14" y="24" fill="#f4f4f5" font-size="13" font-weight="600">Local-First Storage</text>
+      <text x="14" y="44" fill="#a1a1aa" font-size="11">LocalStorage / IndexedDB (Offline)</text>
+    </g>
+
+    <!-- Storage 2 -->
+    <g transform="translate(314, 58)">
+      <rect width="270" height="60" rx="8" fill="url(#subCardBg)" stroke="#3f3f46" stroke-width="1"/>
+      <text x="14" y="24" fill="#f4f4f5" font-size="13" font-weight="600">Supabase Cloud (PostgreSQL)</text>
+      <text x="14" y="44" fill="#a1a1aa" font-size="11">RLS Multi-Tenant + PL/pgSQL Atomic</text>
+    </g>
+
+    <!-- Storage 3 -->
+    <g transform="translate(604, 58)">
+      <rect width="272" height="60" rx="8" fill="url(#subCardBg)" stroke="#3f3f46" stroke-width="1"/>
+      <text x="14" y="24" fill="#f4f4f5" font-size="13" font-weight="600">BrasilAPI (Feriados Nacionais)</text>
+      <text x="14" y="44" fill="#a1a1aa" font-size="11">API REST externa com cache</text>
+    </g>
+  </g>
+
+  <!-- Footer -->
+  <text x="50" y="760" fill="#52525b" font-size="11">Engenharia de Software • Arquitetura em Camadas • Repositório Oficial: github.com/joaovsz/devFinancesReact</text>
+</svg>
