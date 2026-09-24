@@ -84,9 +84,13 @@ function App() {
   useSupabaseSync(isRemoteAuthEnabled ? user : null)
 
   const handleSync = useCallback(async () => {
-    if (!user) return false
-    return pullRemoteSnapshotIfNewer(user, true)
-  }, [user])
+    if (user && isRemoteAuthEnabled) {
+      return pullRemoteSnapshotIfNewer(user, true)
+    }
+    syncPercentageFixedCosts()
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    return false
+  }, [user, isRemoteAuthEnabled, syncPercentageFixedCosts])
 
   const isAuthRequired = isRemoteAuthEnabled
   const isAuthenticated = Boolean(user)
@@ -140,7 +144,7 @@ function App() {
               }
             : undefined
         }
-        onSync={isAuthRequired && isAuthenticated ? handleSync : undefined}
+        onSync={handleSync}
         canAccessCommerce={canAccessCommerce}
       />
       <main

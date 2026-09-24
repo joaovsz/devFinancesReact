@@ -67,11 +67,17 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
 
   function exportBackup() {
     const raw = localStorage.getItem(STORAGE_KEY)
-    const fallback = JSON.stringify({
-      state: {},
-      version: 18
-    })
-    const payload = raw || fallback
+    const rawGoals = localStorage.getItem("devfinances-goals-storage")
+    let payload = raw || JSON.stringify({ state: {}, version: 35 })
+    try {
+      const parsed = raw ? JSON.parse(raw) : { state: {}, version: 35 }
+      if (rawGoals) {
+        parsed.goalsStorage = JSON.parse(rawGoals)
+      }
+      payload = JSON.stringify(parsed, null, 2)
+    } catch {
+      // fallback
+    }
     const now = new Date()
     const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
       now.getDate()
@@ -100,7 +106,7 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
     reader.onload = async () => {
       try {
         const text = String(reader.result || "")
-        const parsed = JSON.parse(text) as { state?: unknown; version?: number } | unknown
+        const parsed = JSON.parse(text) as { state?: unknown; version?: number; goalsStorage?: unknown } | unknown
         if (
           typeof parsed !== "object" ||
           parsed === null ||
@@ -111,6 +117,9 @@ export const SettingsPage = ({ colorTheme, onColorThemeChange }: SettingsPagePro
         }
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+        if ("goalsStorage" in parsed && (parsed as { goalsStorage?: unknown }).goalsStorage) {
+          localStorage.setItem("devfinances-goals-storage", JSON.stringify((parsed as { goalsStorage?: unknown }).goalsStorage))
+        }
         if (isSupabaseConfigured && remoteAuthEnabled) {
           const supabase = getSupabaseClient()
           const {

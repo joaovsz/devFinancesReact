@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
-import { Menu, Moon, RefreshCw, Sun, User } from "lucide-react"
+import { CalendarDays, Menu, Moon, RefreshCw, Sun, User } from "lucide-react"
 import { Link, NavLink } from "react-router-dom"
 import Logo from "./icons/Logo"
 import { getDockItems } from "./MagicDock"
@@ -52,8 +52,8 @@ export const Header = ({
   }, [])
 
   return (
-    <header className="bg-zinc-950">
-      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-3 px-4 py-4 md:px-8 xl:max-w-7xl xl:px-10 2xl:max-w-[1500px] 2xl:px-12">
+    <header className="bg-zinc-950 border-b border-zinc-900">
+      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-3 px-4 py-3.5 md:px-8 xl:max-w-7xl xl:px-10 2xl:max-w-[1500px] 2xl:px-12">
         <div className="flex w-full items-center justify-between md:w-auto md:justify-start md:gap-3">
           <div className="flex items-center gap-3">
             <Link to="/" className="transition hover:opacity-90 inline-flex items-center" title="Swift Finances">
@@ -65,7 +65,7 @@ export const Header = ({
             <button
               type="button"
               onClick={() => setIsNavMenuOpen((current) => !current)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 transition hover:border-zinc-700 hover:text-zinc-100 shadow-sm"
               aria-label="Abrir menu de navegação"
               title="Menu"
             >
@@ -120,35 +120,39 @@ export const Header = ({
         </div>
 
         <div className="flex w-full items-center gap-2 md:ml-auto md:w-auto">
-          <div className="flex-1 min-w-0 rounded-xl border border-zinc-800 bg-zinc-900 px-2.5 py-2 sm:px-3 md:flex-none md:w-auto">
-            <div className="text-[10px] uppercase tracking-wide text-zinc-500">
-              Mês operacional
-            </div>
-            <div className="mt-1 flex items-center gap-1.5 sm:gap-2">
-              <input
-                className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-xs sm:text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 md:flex-none"
-                type="month"
-                value={activeMonthKey}
-                onChange={(event) => setActiveMonthKey(event.target.value)}
-              />
-              <button
-                type="button"
-                onClick={resetActiveMonthKey}
-                disabled={isCurrentOperationalMonth}
-                className="shrink-0 rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-2 text-xs text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Hoje
-              </button>
-            </div>
+          {/* Mês Operacional Padronizado em h-10 */}
+          <div
+            className="flex h-10 items-center rounded-xl border border-zinc-800 bg-zinc-900 px-2.5 sm:px-3 gap-2 transition hover:border-zinc-700 focus-within:border-emerald-500/80 focus-within:ring-2 focus-within:ring-emerald-500/20 shadow-sm flex-1 min-w-0 md:flex-none"
+            title="Mês operacional de conciliação e projeção"
+          >
+            <CalendarDays size={15} className="text-zinc-400 shrink-0" />
+            <input
+              className="h-full bg-transparent text-xs sm:text-sm font-medium text-zinc-100 outline-none cursor-pointer [color-scheme:dark] min-w-0 flex-1 md:flex-none md:w-[155px]"
+              type="month"
+              value={activeMonthKey}
+              onChange={(event) => setActiveMonthKey(event.target.value)}
+              aria-label="Mês operacional"
+            />
+            <div className="h-4 w-px bg-zinc-800 shrink-0" />
+            <button
+              type="button"
+              onClick={resetActiveMonthKey}
+              disabled={isCurrentOperationalMonth}
+              className="h-6 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-[11px] font-medium text-zinc-300 transition hover:border-zinc-600 hover:text-zinc-100 hover:bg-zinc-800/60 disabled:cursor-not-allowed disabled:opacity-40 shrink-0"
+              title="Voltar para o mês corrente"
+            >
+              Hoje
+            </button>
           </div>
-          {onSync && (
-            <motion.button
-              whileHover={{ y: -2, scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
-              disabled={syncState === "loading"}
-              onClick={async () => {
-                setSyncState("loading")
-                const hasNew = await onSync()
+
+          <motion.button
+            whileHover={{ y: -1, scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            disabled={syncState === "loading"}
+            onClick={async () => {
+              setSyncState("loading")
+              try {
+                const hasNew = onSync ? await onSync() : false
                 if (hasNew) {
                   setSyncState("updated")
                   setTimeout(() => window.location.reload(), 800)
@@ -156,58 +160,60 @@ export const Header = ({
                   setSyncState("ok")
                   setTimeout(() => setSyncState("idle"), 2500)
                 }
-              }}
-              className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-xs font-medium transition disabled:cursor-wait shrink-0 ${
-                syncState === "ok"
-                  ? "border-emerald-600 bg-emerald-500/15 text-emerald-400"
+              } catch {
+                setSyncState("idle")
+              }
+            }}
+            className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition disabled:cursor-wait shrink-0 shadow-sm ${
+              syncState === "ok" || syncState === "updated"
+                ? "border-emerald-600 bg-emerald-500/15 text-emerald-400"
+                : "border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700 hover:text-zinc-100"
+            }`}
+            title="Sincronizar dados do aplicativo"
+            aria-label="Sincronizar"
+          >
+            <RefreshCw
+              size={14}
+              className={syncState === "loading" ? "animate-spin" : ""}
+            />
+            <span className="hidden sm:inline">
+              {syncState === "loading"
+                ? "Sincronizando..."
+                : syncState === "ok"
+                  ? "Atualizado"
                   : syncState === "updated"
-                    ? "border-emerald-600 bg-emerald-500/15 text-emerald-400"
-                    : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-zinc-100"
-              }`}
-              title="Sincronizar dados do app Android"
-              aria-label="Sincronizar"
-            >
-              <RefreshCw
-                size={14}
-                className={syncState === "loading" ? "animate-spin" : ""}
-              />
-              <span className="hidden sm:inline">
-                {syncState === "loading"
-                  ? "Sincronizando..."
-                  : syncState === "ok"
-                    ? "Atualizado"
-                    : syncState === "updated"
-                      ? "Novo dado!"
-                      : "Sincronizar"}
-              </span>
-            </motion.button>
-          )}
+                    ? "Novo dado!"
+                    : "Sincronizar"}
+            </span>
+          </motion.button>
 
           <motion.button
-            whileHover={{ y: -2, scale: 1.03 }}
-            whileTap={{ scale: 0.96 }}
+            whileHover={{ y: -1, scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
             onClick={onToggleTheme}
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition ${
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition shadow-sm ${
               theme === "dark"
-                ? "border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-zinc-100"
-                : "border-zinc-300 bg-white text-zinc-700 hover:text-zinc-900"
+                ? "border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700 hover:text-zinc-100"
+                : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:text-zinc-900"
             }`}
             title={theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro"}
             aria-label={theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro"}
           >
-            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
           </motion.button>
 
           <div className="relative shrink-0" ref={accountMenuRef}>
-            <button
+            <motion.button
+              whileHover={{ y: -1, scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
               type="button"
               onClick={() => setIsAccountMenuOpen((current) => !current)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-200 transition hover:border-zinc-500 hover:text-zinc-100"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 transition hover:border-zinc-700 hover:text-zinc-100 shadow-sm"
               aria-label="Abrir menu da conta"
               title="Conta"
             >
-              <User size={18} />
-            </button>
+              <User size={17} />
+            </motion.button>
 
             {isAccountMenuOpen && (
               <div className="absolute right-0 top-full z-20 mt-2 min-w-[220px] rounded-xl border border-zinc-800 bg-zinc-900 p-2 shadow-2xl shadow-zinc-950/40">
