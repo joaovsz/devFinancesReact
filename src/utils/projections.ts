@@ -802,12 +802,23 @@ export function getDailySpendPaceProjection(input: {
   transactions: Transaction[]
   monthKey: string
   projectedRevenue: number
-  knownCommittedCosts: number
+  cards?: CreditCard[]
+  fixedCosts?: FixedCost[]
+  installmentPlans?: InstallmentPlan[]
+  goalsMonthlyContribution?: number
+  knownCommittedCosts?: number
+  currentBalance?: number
   outlierCapValue?: number | null
+  todayDate?: string
 }) {
-  const todayIso = new Date().toISOString().slice(0, 10)
+  const now = new Date()
+  const todayIso =
+    input.todayDate ||
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
   const daysInMonth = getDaysInMonth(input.monthKey)
-  const daysElapsed = Math.min(getTodayDayOfMonth(), daysInMonth)
+  const todayDay = Number(todayIso.slice(8, 10)) || getTodayDayOfMonth()
+  const daysElapsed = Math.min(todayDay, daysInMonth)
+  const remainingDays = Math.max(0, daysInMonth - daysElapsed)
   const outlierCapValue =
     input.outlierCapValue != null && input.outlierCapValue > 0 ? input.outlierCapValue : null
 
@@ -820,41 +831,71 @@ export function getDailySpendPaceProjection(input: {
 
   // A one-off expense above the configured cap (e.g. an annual insurance
   // payment) skews the daily average up for the rest of the month even though
-  // it won't repeat - it's excluded from the pace calculation but still
-  // subtracted from the balance in full below, since the money was spent.
+  // it won't repeat - it's excluded from the pace calculation.
   const outlierExpenses = outlierCapValue
     ? pastExpenses.filter((transaction) => transaction.value >= outlierCapValue)
     : []
   const outlierExpensesTotal = outlierExpenses.reduce((total, transaction) => total + transaction.value, 0)
 
-  // Fixed costs and installments aren't in `transactions` (they're computed
-  // separately), so this only measures ad-hoc/discretionary spending -
-  // fixed/installment commitments are added back in full via knownCommittedCosts.
   const discretionaryExpensesSoFar = pastExpenses
     .filter((transaction) => !outlierExpenses.includes(transaction))
     .reduce((total, transaction) => total + transaction.value, 0)
 
-  // Ad-hoc expenses already entered with a future date in this month (e.g. a
-  // tax payment scheduled for the 20th) are known, not a guess - they're added
-  // on top of the average pace instead of being left out or paced-over.
-  const knownFutureAdHocExpenses = input.transactions
-    .filter(
-      (transaction) =>
-        transaction.type === 2 &&
-        transaction.date > todayIso &&
-        dateToMonthKey(transaction.date) === input.monthKey
-    )
-    .reduce((total, transaction) => total + transaction.value, 0)
-
   const averageDailyExpense = daysElapsed > 0 ? discretionaryExpensesSoFar / daysElapsed : 0
-  const projectedTotalExpenses =
-    averageDailyExpense * daysInMonth + knownFutureAdHocExpenses + outlierExpensesTotal
-  const projectedBalance =
-    input.projectedRevenue - input.knownCommittedCosts - projectedTotalExpenses
+  const projectedRemainingExpenses = averageDailyExpense * remainingDays
+
+  let currentBalance: number
+
+  if (input.currentBalance != null) {
+    currentBalance = input.currentBalance
+  } else if (input.cards && input.fixedCosts && input.installmentPlans) {
+    const operational = getOperationalCostsForMonth({
+      cards: input.cards,
+      transactions: input.transactions,
+      fixedCosts: input.fixedCosts,
+      installmentPlans: input.installmentPlans,
+      monthKey: input.monthKey
+    })
+
+    const invoicedRevenueForMonth = getInvoicedPjRevenueForMonth(input.transactions, input.monthKey)
+    const revenueBaseForMonth =
+      invoicedRevenueForMonth > 0 ? invoicedRevenueForMonth : input.projectedRevenue
+    const percentageFixedCostsAdjustment = input.fixedCosts
+      .filter(
+        (cost) =>
+          cost.amountMode === "percentageOfRevenue" &&
+          cost.paymentMethod !== "credit" &&
+          isFixedCostActiveForMonth(cost, input.monthKey)
+      )
+      .reduce(
+        (sum, cost) => sum + (getFixedCostAmountForMonth(cost, revenueBaseForMonth) - cost.amount),
+        0
+      )
+
+    const totalOperationalCosts =
+      operational.total + percentageFixedCostsAdjustment + (input.goalsMonthlyContribution || 0)
+    currentBalance = input.projectedRevenue - totalOperationalCosts
+  } else {
+    // Fallback when full cards/planning data is not provided
+    const knownFutureAdHocExpenses = input.transactions
+      .filter(
+        (transaction) =>
+          transaction.type === 2 &&
+          transaction.date > todayIso &&
+          dateToMonthKey(transaction.date) === input.monthKey
+      )
+      .reduce((total, transaction) => total + transaction.value, 0)
+    const totalSoFar = pastExpenses.reduce((sum, t) => sum + t.value, 0) + knownFutureAdHocExpenses
+    currentBalance = input.projectedRevenue - (input.knownCommittedCosts || 0) - totalSoFar
+  }
+
+  const projectedBalance = currentBalance - projectedRemainingExpenses
+  const projectedTotalExpenses = input.projectedRevenue - projectedBalance
 
   return {
     daysElapsed,
     daysInMonth,
+    remainingDays,
     averageDailyExpense,
     projectedTotalExpenses,
     projectedBalance,

@@ -18,7 +18,8 @@ import {
   getInvoicedPjRevenueForMonth,
   getPjProjectedRevenueForMonth,
   isFixedCostActiveForMonth,
-  INSTALLMENTS_CATEGORY_ID
+  INSTALLMENTS_CATEGORY_ID,
+  getDailySpendPaceProjection
 } from "./projections"
 
 function createPjConfig(overrides: Partial<ContractConfig> = {}): ContractConfig {
@@ -665,5 +666,144 @@ describe("percentage-of-revenue fixed costs (DAS)", () => {
     expect(timeline[1].fixedCostsTotal).toBeCloseTo(460.5, 5)
     expect(timeline[1].committedCosts).toBeCloseTo(460.5, 5)
     expect(timeline[1].projectedLeftover).toBeCloseTo(5000 - 460.5, 5)
+  })
+})
+
+describe("getDailySpendPaceProjection", () => {
+  function expense(id: string, date: string, value: number): Transaction {
+    return {
+      id,
+      createdAt: `${date}T12:00:00.000Z`,
+      label: id,
+      value,
+      date,
+      type: 2,
+      paymentMethod: "cash",
+      categoryId: "cat",
+      subcategoryId: "sub",
+      tags: []
+    }
+  }
+
+  it("projects balance by applying daily pace to remaining days of the month", () => {
+    // 30-day month, today is day 20, 10 days remaining
+    const txs: Transaction[] = [
+      expense("tx1", "2026-09-05", 500),
+      expense("tx2", "2026-09-15", 500)
+    ]
+
+    const result = getDailySpendPaceProjection({
+      transactions: txs,
+      monthKey: "2026-09",
+      projectedRevenue: 5000,
+      cards: [],
+      fixedCosts: [
+        {
+          id: "rent",
+          name: "Aluguel",
+          amount: 1000,
+          categoryId: "moradia",
+          subcategoryId: "aluguel",
+          paymentMethod: "cash",
+          dueDay: 10
+        }
+      ],
+      installmentPlans: [],
+      todayDate: "2026-09-20"
+    })
+
+    // 1000 spent over 20 days = 50/day
+    expect(result.daysElapsed).toBe(20)
+    expect(result.remainingDays).toBe(10)
+    expect(result.averageDailyExpense).toBe(50)
+    // Current operational balance: 5000 - 1000 (rent) - 1000 (txs) = 3000
+    // Remaining spend: 50 * 10 = 500
+    // Projected balance: 3000 - 500 = 2500
+    expect(result.projectedBalance).toBe(2500)
+    expect(result.projectedTotalExpenses).toBe(2500)
+  })
+
+  it("handles late month correctly without generating false deficits", () => {
+    // Today is day 29 of 30, only 1 day remaining
+    // Total spent so far = 2900 (100/day)
+    // Revenue = 4000, Fixed = 600
+    // Current balance = 4000 - 600 - 2900 = 500
+    // 1 day at 100/day = 100 projected spend
+    // Final balance = 500 - 100 = 400 (positive, NOT deficit)
+    const txs: Transaction[] = [
+      expense("tx1", "2026-09-20", 2900)
+    ]
+
+    const result = getDailySpendPaceProjection({
+      transactions: txs,
+      monthKey: "2026-09",
+      projectedRevenue: 4000,
+      cards: [],
+      fixedCosts: [
+        {
+          id: "fixed1",
+          name: "Fixo",
+          amount: 600,
+          categoryId: "moradia",
+          subcategoryId: "outros",
+          paymentMethod: "cash",
+          dueDay: 1
+        }
+      ],
+      installmentPlans: [],
+      todayDate: "2026-09-29"
+    })
+
+    expect(result.daysElapsed).toBe(29)
+    expect(result.remainingDays).toBe(1)
+    expect(result.averageDailyExpense).toBe(100)
+    expect(result.projectedBalance).toBe(400)
+  })
+
+  it("filters outliers above outlierCapValue from the daily pace calculation", () => {
+    const txs: Transaction[] = [
+      expense("tx1", "2026-09-10", 200),
+      expense("tx-outlier", "2026-09-15", 1500)
+    ]
+
+    const result = getDailySpendPaceProjection({
+      transactions: txs,
+      monthKey: "2026-09",
+      projectedRevenue: 3000,
+      cards: [],
+      fixedCosts: [],
+      installmentPlans: [],
+      outlierCapValue: 500,
+      todayDate: "2026-09-20"
+    })
+
+    expect(result.outlierExpensesCount).toBe(1)
+    expect(result.outlierExpensesTotal).toBe(1500)
+    // Discretionary = 200 / 20 = 10/day
+    expect(result.averageDailyExpense).toBe(10)
+    // Current balance: 3000 - 1700 = 1300
+    // Remaining 10 days * 10/day = 100
+    // Projected balance: 1300 - 100 = 1200
+    expect(result.projectedBalance).toBe(1200)
+  })
+
+  it("returns current balance on the last day of the month when remainingDays is 0", () => {
+    const txs: Transaction[] = [
+      expense("tx1", "2026-09-10", 300)
+    ]
+
+    const result = getDailySpendPaceProjection({
+      transactions: txs,
+      monthKey: "2026-09",
+      projectedRevenue: 2000,
+      cards: [],
+      fixedCosts: [],
+      installmentPlans: [],
+      todayDate: "2026-09-30"
+    })
+
+    expect(result.daysElapsed).toBe(30)
+    expect(result.remainingDays).toBe(0)
+    expect(result.projectedBalance).toBe(1700)
   })
 })

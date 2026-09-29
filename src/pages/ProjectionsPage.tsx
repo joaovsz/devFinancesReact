@@ -281,13 +281,23 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
       transactions,
       monthKey: targetMonth,
       projectedRevenue: firstMonth?.projectedRevenue || 0,
-      knownCommittedCosts:
-        (firstMonth?.fixedCostsTotal || 0) +
-        (firstMonth?.installmentsTotal || 0) +
-        (firstMonth?.goalsMonthlyContribution || 0),
+      cards,
+      fixedCosts,
+      installmentPlans,
+      goalsMonthlyContribution,
       outlierCapValue: outlierCap.enabled ? outlierCap.value : null
     })
-  }, [targetMonth, currentMonthKey, transactions, firstMonth, outlierCap])
+  }, [
+    targetMonth,
+    currentMonthKey,
+    transactions,
+    firstMonth,
+    cards,
+    fixedCosts,
+    installmentPlans,
+    goalsMonthlyContribution,
+    outlierCap
+  ])
   const projectedYearTotal = useMemo(
     () => timeline.reduce((sum, item) => sum + item.projectedLeftover, 0),
     [timeline]
