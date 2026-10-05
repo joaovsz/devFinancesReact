@@ -18,15 +18,17 @@ import {
   X
 } from "lucide-react"
 import { Transaction, PaymentMethod } from "../../types/transaction"
+import { CreditCard } from "../../types/card"
 import { defaultCategories } from "../../data/categories"
 import { formatCurrency } from "../Transactions"
 import { NumberTicker } from "../magic/NumberTicker"
 import {
   computeMonthToDateExpenses,
   computeMonthWeekExpenses,
-  getMonthWeeks,
+  formatCycleStartLabel,
+  getCycleWeeks,
+  getExpenseCycle,
   getTodayDateString,
-  getWeekForDate,
   loadOutlierCapSettings,
   OUTLIER_CAP_STORAGE_KEY,
   OutlierCapSettings
@@ -62,6 +64,7 @@ function loadManualExclusions(): string[] {
 
 type WeeklyDailyExpensesProps = {
   transactions: Transaction[]
+  cards?: CreditCard[]
   targetMonth?: string
   outlierCap?: {
     enabled: boolean
@@ -72,6 +75,7 @@ type WeeklyDailyExpensesProps = {
 
 export function WeeklyDailyExpenses({
   transactions,
+  cards = [],
   targetMonth,
   outlierCap: externalOutlierCap,
   onOpenOutlierModal
@@ -80,14 +84,30 @@ export function WeeklyDailyExpenses({
   const currentMonthKey = useMemo(() => todayKey.slice(0, 7), [todayKey])
   const activeMonthKey = targetMonth || currentMonthKey
 
-  const weeks = useMemo(() => getMonthWeeks(activeMonthKey), [activeMonthKey])
+  // Apenas cartoes com compras definem o ciclo, para cartoes parados nao deslocarem o inicio.
+  const cycleCards = useMemo(() => {
+    const usedCardIds = new Set(
+      transactions
+        .filter((tx) => tx.paymentMethod === "credit" && tx.cardId)
+        .map((tx) => tx.cardId)
+    )
+    return cards.filter((card) => usedCardIds.has(card.id))
+  }, [cards, transactions])
 
-  const initialWeekNumber = useMemo(() => {
-    if (activeMonthKey === currentMonthKey) {
-      return getWeekForDate(activeMonthKey, todayKey)
-    }
-    return 1
-  }, [activeMonthKey, currentMonthKey, todayKey])
+  const cycle = useMemo(
+    () => getExpenseCycle(activeMonthKey, cycleCards),
+    [activeMonthKey, cycleCards]
+  )
+  const weeks = useMemo(() => getCycleWeeks(cycle), [cycle])
+  const isTodayInCycle = todayKey >= cycle.startDateKey && todayKey <= cycle.endDateKey
+  const todayWeekNumber = useMemo(
+    () =>
+      weeks.find((w) => todayKey >= w.startDateKey && todayKey <= w.endDateKey)?.weekNumber ?? 1,
+    [weeks, todayKey]
+  )
+  const cycleStartLabel = formatCycleStartLabel(cycle)
+
+  const initialWeekNumber = todayWeekNumber
 
   const [activeWeekNumber, setActiveWeekNumber] = useState<number>(initialWeekNumber)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("")
@@ -116,12 +136,8 @@ export function WeeklyDailyExpenses({
 
   // Sync active week when month changes
   useEffect(() => {
-    if (activeMonthKey === currentMonthKey) {
-      setActiveWeekNumber(getWeekForDate(activeMonthKey, todayKey))
-    } else {
-      setActiveWeekNumber(1)
-    }
-  }, [activeMonthKey, currentMonthKey, todayKey])
+    setActiveWeekNumber(todayWeekNumber)
+  }, [todayWeekNumber])
 
   // Ensure activeWeekNumber is within bounds of available weeks
   useEffect(() => {
@@ -142,6 +158,7 @@ export function WeeklyDailyExpenses({
       transactions,
       monthKey: activeMonthKey,
       weekNumber: activeWeekNumber,
+      cards: cycleCards,
       referenceToday: todayKey,
       outlierCapValue: effectiveOutlierCapValue,
       excludedTransactionIds: manuallyExcludedIds,
@@ -151,6 +168,7 @@ export function WeeklyDailyExpenses({
     transactions,
     activeMonthKey,
     activeWeekNumber,
+    cycleCards,
     todayKey,
     effectiveOutlierCapValue,
     manuallyExcludedIds,
@@ -161,6 +179,7 @@ export function WeeklyDailyExpenses({
     return computeMonthToDateExpenses({
       transactions,
       monthKey: activeMonthKey,
+      cards: cycleCards,
       referenceToday: todayKey,
       outlierCapValue: effectiveOutlierCapValue,
       excludedTransactionIds: manuallyExcludedIds,
@@ -169,6 +188,7 @@ export function WeeklyDailyExpenses({
   }, [
     transactions,
     activeMonthKey,
+    cycleCards,
     todayKey,
     effectiveOutlierCapValue,
     manuallyExcludedIds,
@@ -245,11 +265,9 @@ export function WeeklyDailyExpenses({
   }
 
   const handleResetToCurrentWeek = () => {
-    if (activeMonthKey === currentMonthKey) {
-      setActiveWeekNumber(getWeekForDate(activeMonthKey, todayKey))
+    setActiveWeekNumber(todayWeekNumber)
+    if (isTodayInCycle) {
       setSelectedDateKey(todayKey)
-    } else {
-      setActiveWeekNumber(1)
     }
   }
 
@@ -283,7 +301,7 @@ export function WeeklyDailyExpenses({
             <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">
               Gastos diários
             </h2>
-            {activeMonthKey === currentMonthKey && (
+            {isTodayInCycle && (
               isCurrentWeek ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -325,7 +343,7 @@ export function WeeklyDailyExpenses({
             </button>
           </div>
           <p className="mt-1 text-xs text-zinc-500">
-            Ritmo de consumo por semanas do mês e média acumulada desde o dia 01
+            Ritmo de consumo por semanas do mês e média acumulada desde o dia {cycleStartLabel}
           </p>
         </div>
 
@@ -471,7 +489,7 @@ export function WeeklyDailyExpenses({
         {/* 1. Média diária (01 até hoje / data atual) */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
           <div className="flex items-center justify-between text-xs text-zinc-400">
-            <span>Média 01 até {monthToDateData.isCurrentMonth ? "hoje" : "fim"}</span>
+            <span>Média {cycleStartLabel} até {monthToDateData.isCurrentMonth ? "hoje" : "fim"}</span>
             <Calendar size={13} className="text-emerald-400" />
           </div>
           <div className="mt-1 text-lg font-semibold text-emerald-300">

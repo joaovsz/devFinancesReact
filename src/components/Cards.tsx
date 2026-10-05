@@ -742,7 +742,7 @@ export const Cards = () => {
 
       {/* 2. Gastos diários (últimos 7 dias com setas e filtro de categoria) */}
       <div className="lg:col-span-12">
-        <WeeklyDailyExpenses transactions={transactions} targetMonth={currentMonth} />
+        <WeeklyDailyExpenses transactions={transactions} cards={cards} targetMonth={currentMonth} />
       </div>
 
       {/* 3. Gastos por categoria */}

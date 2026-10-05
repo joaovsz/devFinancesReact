@@ -1,4 +1,6 @@
 import { Transaction } from "../types/transaction"
+import { CreditCard } from "../types/card"
+import { addMonths, getCreditTransactionStatementMonth } from "./projections"
 
 const MONTH_NAMES_PT = [
   "janeiro",
@@ -147,50 +149,113 @@ export function getDaysInMonthFromKey(monthKey: string): number {
   return new Date(year, month, 0).getDate()
 }
 
-export function getMonthWeeks(monthKey: string): MonthWeekDefinition[] {
-  const daysInMonth = getDaysInMonthFromKey(monthKey)
-  const [yearStr, monthStr] = monthKey.split("-")
-  const monthIndex = Number(monthStr) - 1
-  const monthName = MONTH_NAMES_PT[monthIndex] || ""
+export type ExpenseCycle = {
+  monthKey: string
+  startDateKey: string
+  endDateKey: string
+}
 
-  const intervals: [number, number][] = [
-    [1, 7],
-    [8, 14],
-    [15, 21],
-    [22, 28]
-  ]
+function diffDaysBetween(startDateKey: string, endDateKey: string): number {
+  const start = parseLocalDate(startDateKey).getTime()
+  const end = parseLocalDate(endDateKey).getTime()
+  return Math.round((end - start) / 86400000)
+}
 
-  if (daysInMonth >= 29) {
-    intervals.push([29, daysInMonth])
+// Primeiro dia cujas compras no cartao ja caem na fatura do mes informado.
+function getCardCycleStartDateKey(monthKey: string, card: CreditCard): string | null {
+  const scanStart = `${addMonths(monthKey, -1)}-01`
+  const scanEnd = `${monthKey}-${String(getDaysInMonthFromKey(monthKey)).padStart(2, "0")}`
+
+  for (let dateKey = scanStart; dateKey <= scanEnd; dateKey = addDaysToDateKey(dateKey, 1)) {
+    if (getCreditTransactionStatementMonth(dateKey, card) === monthKey) {
+      return dateKey
+    }
   }
 
-  return intervals.map(([startDay, endDay], index) => {
-    const weekNumber = index + 1
-    const startDateKey = `${monthKey}-${String(startDay).padStart(2, "0")}`
-    const endDateKey = `${monthKey}-${String(endDay).padStart(2, "0")}`
-    const startFormatted = String(startDay).padStart(2, "0")
-    const endFormatted = String(endDay).padStart(2, "0")
+  return null
+}
 
-    return {
+// Inicio do "mes de gastos": dia seguinte ao primeiro fechamento que virou
+// para o mes. Sem cartoes, o ciclo e o mes calendario.
+function getCycleStartDateKey(monthKey: string, cards: CreditCard[]): string {
+  const cardStarts = cards
+    .map((card) => getCardCycleStartDateKey(monthKey, card))
+    .filter((dateKey): dateKey is string => Boolean(dateKey))
+
+  if (cardStarts.length === 0) {
+    return `${monthKey}-01`
+  }
+
+  return cardStarts.reduce((earliest, dateKey) => (dateKey < earliest ? dateKey : earliest))
+}
+
+export function getExpenseCycle(monthKey: string, cards: CreditCard[] = []): ExpenseCycle {
+  const startDateKey = getCycleStartDateKey(monthKey, cards)
+  const nextStartDateKey = getCycleStartDateKey(addMonths(monthKey, 1), cards)
+
+  return {
+    monthKey,
+    startDateKey,
+    endDateKey: addDaysToDateKey(nextStartDateKey, -1)
+  }
+}
+
+function formatDayMonth(dateKey: string): string {
+  const [, month, day] = dateKey.split("-")
+  return `${day}/${month}`
+}
+
+export function formatCycleStartLabel(cycle: ExpenseCycle): string {
+  return cycle.startDateKey.startsWith(cycle.monthKey)
+    ? cycle.startDateKey.slice(8, 10)
+    : formatDayMonth(cycle.startDateKey)
+}
+
+export function getCycleWeeks(cycle: ExpenseCycle): MonthWeekDefinition[] {
+  const weeks: MonthWeekDefinition[] = []
+  const totalDays = diffDaysBetween(cycle.startDateKey, cycle.endDateKey) + 1
+
+  for (let offset = 0, weekNumber = 1; offset < totalDays; offset += 7, weekNumber += 1) {
+    const startDateKey = addDaysToDateKey(cycle.startDateKey, offset)
+    const candidateEnd = addDaysToDateKey(startDateKey, 6)
+    const endDateKey = candidateEnd > cycle.endDateKey ? cycle.endDateKey : candidateEnd
+    const startDay = Number(startDateKey.slice(8, 10))
+    const endDay = Number(endDateKey.slice(8, 10))
+    const isSameMonth =
+      startDateKey.startsWith(cycle.monthKey) && endDateKey.startsWith(cycle.monthKey)
+    const shortLabel = isSameMonth
+      ? `${String(startDay).padStart(2, "0")} a ${String(endDay).padStart(2, "0")}`
+      : `${formatDayMonth(startDateKey)} a ${formatDayMonth(endDateKey)}`
+    const monthName = MONTH_NAMES_PT[Number(endDateKey.slice(5, 7)) - 1] || ""
+
+    weeks.push({
       weekNumber,
       startDay,
       endDay,
       startDateKey,
       endDateKey,
-      label: `Semana ${weekNumber} (${startFormatted} a ${endFormatted} de ${monthName})`,
-      shortLabel: `${startFormatted} a ${endFormatted}`,
-      daysCount: endDay - startDay + 1
-    }
-  })
+      label: isSameMonth
+        ? `Semana ${weekNumber} (${shortLabel} de ${monthName})`
+        : `Semana ${weekNumber} (${shortLabel})`,
+      shortLabel,
+      daysCount: diffDaysBetween(startDateKey, endDateKey) + 1
+    })
+  }
+
+  return weeks
 }
 
-export function getWeekForDate(monthKey: string, dateString: string): number {
-  const weeks = getMonthWeeks(monthKey)
-  if (!dateString.startsWith(monthKey)) {
-    return 1
-  }
-  const day = Number(dateString.split("-")[2])
-  const found = weeks.find((w) => day >= w.startDay && day <= w.endDay)
+export function getMonthWeeks(monthKey: string, cards: CreditCard[] = []): MonthWeekDefinition[] {
+  return getCycleWeeks(getExpenseCycle(monthKey, cards))
+}
+
+export function getWeekForDate(
+  monthKey: string,
+  dateString: string,
+  cards: CreditCard[] = []
+): number {
+  const weeks = getMonthWeeks(monthKey, cards)
+  const found = weeks.find((w) => dateString >= w.startDateKey && dateString <= w.endDateKey)
   return found ? found.weekNumber : 1
 }
 
@@ -407,13 +472,14 @@ export function computeMonthWeekExpenses(input: {
   transactions: Transaction[]
   monthKey: string
   weekNumber: number
+  cards?: CreditCard[]
   referenceToday?: string
   outlierCapValue?: number | null
   excludedTransactionIds?: string[]
   categoryId?: string | null
 }): MonthWeekExpensesSummary {
   const todayKey = input.referenceToday || getTodayDateString()
-  const weeks = getMonthWeeks(input.monthKey)
+  const weeks = getMonthWeeks(input.monthKey, input.cards)
   const week = weeks.find((w) => w.weekNumber === input.weekNumber) || weeks[0]
 
   const capValue = input.outlierCapValue && input.outlierCapValue > 0 ? input.outlierCapValue : null
@@ -426,8 +492,7 @@ export function computeMonthWeekExpenses(input: {
 
   let daysElapsedCount = week.daysCount
   if (isCurrentWeek) {
-    const todayDay = Number(todayKey.split("-")[2])
-    daysElapsedCount = Math.max(1, todayDay - week.startDay + 1)
+    daysElapsedCount = Math.max(1, diffDaysBetween(week.startDateKey, todayKey) + 1)
   } else if (isFutureWeek) {
     daysElapsedCount = 0
   }
@@ -440,8 +505,8 @@ export function computeMonthWeekExpenses(input: {
   let maxDailyExpense = 0
   let maxDay: DayExpenseSummary | null = null
 
-  for (let dayNum = week.startDay; dayNum <= week.endDay; dayNum += 1) {
-    const dateKey = `${input.monthKey}-${String(dayNum).padStart(2, "0")}`
+  for (let dayIndex = 0; dayIndex < week.daysCount; dayIndex += 1) {
+    const dateKey = addDaysToDateKey(week.startDateKey, dayIndex)
     const localDate = parseLocalDate(dateKey)
     const dayOfWeek = localDate.getDay()
     const formattedDay = `${String(localDate.getDate()).padStart(2, "0")}/${String(
@@ -490,7 +555,7 @@ export function computeMonthWeekExpenses(input: {
 
     const daySummary: DayExpenseSummary = {
       dateKey,
-      dayIndex: dayNum - week.startDay,
+      dayIndex,
       dayNameShort: DAY_NAMES_BY_DAY_INDEX[dayOfWeek],
       dayNameFull: DAY_NAMES_FULL_BY_DAY_INDEX[dayOfWeek],
       formattedDay,
@@ -544,6 +609,7 @@ export function computeMonthWeekExpenses(input: {
 
 export type MonthToDateExpensesSummary = {
   monthKey: string
+  cycle: ExpenseCycle
   daysElapsed: number
   daysInMonth: number
   isCurrentMonth: boolean
@@ -559,27 +625,25 @@ export type MonthToDateExpensesSummary = {
 export function computeMonthToDateExpenses(input: {
   transactions: Transaction[]
   monthKey: string
+  cards?: CreditCard[]
   referenceToday?: string
   outlierCapValue?: number | null
   excludedTransactionIds?: string[]
   categoryId?: string | null
 }): MonthToDateExpensesSummary {
   const todayKey = input.referenceToday || getTodayDateString()
-  const currentMonthKey = todayKey.slice(0, 7)
-  const daysInMonth = getDaysInMonthFromKey(input.monthKey)
+  const cycle = getExpenseCycle(input.monthKey, input.cards)
+  const daysInMonth = diffDaysBetween(cycle.startDateKey, cycle.endDateKey) + 1
 
-  const isCurrentMonth = input.monthKey === currentMonthKey
-  const isPastMonth = input.monthKey < currentMonthKey
-  const isFutureMonth = input.monthKey > currentMonthKey
+  const isCurrentMonth = todayKey >= cycle.startDateKey && todayKey <= cycle.endDateKey
+  const isPastMonth = todayKey > cycle.endDateKey
+  const isFutureMonth = todayKey < cycle.startDateKey
 
   let daysElapsed = 0
   if (isCurrentMonth) {
-    const todayDay = Number(todayKey.split("-")[2])
-    daysElapsed = Math.min(todayDay, daysInMonth)
+    daysElapsed = diffDaysBetween(cycle.startDateKey, todayKey) + 1
   } else if (isPastMonth) {
     daysElapsed = daysInMonth
-  } else {
-    daysElapsed = 0
   }
 
   const capValue = input.outlierCapValue && input.outlierCapValue > 0 ? input.outlierCapValue : null
@@ -588,8 +652,8 @@ export function computeMonthToDateExpenses(input: {
 
   const monthExpenses = input.transactions.filter((tx) => {
     if (tx.type !== 2) return false
-    if (!tx.date.startsWith(input.monthKey)) return false
-    if (isCurrentMonth && tx.date > todayKey) return false
+    if (tx.date < cycle.startDateKey || tx.date > cycle.endDateKey) return false
+    if (tx.date > todayKey) return false
     if (categoryFilter && tx.categoryId !== categoryFilter) return false
     return true
   })
@@ -617,6 +681,7 @@ export function computeMonthToDateExpenses(input: {
 
   return {
     monthKey: input.monthKey,
+    cycle,
     daysElapsed,
     daysInMonth,
     isCurrentMonth,

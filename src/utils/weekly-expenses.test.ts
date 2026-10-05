@@ -7,6 +7,7 @@ import {
   computeWeeklyDailyExpenses,
   formatWeekRangeLabel,
   getLastSevenDaysStartDate,
+  getExpenseCycle,
   getMonthWeeks,
   getMondayOfWeek,
   getNextWeekMonday,
@@ -16,6 +17,17 @@ import {
   toDateKey
 } from "./weekly-expenses"
 import { Transaction } from "../types/transaction"
+import { CreditCard } from "../types/card"
+
+const makeCard = (id: string, closeDay: number, dueDay: number): CreditCard => ({
+  id,
+  name: id,
+  brandColor: "#000",
+  limitTotal: 1000,
+  closeDay,
+  dueDay,
+  manualInvoiceAmount: 0
+})
 
 describe("weekly-expenses utilities", () => {
   it("computes monday of the week correctly for any day of the week", () => {
@@ -485,6 +497,83 @@ describe("weekly-expenses utilities", () => {
     expect(w2.averageDailyExpense).toBe(10)
     expect(w2.isPastWeek).toBe(true)
   })
+
+  it("starts the month cycle the day after the card closing that rolled into the month", () => {
+    const card = makeCard("nubank", 5, 12)
+    const cycle = getExpenseCycle("2026-10", [card])
+    expect(cycle.startDateKey).toBe("2026-10-06")
+    expect(cycle.endDateKey).toBe("2026-11-05")
+
+    const lateCloser = makeCard("inter", 28, 5)
+    expect(getExpenseCycle("2026-10", [lateCloser]).startDateKey).toBe("2026-09-29")
+
+    // Uses the earliest closing among cards: closings on 14, 13 and 04 start on day 05
+    const multiCardCycle = getExpenseCycle("2026-10", [
+      makeCard("c14", 14, 21),
+      makeCard("c13", 13, 20),
+      makeCard("c04", 4, 11)
+    ])
+    expect(multiCardCycle.startDateKey).toBe("2026-10-05")
+    expect(multiCardCycle.endDateKey).toBe("2026-11-04")
+
+    // No cards falls back to the calendar month
+    expect(getExpenseCycle("2026-10")).toMatchObject({
+      startDateKey: "2026-10-01",
+      endDateKey: "2026-10-31"
+    })
+  })
+
+  it("ignores expenses before the closing date when computing the month cycle", () => {
+    const card = makeCard("nubank", 5, 12)
+    const mockTransactions: Transaction[] = [
+      {
+        id: "tx-sept-invoice",
+        label: "Compra fatura anterior",
+        value: 300,
+        date: "2026-10-03",
+        type: 2,
+        paymentMethod: "credit",
+        cardId: "nubank",
+        categoryId: "lazer",
+        subcategoryId: "",
+        tags: []
+      },
+      {
+        id: "tx-oct-invoice",
+        label: "Compra fatura outubro",
+        value: 80,
+        date: "2026-10-07",
+        type: 2,
+        paymentMethod: "credit",
+        cardId: "nubank",
+        categoryId: "lazer",
+        subcategoryId: "",
+        tags: []
+      }
+    ]
+
+    const weeks = getMonthWeeks("2026-10", [card])
+    expect(weeks[0]).toMatchObject({ startDateKey: "2026-10-06", endDateKey: "2026-10-12" })
+    expect(weeks[weeks.length - 1].shortLabel).toBe("03/11 a 05/11")
+
+    const w1 = computeMonthWeekExpenses({
+      transactions: mockTransactions,
+      monthKey: "2026-10",
+      weekNumber: 1,
+      cards: [card],
+      referenceToday: "2026-10-08"
+    })
+    expect(w1.totalWeekExpense).toBe(80)
+    expect(w1.daysElapsedCount).toBe(3)
+    expect(w1.days[0].dateKey).toBe("2026-10-06")
+
+    const mtd = computeMonthToDateExpenses({
+      transactions: mockTransactions,
+      monthKey: "2026-10",
+      cards: [card],
+      referenceToday: "2026-10-05"
+    })
+    expect(mtd.isFutureMonth).toBe(true)
+    expect(mtd.totalMonthToDateExpense).toBe(0)
+  })
 })
-
-
