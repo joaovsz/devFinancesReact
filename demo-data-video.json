@@ -1,0 +1,1005 @@
+{
+  "version": 35,
+  "state": {
+    "activeMonthKey": "2026-10",
+    "bankAccounts": [
+      {
+        "id": "acc-nubank-pj",
+        "name": "Nubank PJ (Conta Jurídica)",
+        "type": "checking",
+        "balance": 21450.0,
+        "bankId": "nubank"
+      },
+      {
+        "id": "acc-itau-pf",
+        "name": "Itaú Personnalité",
+        "type": "checking",
+        "balance": 9850.5,
+        "bankId": "itau"
+      },
+      {
+        "id": "acc-btg-reserva",
+        "name": "BTG Pactual (Reserva 100% CDI)",
+        "type": "investment",
+        "balance": 48200.0,
+        "bankId": "inter"
+      }
+    ],
+    "cards": [
+      {
+        "id": "card-nubank-uv",
+        "bankId": "nubank",
+        "name": "Nubank Ultravioleta",
+        "brandColor": "#820AD1",
+        "logoUrl": "https://www.google.com/s2/favicons?domain=nubank.com.br&sz=128",
+        "limitTotal": 25000.0,
+        "closeDay": 8,
+        "dueDay": 15,
+        "manualInvoiceAmount": 0.0,
+        "paidThroughMonth": "2026-09"
+      },
+      {
+        "id": "card-itau-plat",
+        "bankId": "itau",
+        "name": "Itaú Platinum",
+        "brandColor": "#EC7000",
+        "logoUrl": "https://www.google.com/s2/favicons?domain=itau.com.br&sz=128",
+        "limitTotal": 18000.0,
+        "closeDay": 22,
+        "dueDay": 28,
+        "manualInvoiceAmount": 0.0,
+        "paidThroughMonth": "2026-09"
+      },
+      {
+        "id": "card-inter-black",
+        "bankId": "inter",
+        "name": "Inter Mastercard Black",
+        "brandColor": "#FF7A00",
+        "logoUrl": "https://www.google.com/s2/favicons?domain=bancointer.com.br&sz=128",
+        "limitTotal": 30000.0,
+        "closeDay": 14,
+        "dueDay": 20,
+        "manualInvoiceAmount": 0.0,
+        "paidThroughMonth": "2026-09"
+      }
+    ],
+    "transactions": [
+      {
+        "id": "tx-2026-07-1",
+        "createdAt": "2026-07-05T12:00:00.000Z",
+        "label": "Faturamento Contrato PJ - Tech Corp",
+        "value": 18900.0,
+        "date": "2026-07-05",
+        "type": 1,
+        "paymentMethod": "pix",
+        "categoryId": "rendas",
+        "subcategoryId": "faturamento-pj",
+        "tags": [
+          "pj",
+          "contrato-mensal"
+        ]
+      },
+      {
+        "id": "tx-2026-07-2",
+        "createdAt": "2026-07-18T12:00:00.000Z",
+        "label": "Freela Landing Page E-commerce",
+        "value": 2800.0,
+        "date": "2026-07-18",
+        "type": 1,
+        "paymentMethod": "pix",
+        "categoryId": "rendas",
+        "subcategoryId": "freelas",
+        "tags": [
+          "extra"
+        ]
+      },
+      {
+        "id": "tx-2026-07-3",
+        "createdAt": "2026-07-20T12:00:00.000Z",
+        "label": "Rendimentos CDB 100% CDI",
+        "value": 351.2,
+        "date": "2026-07-20",
+        "type": 1,
+        "paymentMethod": "bank-transfer",
+        "categoryId": "rendas",
+        "subcategoryId": "dividendos-juros",
+        "tags": [
+          "investimentos",
+          "cdi"
+        ]
+      },
+      {
+        "id": "tx-2026-07-4",
+        "createdAt": "2026-07-02T12:00:00.000Z",
+        "label": "Supermercado Mensal Sam's Club",
+        "value": 912.4,
+        "date": "2026-07-02",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "mercado",
+        "tags": [
+          "essencial",
+          "casa"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-07-5",
+        "createdAt": "2026-07-04T12:00:00.000Z",
+        "label": "Posto Shell Combustível",
+        "value": 240.0,
+        "date": "2026-07-04",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "transporte",
+        "subcategoryId": "combustivel",
+        "tags": [
+          "transporte"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-07-6",
+        "createdAt": "2026-07-07T12:00:00.000Z",
+        "label": "Farmácia Drogasil",
+        "value": 86.9,
+        "date": "2026-07-07",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "saude-bem-estar",
+        "subcategoryId": "medicamentos",
+        "tags": [
+          "saude"
+        ],
+        "cardId": "card-itau-plat"
+      },
+      {
+        "id": "tx-2026-07-7",
+        "createdAt": "2026-07-11T12:00:00.000Z",
+        "label": "Restaurante Outback",
+        "value": 312.0,
+        "date": "2026-07-11",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "restaurantes",
+        "tags": [
+          "lazer"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-07-8",
+        "createdAt": "2026-07-13T12:00:00.000Z",
+        "label": "iFood Jantar",
+        "value": 74.5,
+        "date": "2026-07-13",
+        "type": 2,
+        "paymentMethod": "pix",
+        "categoryId": "alimentacao",
+        "subcategoryId": "delivery-ifood",
+        "tags": [
+          "delivery"
+        ]
+      },
+      {
+        "id": "tx-2026-07-9",
+        "createdAt": "2026-07-16T12:00:00.000Z",
+        "label": "Curso Alura - Renovação Anual",
+        "value": 1188.0,
+        "date": "2026-07-16",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "educacao-carreira",
+        "subcategoryId": "cursos-assinaturas",
+        "tags": [
+          "estudos"
+        ],
+        "cardId": "card-itau-plat"
+      },
+      {
+        "id": "tx-2026-07-10",
+        "createdAt": "2026-07-19T12:00:00.000Z",
+        "label": "Uber Viagens",
+        "value": 58.3,
+        "date": "2026-07-19",
+        "type": 2,
+        "paymentMethod": "pix",
+        "categoryId": "transporte",
+        "subcategoryId": "uber-99-taxi",
+        "tags": [
+          "transporte"
+        ]
+      },
+      {
+        "id": "tx-2026-07-11",
+        "createdAt": "2026-07-22T12:00:00.000Z",
+        "label": "Cafeteria / Coworking",
+        "value": 38.0,
+        "date": "2026-07-22",
+        "type": 2,
+        "paymentMethod": "debit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "cafeterias",
+        "tags": [
+          "trabalho"
+        ]
+      },
+      {
+        "id": "tx-2026-07-12",
+        "createdAt": "2026-07-25T12:00:00.000Z",
+        "label": "Hortifruti Semanal",
+        "value": 164.7,
+        "date": "2026-07-25",
+        "type": 2,
+        "paymentMethod": "debit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "mercado",
+        "tags": [
+          "casa"
+        ]
+      },
+      {
+        "id": "tx-2026-07-13",
+        "createdAt": "2026-07-27T12:00:00.000Z",
+        "label": "Cinema + Pipoca",
+        "value": 96.0,
+        "date": "2026-07-27",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "lazer-assinaturas",
+        "subcategoryId": "cinema-teatro",
+        "tags": [
+          "lazer"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-08-14",
+        "createdAt": "2026-08-05T12:00:00.000Z",
+        "label": "Faturamento Contrato PJ - Tech Corp",
+        "value": 19200.0,
+        "date": "2026-08-05",
+        "type": 1,
+        "paymentMethod": "pix",
+        "categoryId": "rendas",
+        "subcategoryId": "faturamento-pj",
+        "tags": [
+          "pj",
+          "contrato-mensal"
+        ]
+      },
+      {
+        "id": "tx-2026-08-15",
+        "createdAt": "2026-08-21T12:00:00.000Z",
+        "label": "Rendimentos CDB 100% CDI",
+        "value": 366.8,
+        "date": "2026-08-21",
+        "type": 1,
+        "paymentMethod": "bank-transfer",
+        "categoryId": "rendas",
+        "subcategoryId": "dividendos-juros",
+        "tags": [
+          "investimentos",
+          "cdi"
+        ]
+      },
+      {
+        "id": "tx-2026-08-16",
+        "createdAt": "2026-08-01T12:00:00.000Z",
+        "label": "Supermercado Mensal Sam's Club",
+        "value": 878.1,
+        "date": "2026-08-01",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "mercado",
+        "tags": [
+          "essencial",
+          "casa"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-08-17",
+        "createdAt": "2026-08-03T12:00:00.000Z",
+        "label": "Posto Shell Combustível",
+        "value": 225.0,
+        "date": "2026-08-03",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "transporte",
+        "subcategoryId": "combustivel",
+        "tags": [
+          "transporte"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-08-18",
+        "createdAt": "2026-08-09T12:00:00.000Z",
+        "label": "Presente Aniversário Mãe",
+        "value": 280.0,
+        "date": "2026-08-09",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "outros",
+        "subcategoryId": "presentes",
+        "tags": [
+          "familia"
+        ],
+        "cardId": "card-itau-plat"
+      },
+      {
+        "id": "tx-2026-08-19",
+        "createdAt": "2026-08-12T12:00:00.000Z",
+        "label": "Restaurante Coco Bambu",
+        "value": 245.0,
+        "date": "2026-08-12",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "restaurantes",
+        "tags": [
+          "lazer"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-08-20",
+        "createdAt": "2026-08-14T12:00:00.000Z",
+        "label": "iFood Almoço de Domingo",
+        "value": 92.4,
+        "date": "2026-08-14",
+        "type": 2,
+        "paymentMethod": "pix",
+        "categoryId": "alimentacao",
+        "subcategoryId": "delivery-ifood",
+        "tags": [
+          "delivery"
+        ]
+      },
+      {
+        "id": "tx-2026-08-21",
+        "createdAt": "2026-08-17T12:00:00.000Z",
+        "label": "Revisão do Carro",
+        "value": 690.0,
+        "date": "2026-08-17",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "transporte",
+        "subcategoryId": "manutencao-veiculo",
+        "tags": [
+          "carro"
+        ],
+        "cardId": "card-inter-black"
+      },
+      {
+        "id": "tx-2026-08-22",
+        "createdAt": "2026-08-20T12:00:00.000Z",
+        "label": "Uber Viagens",
+        "value": 71.2,
+        "date": "2026-08-20",
+        "type": 2,
+        "paymentMethod": "pix",
+        "categoryId": "transporte",
+        "subcategoryId": "uber-99-taxi",
+        "tags": [
+          "transporte"
+        ]
+      },
+      {
+        "id": "tx-2026-08-23",
+        "createdAt": "2026-08-23T12:00:00.000Z",
+        "label": "Cafeteria / Coworking",
+        "value": 45.0,
+        "date": "2026-08-23",
+        "type": 2,
+        "paymentMethod": "debit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "cafeterias",
+        "tags": [
+          "trabalho"
+        ]
+      },
+      {
+        "id": "tx-2026-08-24",
+        "createdAt": "2026-08-26T12:00:00.000Z",
+        "label": "Hortifruti Semanal",
+        "value": 151.3,
+        "date": "2026-08-26",
+        "type": 2,
+        "paymentMethod": "debit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "mercado",
+        "tags": [
+          "casa"
+        ]
+      },
+      {
+        "id": "tx-2026-08-25",
+        "createdAt": "2026-08-29T12:00:00.000Z",
+        "label": "Show Rock in Goiânia",
+        "value": 220.0,
+        "date": "2026-08-29",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "lazer-assinaturas",
+        "subcategoryId": "shows-eventos",
+        "tags": [
+          "lazer"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-09-26",
+        "createdAt": "2026-09-05T12:00:00.000Z",
+        "label": "Faturamento Contrato PJ - Tech Corp",
+        "value": 19800.0,
+        "date": "2026-09-05",
+        "type": 1,
+        "paymentMethod": "pix",
+        "categoryId": "rendas",
+        "subcategoryId": "faturamento-pj",
+        "tags": [
+          "pj",
+          "contrato-mensal"
+        ]
+      },
+      {
+        "id": "tx-2026-09-27",
+        "createdAt": "2026-09-15T12:00:00.000Z",
+        "label": "Consultoria Refatoração de Software",
+        "value": 3200.0,
+        "date": "2026-09-15",
+        "type": 1,
+        "paymentMethod": "pix",
+        "categoryId": "rendas",
+        "subcategoryId": "freelas",
+        "tags": [
+          "extra",
+          "consultoria"
+        ]
+      },
+      {
+        "id": "tx-2026-09-28",
+        "createdAt": "2026-09-21T12:00:00.000Z",
+        "label": "Rendimentos CDB 100% CDI",
+        "value": 385.4,
+        "date": "2026-09-21",
+        "type": 1,
+        "paymentMethod": "bank-transfer",
+        "categoryId": "rendas",
+        "subcategoryId": "dividendos-juros",
+        "tags": [
+          "investimentos",
+          "cdi"
+        ]
+      },
+      {
+        "id": "tx-2026-09-29",
+        "createdAt": "2026-09-02T12:00:00.000Z",
+        "label": "Supermercado Mensal Sam's Club",
+        "value": 845.2,
+        "date": "2026-09-02",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "mercado",
+        "tags": [
+          "essencial",
+          "casa"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-09-30",
+        "createdAt": "2026-09-04T12:00:00.000Z",
+        "label": "Posto Shell Combustível",
+        "value": 230.0,
+        "date": "2026-09-04",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "transporte",
+        "subcategoryId": "combustivel",
+        "tags": [
+          "transporte"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-09-31",
+        "createdAt": "2026-09-06T12:00:00.000Z",
+        "label": "Farmácia Drogasil",
+        "value": 112.5,
+        "date": "2026-09-06",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "saude-bem-estar",
+        "subcategoryId": "medicamentos",
+        "tags": [
+          "saude"
+        ],
+        "cardId": "card-itau-plat"
+      },
+      {
+        "id": "tx-2026-09-32",
+        "createdAt": "2026-09-08T12:00:00.000Z",
+        "label": "Cadeira Ergonômica Home Office",
+        "value": 750.0,
+        "date": "2026-09-08",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "bens-equipamentos",
+        "subcategoryId": "moveis",
+        "tags": [
+          "home-office",
+          "setup"
+        ],
+        "cardId": "card-inter-black"
+      },
+      {
+        "id": "tx-2026-09-33",
+        "createdAt": "2026-09-12T12:00:00.000Z",
+        "label": "Restaurante Coco Bambu",
+        "value": 260.0,
+        "date": "2026-09-12",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "restaurantes",
+        "tags": [
+          "lazer"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-09-34",
+        "createdAt": "2026-09-13T12:00:00.000Z",
+        "label": "iFood Almoço de Domingo",
+        "value": 89.9,
+        "date": "2026-09-13",
+        "type": 2,
+        "paymentMethod": "pix",
+        "categoryId": "alimentacao",
+        "subcategoryId": "delivery-ifood",
+        "tags": [
+          "delivery"
+        ]
+      },
+      {
+        "id": "tx-2026-09-35",
+        "createdAt": "2026-09-14T12:00:00.000Z",
+        "label": "Livros Técnicos Engenharia de Software",
+        "value": 198.0,
+        "date": "2026-09-14",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "educacao-carreira",
+        "subcategoryId": "livros",
+        "tags": [
+          "estudos"
+        ],
+        "cardId": "card-itau-plat"
+      },
+      {
+        "id": "tx-2026-09-36",
+        "createdAt": "2026-09-17T12:00:00.000Z",
+        "label": "Uber Viagens",
+        "value": 64.5,
+        "date": "2026-09-17",
+        "type": 2,
+        "paymentMethod": "pix",
+        "categoryId": "transporte",
+        "subcategoryId": "uber-99-taxi",
+        "tags": [
+          "transporte"
+        ]
+      },
+      {
+        "id": "tx-2026-09-37",
+        "createdAt": "2026-09-22T12:00:00.000Z",
+        "label": "Cafeteria / Coworking",
+        "value": 42.0,
+        "date": "2026-09-22",
+        "type": 2,
+        "paymentMethod": "debit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "cafeterias",
+        "tags": [
+          "trabalho"
+        ]
+      },
+      {
+        "id": "tx-2026-09-38",
+        "createdAt": "2026-09-26T12:00:00.000Z",
+        "label": "Hortifruti Semanal",
+        "value": 158.9,
+        "date": "2026-09-26",
+        "type": 2,
+        "paymentMethod": "debit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "mercado",
+        "tags": [
+          "casa"
+        ]
+      },
+      {
+        "id": "tx-2026-10-39",
+        "createdAt": "2026-10-05T12:00:00.000Z",
+        "label": "Faturamento Contrato PJ - Tech Corp",
+        "value": 20160.0,
+        "date": "2026-10-05",
+        "type": 1,
+        "paymentMethod": "pix",
+        "categoryId": "rendas",
+        "subcategoryId": "faturamento-pj",
+        "tags": [
+          "pj",
+          "contrato-mensal"
+        ]
+      },
+      {
+        "id": "tx-2026-10-40",
+        "createdAt": "2026-10-01T12:00:00.000Z",
+        "label": "Supermercado Mensal Sam's Club",
+        "value": 901.6,
+        "date": "2026-10-01",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "mercado",
+        "tags": [
+          "essencial",
+          "casa"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-10-41",
+        "createdAt": "2026-10-03T12:00:00.000Z",
+        "label": "Posto Shell Combustível",
+        "value": 235.0,
+        "date": "2026-10-03",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "transporte",
+        "subcategoryId": "combustivel",
+        "tags": [
+          "transporte"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-10-42",
+        "createdAt": "2026-10-04T12:00:00.000Z",
+        "label": "Hortifruti Semanal",
+        "value": 147.2,
+        "date": "2026-10-04",
+        "type": 2,
+        "paymentMethod": "debit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "mercado",
+        "tags": [
+          "casa"
+        ]
+      },
+      {
+        "id": "tx-2026-10-43",
+        "createdAt": "2026-10-06T12:00:00.000Z",
+        "label": "iFood Jantar",
+        "value": 68.9,
+        "date": "2026-10-06",
+        "type": 2,
+        "paymentMethod": "pix",
+        "categoryId": "alimentacao",
+        "subcategoryId": "delivery-ifood",
+        "tags": [
+          "delivery"
+        ]
+      },
+      {
+        "id": "tx-2026-10-44",
+        "createdAt": "2026-10-08T12:00:00.000Z",
+        "label": "Restaurante Japonês",
+        "value": 214.0,
+        "date": "2026-10-08",
+        "type": 2,
+        "paymentMethod": "credit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "restaurantes",
+        "tags": [
+          "lazer"
+        ],
+        "cardId": "card-nubank-uv"
+      },
+      {
+        "id": "tx-2026-10-45",
+        "createdAt": "2026-10-09T12:00:00.000Z",
+        "label": "Uber Viagens",
+        "value": 47.8,
+        "date": "2026-10-09",
+        "type": 2,
+        "paymentMethod": "pix",
+        "categoryId": "transporte",
+        "subcategoryId": "uber-99-taxi",
+        "tags": [
+          "transporte"
+        ]
+      },
+      {
+        "id": "tx-2026-10-46",
+        "createdAt": "2026-10-10T12:00:00.000Z",
+        "label": "Cafeteria / Coworking",
+        "value": 36.0,
+        "date": "2026-10-10",
+        "type": 2,
+        "paymentMethod": "debit",
+        "categoryId": "alimentacao",
+        "subcategoryId": "cafeterias",
+        "tags": [
+          "trabalho"
+        ]
+      }
+    ],
+    "fixedCosts": [
+      {
+        "id": "fc-aluguel",
+        "name": "Aluguel Residencial & Condomínio",
+        "amount": 2600.0,
+        "dueDay": 5,
+        "categoryId": "moradia",
+        "subcategoryId": "aluguel",
+        "paymentMethod": "pix",
+        "startMonth": "2024-01"
+      },
+      {
+        "id": "fc-contab",
+        "name": "Contabilidade Digital PJ",
+        "amount": 389.0,
+        "dueDay": 10,
+        "categoryId": "impostos-empresa",
+        "subcategoryId": "contabilidade",
+        "paymentMethod": "pix",
+        "startMonth": "2024-01"
+      },
+      {
+        "id": "fc-imposto-das",
+        "name": "DAS - Simples Nacional (Anexo III)",
+        "amount": 1188.0,
+        "dueDay": 20,
+        "categoryId": "impostos-empresa",
+        "subcategoryId": "das",
+        "paymentMethod": "bank-transfer",
+        "isPercentageOfRevenue": true,
+        "revenuePercentage": 6.0,
+        "startMonth": "2024-01"
+      },
+      {
+        "id": "fc-internet",
+        "name": "Internet Fibra Óptica 600MB (Home Office)",
+        "amount": 149.9,
+        "dueDay": 15,
+        "categoryId": "moradia",
+        "subcategoryId": "internet",
+        "paymentMethod": "pix",
+        "startMonth": "2024-01"
+      },
+      {
+        "id": "fc-saude",
+        "name": "Plano de Saúde Unimed",
+        "amount": 560.0,
+        "dueDay": 12,
+        "categoryId": "saude-bem-estar",
+        "subcategoryId": "plano-saude",
+        "paymentMethod": "bank-transfer",
+        "startMonth": "2024-01"
+      },
+      {
+        "id": "fc-academia",
+        "name": "Academia Smart Fit / Treinos",
+        "amount": 139.9,
+        "dueDay": 10,
+        "categoryId": "saude-bem-estar",
+        "subcategoryId": "academia",
+        "paymentMethod": "credit",
+        "cardId": "card-nubank-uv",
+        "startMonth": "2024-01"
+      },
+      {
+        "id": "fc-cloud-tools",
+        "name": "Assinaturas Dev (GitHub, OpenAI & Vercel)",
+        "amount": 230.0,
+        "dueDay": 8,
+        "categoryId": "educacao-carreira",
+        "subcategoryId": "ferramentas",
+        "paymentMethod": "credit",
+        "cardId": "card-itau-plat",
+        "startMonth": "2024-01"
+      },
+      {
+        "id": "fc-seguro-auto",
+        "name": "Seguro Automóvel Porto Seguro",
+        "amount": 245.0,
+        "dueDay": 18,
+        "categoryId": "transporte",
+        "subcategoryId": "seguro-automovel",
+        "paymentMethod": "credit",
+        "cardId": "card-itau-plat",
+        "startMonth": "2024-01"
+      }
+    ],
+    "installmentPlans": [
+      {
+        "id": "inst-macbook",
+        "name": "MacBook Pro M3 Pro (12x)",
+        "installmentValue": 1250.0,
+        "totalInstallments": 12,
+        "paidInstallments": 5,
+        "startMonth": "2026-05",
+        "paymentMethod": "credit",
+        "cardId": "card-inter-black",
+        "dueDay": 20
+      },
+      {
+        "id": "inst-monitor",
+        "name": "Monitor Dell UltraSharp 27\" 4K (6x)",
+        "installmentValue": 480.0,
+        "totalInstallments": 6,
+        "paidInstallments": 4,
+        "startMonth": "2026-06",
+        "paymentMethod": "credit",
+        "cardId": "card-nubank-uv",
+        "dueDay": 15
+      },
+      {
+        "id": "inst-pos-grad",
+        "name": "Especialização Arquitetura Cloud & DevOps (10x)",
+        "installmentValue": 350.0,
+        "totalInstallments": 10,
+        "paidInstallments": 10,
+        "startMonth": "2026-01",
+        "paymentMethod": "pix",
+        "dueDay": 10
+      },
+      {
+        "id": "inst-mesa",
+        "name": "Mesa Elevatória GenioDesk PRO (4x)",
+        "installmentValue": 420.0,
+        "totalInstallments": 4,
+        "paidInstallments": 2,
+        "startMonth": "2026-08",
+        "paymentMethod": "credit",
+        "cardId": "card-nubank-uv",
+        "dueDay": 15
+      },
+      {
+        "id": "inst-smartphone",
+        "name": "Samsung Galaxy S24 Ultra (10x - Quitado)",
+        "installmentValue": 680.0,
+        "totalInstallments": 10,
+        "paidInstallments": 10,
+        "startMonth": "2025-11",
+        "paymentMethod": "credit",
+        "cardId": "card-itau-plat",
+        "dueDay": 28
+      }
+    ],
+    "paidPlannedItems": {
+      "fixedCost:fc-aluguel:2026-07": "2026-07-05",
+      "fixedCost:fc-contab:2026-07": "2026-07-10",
+      "fixedCost:fc-imposto-das:2026-07": "2026-07-20",
+      "fixedCost:fc-internet:2026-07": "2026-07-15",
+      "fixedCost:fc-saude:2026-07": "2026-07-12",
+      "fixedCost:fc-academia:2026-07": "2026-07-10",
+      "fixedCost:fc-cloud-tools:2026-07": "2026-07-08",
+      "fixedCost:fc-seguro-auto:2026-07": "2026-07-18",
+      "installment:inst-macbook:2026-07": "2026-07-20",
+      "installment:inst-monitor:2026-07": "2026-07-15",
+      "installment:inst-pos-grad:2026-07": "2026-07-10",
+      "installment:inst-smartphone:2026-07": "2026-07-28",
+      "fixedCost:fc-aluguel:2026-08": "2026-08-05",
+      "fixedCost:fc-contab:2026-08": "2026-08-10",
+      "fixedCost:fc-imposto-das:2026-08": "2026-08-20",
+      "fixedCost:fc-internet:2026-08": "2026-08-15",
+      "fixedCost:fc-saude:2026-08": "2026-08-12",
+      "fixedCost:fc-academia:2026-08": "2026-08-10",
+      "fixedCost:fc-cloud-tools:2026-08": "2026-08-08",
+      "fixedCost:fc-seguro-auto:2026-08": "2026-08-18",
+      "installment:inst-macbook:2026-08": "2026-08-20",
+      "installment:inst-monitor:2026-08": "2026-08-15",
+      "installment:inst-pos-grad:2026-08": "2026-08-10",
+      "installment:inst-mesa:2026-08": "2026-08-15",
+      "installment:inst-smartphone:2026-08": "2026-08-28",
+      "fixedCost:fc-aluguel:2026-09": "2026-09-05",
+      "fixedCost:fc-contab:2026-09": "2026-09-10",
+      "fixedCost:fc-imposto-das:2026-09": "2026-09-20",
+      "fixedCost:fc-internet:2026-09": "2026-09-15",
+      "fixedCost:fc-saude:2026-09": "2026-09-12",
+      "fixedCost:fc-academia:2026-09": "2026-09-10",
+      "fixedCost:fc-cloud-tools:2026-09": "2026-09-08",
+      "fixedCost:fc-seguro-auto:2026-09": "2026-09-18",
+      "installment:inst-macbook:2026-09": "2026-09-20",
+      "installment:inst-monitor:2026-09": "2026-09-15",
+      "installment:inst-pos-grad:2026-09": "2026-09-10",
+      "installment:inst-mesa:2026-09": "2026-09-15",
+      "fixedCost:fc-aluguel:2026-10": "2026-10-05",
+      "fixedCost:fc-contab:2026-10": "2026-10-10",
+      "fixedCost:fc-academia:2026-10": "2026-10-10",
+      "fixedCost:fc-cloud-tools:2026-10": "2026-10-08",
+      "installment:inst-pos-grad:2026-10": "2026-10-10"
+    },
+    "contractConfig": {
+      "incomeMode": "pj",
+      "hourlyRate": 160.0,
+      "hoursPerWorkday": 6,
+      "cltNetSalary": 0.0,
+      "cltPaydayDate": "2026-11-05",
+      "pjPaydayDate": "2026-11-05",
+      "incomeStartMonth": "2026-07",
+      "localityState": "GO",
+      "localityCity": "Goiania",
+      "useHolidayApi": true
+    },
+    "projectionSettings": {
+      "projectedBalance": 0.0,
+      "projectedRevenue": 0.0
+    }
+  },
+  "goalsStorage": {
+    "version": 1,
+    "state": {
+      "goals": [
+        {
+          "id": "goal-reserva",
+          "name": "Reserva de Emergência (6 Meses)",
+          "targetAmount": 36000.0,
+          "currentSaved": 34500.0,
+          "monthlyContribution": 1500.0,
+          "deadline": "2026-10-31"
+        },
+        {
+          "id": "goal-setup-concluido",
+          "name": "Upgrade Setup Developer & Ergonomia (Concluído! 🎉)",
+          "targetAmount": 12000.0,
+          "currentSaved": 12000.0,
+          "monthlyContribution": 0.0,
+          "deadline": "2026-08-31"
+        },
+        {
+          "id": "goal-apto",
+          "name": "Entrada do Apartamento Próprio (Goiânia)",
+          "targetAmount": 120000.0,
+          "currentSaved": 48000.0,
+          "monthlyContribution": 2500.0,
+          "deadline": "2028-12-31"
+        },
+        {
+          "id": "goal-viagem",
+          "name": "Viagem Internacional / Tech Summit Europa",
+          "targetAmount": 24000.0,
+          "currentSaved": 14800.0,
+          "monthlyContribution": 1200.0,
+          "deadline": "2027-06-30"
+        },
+        {
+          "id": "goal-certificacao",
+          "name": "Certificações AWS & Cursos Avançados",
+          "targetAmount": 4500.0,
+          "currentSaved": 3600.0,
+          "monthlyContribution": 450.0,
+          "deadline": "2026-11-30"
+        },
+        {
+          "id": "goal-carro-hibrido",
+          "name": "Troca de Veículo / Carro Híbrido",
+          "targetAmount": 65000.0,
+          "currentSaved": 18000.0,
+          "monthlyContribution": 1000.0,
+          "deadline": "2028-06-30"
+        }
+      ]
+    }
+  }
+}

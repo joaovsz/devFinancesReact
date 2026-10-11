@@ -31,19 +31,11 @@ O **Swift Finances** é um ecossistema de inteligência orçamentária pessoal e
 
 A aplicação adota separação estrita de responsabilidades inspirada em Domain-Driven Design (DDD) e Clean Architecture adaptada para SPAs modernas em React.
 
-<p align="center">
-  <img src="./docs/diagrams/architecture.svg" alt="Swift Finances - Arquitetura de Software" width="100%" />
-</p>
-
 ---
 
 ## 3. Modelo de Dados e Entidades (DER)
 
 A persistência em nuvem e a modelagem do domínio TypeScript refletem a estrutura relacional e de documentos abaixo:
-
-<p align="center">
-  <img src="./docs/diagrams/database-er.svg" alt="Swift Finances - Diagrama de Entidade-Relacionamento" width="100%" />
-</p>
 
 ```mermaid
 erDiagram
@@ -190,9 +182,6 @@ Este repositório possui documentação completa do ciclo de vida:
 | :--- | :--- | :--- |
 | **Especificação de Requisitos** | [`Requisitos Sistema Financeiro (2).md`](./Requisitos%20Sistema%20Financeiro%20(2).md) | Requisitos funcionais (RF) e não funcionais (RNF). |
 | **Backlog Ágil e Sprints** | [`BACKLOG_V2.md`](./BACKLOG_V2.md) | Sprints 0 a 4, Épicos, User Stories e Critérios de Aceitação. |
-| **Memorial Descritivo Oficial** | [`docs/MEMORIAL_DESCRITIVO_ATIVIDADES.md`](./docs/MEMORIAL_DESCRITIVO_ATIVIDADES.md) | Documento institucional de validação de horas e declaração de autoria. |
-| **Plano de Ação & Roteiro de Vídeo** | [`docs/PLANO_DE_ACAO_HORAS_COMPLEMENTARES.md`](./docs/PLANO_DE_ACAO_HORAS_COMPLEMENTARES.md) | Estratégia de defesa técnica, checklist e roteiro minuto a minuto. |
-| **Diagramas de Arquitetura & DER** | [`docs/diagrams/`](./docs/diagrams/) | Diagramas vetoriais SVG de arquitetura e entidade-relacionamento. |
 | **Plano de Modernização** | [`PLANO_ACAO_MODERNIZACAO_FINANCEIRA.md`](./PLANO_ACAO_MODERNIZACAO_FINANCEIRA.md) | Decisões arquiteturais, refatoração de domínio e migração. |
 | **Histórico Versionado** | `git log` (110 commits) | Rastreabilidade cronológica de 2022 a 2026. |
 | **Schema e Segurança** | [`supabase-schema.sql`](./supabase-schema.sql) | DDL PostgreSQL, Stored Procedures e Políticas RLS. |
