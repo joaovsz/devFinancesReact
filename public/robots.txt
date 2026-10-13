@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /transacoes
+Disallow: /cartoes
+Disallow: /planejamento
+Disallow: /compromissos
+Disallow: /projecoes
+Disallow: /metas
+Disallow: /commerce
+Disallow: /configuracoes
+
+Sitemap: https://devfinances-jvsz.netlify.app/sitemap.xml
