@@ -6,7 +6,7 @@
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Zustand](https://img.shields.io/badge/State-Zustand_5.0-brown)](https://github.com/pmndrs/zustand)
 [![Tests](https://img.shields.io/badge/Tests-82_Passed_(Vitest)-brightgreen?logo=vitest&logoColor=white)](https://vitest.dev/)
-[![Deploy](https://img.shields.io/badge/Deploy-Netlify_Production-00C7B7?logo=netlify&logoColor=white)](https://devfinances-jvsz.netlify.app/)
+[![Deploy](https://img.shields.io/badge/Deploy-Netlify_Production-00C7B7?logo=netlify&logoColor=white)](https://swiftfinances.netlify.app/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > **Projeto Prático de Engenharia de Software**  

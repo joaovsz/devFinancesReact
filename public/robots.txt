@@ -10,4 +10,4 @@ Disallow: /metas
 Disallow: /commerce
 Disallow: /configuracoes
 
-Sitemap: https://devfinances-jvsz.netlify.app/sitemap.xml
+Sitemap: https://swiftfinances.netlify.app/sitemap.xml
