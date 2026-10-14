@@ -5,6 +5,7 @@ import {
   Beef,
   BriefcaseBusiness,
   ChartLine,
+  ChevronRight,
   CreditCard,
   Gamepad2,
   GraduationCap,
@@ -180,9 +181,17 @@ export const Cards = () => {
   const summaryExpenses = totalExpenses + goalsMonthlyContribution
   const summaryTotal = summaryIncomes - summaryExpenses
 
-  const recentTransactions = [...transactions]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 6)
+  // Most recent first: skip future-dated entries, newest date wins, same-day ties go to the latest created
+  const recentTransactions = useMemo(() => {
+    const todayKey = new Date().toLocaleDateString("sv-SE")
+    return transactions
+      .filter((transaction) => transaction.date <= todayKey)
+      .sort(
+        (a, b) =>
+          b.date.localeCompare(a.date) || (b.createdAt || "").localeCompare(a.createdAt || "")
+      )
+      .slice(0, 6)
+  }, [transactions])
 
   const cardUsage = useMemo(
     () =>
@@ -440,19 +449,20 @@ export const Cards = () => {
   const accent500Color = accent500 ? `rgb(${accent500})` : "#6366f1"
   const accent400Color = accent400 ? `rgb(${accent400})` : "#818cf8"
   const accent300Color = accent300 ? `rgb(${accent300})` : "#a5b4fc"
+  const categoryChartColors = [
+    accent500Color,
+    accent400Color,
+    accent300Color,
+    "#0ea5e9",
+    "#22c55e",
+    "#f59e0b",
+    "#f43f5e"
+  ]
 
   const categoryDistributionOption = useMemo<EChartsOption>(
     () => ({
       backgroundColor: "transparent",
-      color: [
-        accent500Color,
-        accent400Color,
-        accent300Color,
-        "#0ea5e9",
-        "#22c55e",
-        "#f59e0b",
-        "#f43f5e"
-      ],
+      color: categoryChartColors,
       tooltip: {
         trigger: "item",
         formatter: (params: any) => {
@@ -472,8 +482,8 @@ export const Cards = () => {
         {
           name: categoryChartTitle,
           type: "pie",
-          center: ["50%", "48%"],
-          radius: ["48%", "72%"],
+          center: ["50%", "50%"],
+          radius: ["58%", "86%"],
           avoidLabelOverlap: true,
           itemStyle: {
             borderRadius: 6,
@@ -481,6 +491,7 @@ export const Cards = () => {
             borderWidth: 2
           },
           label: {
+            show: false,
             color: isLightTheme ? "#111827" : "#e4e4e7",
             formatter: "{d}%",
             fontWeight: 600,
@@ -714,12 +725,12 @@ export const Cards = () => {
   }
 
   return (
-    <section className="grid w-full max-w-full gap-4 overflow-hidden lg:grid-cols-12">
+    <section className="grid w-full max-w-full grid-cols-1 gap-4 overflow-hidden lg:grid-cols-12">
       {/* 1. Saldo Total */}
-      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-12">
+      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5 lg:col-span-12">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="mb-1 text-xs uppercase tracking-wide text-zinc-400">Saldo total</div>
+            <div className="mb-1 text-sm text-zinc-400">Saldo total</div>
             <NumberTicker
               className={`text-3xl font-bold sm:text-4xl ${summaryTotal >= 0 ? "text-zinc-100" : "text-amber-300"}`}
               value={summaryTotal}
@@ -727,70 +738,67 @@ export const Cards = () => {
             />
             <p className="mt-1 text-xs text-zinc-500">Mês de {getMonthLabel(currentMonth)}</p>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 sm:min-w-[160px]">
-              <div className="mb-1 text-xs text-zinc-500">Entradas</div>
-              <NumberTicker className="text-lg font-semibold text-emerald-400" value={summaryIncomes} format={formatCurrency} />
+          <dl className="grid grid-cols-2 gap-4 border-t border-zinc-800 pt-3 sm:flex sm:gap-8 sm:border-t-0 sm:pt-0">
+            <div>
+              <dt className="text-sm text-zinc-400">Entradas</dt>
+              <dd className="text-lg font-semibold tabular-nums text-emerald-400">
+                <NumberTicker value={summaryIncomes} format={formatCurrency} />
+              </dd>
             </div>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 sm:min-w-[160px]">
-              <div className="mb-1 text-xs text-zinc-500">Saídas</div>
-              <NumberTicker className="text-lg font-semibold text-amber-400" value={summaryExpenses} format={formatCurrency} />
+            <div className="text-right sm:text-left">
+              <dt className="text-sm text-zinc-400">Saídas</dt>
+              <dd className="text-lg font-semibold tabular-nums text-amber-400">
+                <NumberTicker value={summaryExpenses} format={formatCurrency} />
+              </dd>
             </div>
-          </div>
+          </dl>
         </div>
       </article>
 
-      {/* 2. Gastos diários (últimos 7 dias com setas e filtro de categoria) */}
-      <div className="lg:col-span-12">
-        <WeeklyDailyExpenses transactions={transactions} cards={cards} targetMonth={currentMonth} />
-      </div>
-
-      {/* 3. Gastos por categoria */}
-      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-7">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">
-              Gastos por categoria
-            </h2>
-            <p className="mt-1 text-xs text-zinc-500">
-              {hasDrilldown
-                ? "Mostrando os detalhes da categoria selecionada."
-                : "Clique em uma categoria para ver os detalhes."}
+      {/* 2. Gastos por categoria */}
+      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5 lg:col-span-7">
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-zinc-100">Gastos por categoria</h2>
+            <p className="mt-0.5 text-sm text-zinc-400">
+              {formatCurrency(totalCategoryExpenses)} em {getMonthLabel(currentMonth)}
             </p>
           </div>
           {hasDrilldown && (
             <button
               type="button"
               onClick={() => setSelectedCategoryDrillId(null)}
-              className="rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+              className="inline-flex h-10 shrink-0 items-center rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-xs font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
             >
-              Voltar categorias
+              Voltar
             </button>
           )}
         </div>
 
         {activeCategoryDonutData.length > 0 ? (
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-start">
-            <ReactEChartsCore
-              echarts={echarts}
-              option={categoryDistributionOption}
-              onEvents={categoryDistributionEvents}
-              style={{ height: 340, width: "100%" }}
-              notMerge
-              lazyUpdate
-            />
-            <div className="h-[340px] overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-center">
+            <div className="h-[240px] sm:h-[300px] xl:h-[340px]">
+              <ReactEChartsCore
+                echarts={echarts}
+                option={categoryDistributionOption}
+                onEvents={categoryDistributionEvents}
+                style={{ height: "100%", width: "100%" }}
+                notMerge
+                lazyUpdate
+              />
+            </div>
+            <div className="min-w-0">
               {hasDrilldown ? (
                 <>
-                  <div className="border-b border-zinc-800 px-3 py-2.5 text-xs uppercase tracking-wide text-zinc-500">
-                    Itens da categoria
+                  <div className="pb-1 text-sm font-medium text-zinc-300">
+                    {activeCategoryDonutData.length > 0 ? categoryChartTitle : "Itens da categoria"}
                   </div>
-                  <div className="h-[307px] overflow-y-auto pb-2">
+                  <div className="max-h-[300px] overflow-y-auto">
                     {selectedCategoryItems.length > 0 ? (
                       selectedCategoryItems.map((item) => (
                         <div
                           key={item.id}
-                          className="flex items-center justify-between gap-3 border-b border-zinc-800 px-3 py-2.5 text-sm last:border-b-0"
+                          className="flex items-center justify-between gap-3 border-b border-zinc-800 py-2.5 text-sm last:border-b-0"
                         >
                           <span className="min-w-0 truncate text-zinc-200">{item.label}</span>
                           <span className="shrink-0 font-semibold text-zinc-100">
@@ -799,7 +807,7 @@ export const Cards = () => {
                         </div>
                       ))
                     ) : (
-                      <div className="px-3 py-4 text-sm text-zinc-500">
+                      <div className="py-4 text-sm text-zinc-500">
                         Nenhum lançamento detalhado para esta categoria no mês.
                       </div>
                     )}
@@ -807,41 +815,50 @@ export const Cards = () => {
                 </>
               ) : (
                 <>
-                  {activeCategoryDonutData.slice(0, 6).map((item) => (
-                    <div key={item.id} className="flex items-center justify-between border-b border-zinc-800 px-3 py-2.5 text-sm last:border-b-0">
-                      <span className="flex min-w-0 items-center gap-2 text-zinc-300">
-                        {(() => {
-                          const Icon = getCategoryIcon(item.id)
-                          return <Icon size={14} className="shrink-0 text-zinc-500" />
-                        })()}
-                        <span className="truncate">{item.name}</span>
-                      </span>
-                      <span className="ml-3 font-semibold text-zinc-100">{formatCurrency(item.value)}</span>
-                    </div>
-                  ))}
-                  <div className="border-t border-zinc-800 px-3 py-2.5 text-sm text-zinc-400">
-                    Total do mês {getMonthLabel(currentMonth)}:{" "}
-                    <span className="font-semibold text-zinc-100">{formatCurrency(totalCategoryExpenses)}</span>
-                  </div>
+                  <ul>
+                    {activeCategoryDonutData.slice(0, 6).map((item, index) => (
+                      <li key={item.id} className="border-b border-zinc-800 last:border-b-0">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCategoryDrillId(item.id)}
+                          className="flex min-h-[44px] w-full items-center justify-between gap-3 py-2 text-left text-sm transition hover:text-zinc-100"
+                        >
+                          <span className="flex min-w-0 items-center gap-2.5 text-zinc-300">
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: categoryChartColors[index % categoryChartColors.length] }}
+                            />
+                            <span className="truncate">{item.name}</span>
+                          </span>
+                          <span className="flex shrink-0 items-center gap-1 font-semibold tabular-nums text-zinc-100">
+                            {totalCategoryExpenses > 0 && (
+                              <span className="mr-1 text-xs font-normal text-zinc-500">
+                                {Math.round((item.value / totalCategoryExpenses) * 100)}%
+                              </span>
+                            )}
+                            {formatCurrency(item.value)}
+                            <ChevronRight size={14} className="text-zinc-500" />
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </>
               )}
             </div>
           </div>
         ) : (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-10 text-center text-sm text-zinc-500">
+          <div className="py-10 text-center text-sm text-zinc-500">
             Sem despesas categorizadas no mês atual.
           </div>
         )}
       </article>
 
-      {/* 4. Últimas transações */}
-      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-5">
+      {/* 3. Últimas transações */}
+      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5 lg:col-span-5">
         <div className="mb-3 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">Últimas transações</h2>
-            <p className="mt-0.5 text-xs text-zinc-500">{transactions.length} registros no histórico</p>
-          </div>
-          <Link to="/transacoes" className="text-xs text-zinc-400 hover:text-zinc-200">Ver todas</Link>
+          <h2 className="text-base font-semibold text-zinc-100">Últimas transações</h2>
+          <Link to="/transacoes" className="text-sm text-zinc-400 hover:text-zinc-200">Ver todas</Link>
         </div>
         <div className="space-y-0">
           {recentTransactions.length === 0 && (
@@ -850,12 +867,12 @@ export const Cards = () => {
             </div>
           )}
           {recentTransactions.map((transaction) => (
-            <div key={transaction.id} className="flex items-center justify-between border-b border-zinc-800 px-3 py-2.5 last:border-b-0">
+            <div key={transaction.id} className="flex items-center justify-between gap-3 border-b border-zinc-800 py-2.5 last:border-b-0">
               <div className="min-w-0">
                 <div className="truncate text-sm text-zinc-200">{transaction.label}</div>
-                <div className="text-[11px] text-zinc-500">{transaction.date.split("-").reverse().join("/")}</div>
+                <div className="text-xs text-zinc-500">{transaction.date.split("-").reverse().join("/")}</div>
               </div>
-              <span className={`text-sm font-black ${transaction.type === 1 ? "text-emerald-400" : "text-amber-400"}`}>
+              <span className={`shrink-0 text-sm font-semibold tabular-nums ${transaction.type === 1 ? "text-emerald-400" : "text-amber-400"}`}>
                 {transaction.type === 1 ? "+" : "-"}{formatCurrency(transaction.value)}
               </span>
             </div>
@@ -863,8 +880,13 @@ export const Cards = () => {
         </div>
       </article>
 
+      {/* 4. Gastos diários */}
+      <div className="lg:col-span-12">
+        <WeeklyDailyExpenses transactions={transactions} cards={cards} targetMonth={currentMonth} />
+      </div>
+
       {/* 5. Meus cartões (unificado com Crédito Usado e Total de Faturas) */}
-      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-12">
+      <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5 lg:col-span-12">
         <DismissibleInfoCard
           storageKey="info-card-credit-cards"
           title="Como usar Meus Cartões"
@@ -876,58 +898,29 @@ export const Cards = () => {
           ]}
         />
 
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">Meus cartões</h2>
-            <p className="mt-0.5 text-xs text-zinc-500">
-              Faturas, limites e cartões de crédito para {getMonthLabel(currentMonth)}.
-            </p>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-zinc-100">Meus cartões</h2>
+            <p className="mt-0.5 text-sm text-zinc-400">Faturas de {getMonthLabel(currentMonth)}</p>
           </div>
-
-          {/* Métricas realocadas: Total de Faturas e Crédito Usado */}
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-400">Total de faturas</div>
-              <div className="text-sm font-semibold text-zinc-100">
-                <NumberTicker value={totalInvoicesForMonth} format={formatCurrency} />
-              </div>
+          <div className="shrink-0 text-right">
+            <div className="text-lg font-semibold tabular-nums text-zinc-100">
+              <NumberTicker value={totalInvoicesForMonth} format={formatCurrency} />
             </div>
-
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2">
-              <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-zinc-400">
-                <span>Crédito usado</span>
-                <span className="text-[10px] font-semibold text-amber-400">
-                  {totalCreditLimit > 0 ? `${Math.round((totalCreditUsed / totalCreditLimit) * 100)}%` : "0%"}
-                </span>
-              </div>
-              <div className="text-sm font-semibold text-zinc-100">
-                <NumberTicker value={totalCreditUsed} format={formatCurrency} />
-              </div>
-            </div>
-
-            <div className="col-span-2 sm:col-span-1 rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-400">Limite total</div>
-              <div className="text-sm font-semibold text-zinc-300">
-                {formatCurrency(totalCreditLimit)}
-              </div>
-            </div>
+            <div className="text-xs text-zinc-500">total de faturas</div>
           </div>
         </div>
 
-        {/* Barra de progresso global do crédito usado */}
         {cards.length > 0 && totalCreditLimit > 0 && (
-          <div className="mb-4 rounded-xl border border-zinc-800/80 bg-zinc-950/60 p-3">
-            <div className="mb-1.5 flex items-center justify-between text-xs text-zinc-400">
-              <span>Uso do limite total de crédito</span>
-              <span className="font-medium text-zinc-300">
-                {formatCurrency(totalCreditUsed)} de {formatCurrency(totalCreditLimit)} (
-                {totalCreditLimit > totalCreditUsed
-                  ? `${formatCurrency(totalCreditLimit - totalCreditUsed)} disponível`
-                  : "Limite atingido"}
-                )
-              </span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+          <div className="mb-4">
+            <div
+              className="h-2 w-full overflow-hidden rounded-full bg-zinc-800"
+              role="progressbar"
+              aria-label="Uso do limite total de crédito"
+              aria-valuenow={Math.round(Math.min((totalCreditUsed / totalCreditLimit) * 100, 100))}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
               <div
                 className={`h-full rounded-full transition-all ${
                   totalCreditUsed / totalCreditLimit > 0.85
@@ -941,10 +934,20 @@ export const Cards = () => {
                 }}
               />
             </div>
+            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs text-zinc-400">
+              <span className="tabular-nums">
+                {formatCurrency(totalCreditUsed)} de {formatCurrency(totalCreditLimit)} usados
+              </span>
+              <span className="tabular-nums">
+                {totalCreditLimit > totalCreditUsed
+                  ? `${formatCurrency(totalCreditLimit - totalCreditUsed)} disponível`
+                  : "Limite atingido"}
+              </span>
+            </div>
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
           {cardUsage.map((card) => {
             const brandColor = getCardBrandColor(card.name, card.brandColor)
             return (
@@ -964,8 +967,8 @@ export const Cards = () => {
                       {card.name}
                     </span>
                     <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-[9px] text-zinc-300">
-                        Fech. {card.closeDay} | Venc. {card.dueDay}
+                      <span className="text-[11px] tabular-nums text-zinc-300">
+                        Fecha {card.closeDay} · Vence {card.dueDay}
                       </span>
                       {card.logoUrl ? (
                         <img

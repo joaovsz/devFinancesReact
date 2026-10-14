@@ -1,20 +1,13 @@
 import { useEffect, useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
-  Calendar,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  CreditCard as CreditCardIcon,
   Eye,
   EyeOff,
-  Filter,
-  Flame,
   RotateCcw,
   Settings2,
-  Sparkles,
-  TrendingDown,
-  Wallet,
   X
 } from "lucide-react"
 import { Transaction, PaymentMethod } from "../../types/transaction"
@@ -47,6 +40,11 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 const CATEGORY_MAP = new Map(
   defaultCategories.map((cat) => [cat.id, cat.name])
 )
+
+// Day breakdown shows 5 rows collapsed; expanded, 10 rows fit before the list scrolls
+const COLLAPSED_DAY_EXPENSES = 5
+const MAX_VISIBLE_DAY_EXPENSES = 10
+const VISIBLE_DAYS = 4
 
 const MANUAL_EXCLUSIONS_STORAGE_KEY = "devfinances-weekly-excluded-tx-ids"
 
@@ -110,7 +108,6 @@ export function WeeklyDailyExpenses({
   const initialWeekNumber = todayWeekNumber
 
   const [activeWeekNumber, setActiveWeekNumber] = useState<number>(initialWeekNumber)
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("")
   const [manuallyExcludedIds, setManuallyExcludedIds] = useState<string[]>(() =>
     loadManualExclusions()
   )
@@ -162,7 +159,6 @@ export function WeeklyDailyExpenses({
       referenceToday: todayKey,
       outlierCapValue: effectiveOutlierCapValue,
       excludedTransactionIds: manuallyExcludedIds,
-      categoryId: selectedCategoryId || null
     })
   }, [
     transactions,
@@ -171,8 +167,7 @@ export function WeeklyDailyExpenses({
     cycleCards,
     todayKey,
     effectiveOutlierCapValue,
-    manuallyExcludedIds,
-    selectedCategoryId
+    manuallyExcludedIds
   ])
 
   const monthToDateData = useMemo(() => {
@@ -183,7 +178,6 @@ export function WeeklyDailyExpenses({
       referenceToday: todayKey,
       outlierCapValue: effectiveOutlierCapValue,
       excludedTransactionIds: manuallyExcludedIds,
-      categoryId: selectedCategoryId || null
     })
   }, [
     transactions,
@@ -191,32 +185,8 @@ export function WeeklyDailyExpenses({
     cycleCards,
     todayKey,
     effectiveOutlierCapValue,
-    manuallyExcludedIds,
-    selectedCategoryId
+    manuallyExcludedIds
   ])
-
-  // List of categories that actually have expense transactions, sorted
-  const availableCategories = useMemo(() => {
-    const categoryIdsWithExpenses = new Set<string>()
-    transactions.forEach((tx) => {
-      if (tx.type === 2 && tx.categoryId) {
-        categoryIdsWithExpenses.add(tx.categoryId)
-      }
-    })
-
-    const categoriesList = defaultCategories
-      .filter((cat) => categoryIdsWithExpenses.has(cat.id))
-      .map((cat) => ({ id: cat.id, name: cat.name }))
-
-    // Add any categories from transactions not in defaultCategories
-    categoryIdsWithExpenses.forEach((catId) => {
-      if (!categoriesList.some((c) => c.id === catId)) {
-        categoriesList.push({ id: catId, name: catId })
-      }
-    })
-
-    return categoriesList.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
-  }, [transactions])
 
   // Selected day for inspection (defaults to today if present in window, or first day with expense, or latest day)
   const [selectedDateKey, setSelectedDateKey] = useState<string>(() => {
@@ -244,6 +214,24 @@ export function WeeklyDailyExpenses({
       }
     }
   }, [weekData, selectedDateKey, todayKey])
+
+  const selectedDayIndex = weekData.days.findIndex((d) => d.dateKey === selectedDateKey)
+  const maxDayWindowStart = Math.max(weekData.days.length - VISIBLE_DAYS, 0)
+  // 4-day window derived from the selection: keeps the previous day in view for context
+  const dayWindowStart = Math.min(Math.max(selectedDayIndex - 1, 0), maxDayWindowStart)
+
+  // Arrows move the selection; the window above follows it
+  const selectAdjacentDay = (direction: -1 | 1) => {
+    const nextDay = weekData.days[selectedDayIndex + direction]
+    if (nextDay) {
+      setSelectedDateKey(nextDay.dateKey)
+    }
+  }
+
+  const visibleDays = weekData.days.slice(dayWindowStart, dayWindowStart + VISIBLE_DAYS)
+
+  const [expandedDateKey, setExpandedDateKey] = useState<string | null>(null)
+  const isDayListExpanded = expandedDateKey === selectedDateKey
 
   const selectedDayData = useMemo(() => {
     return weekData.days.find((d) => d.dateKey === selectedDateKey) || weekData.days[0]
@@ -281,43 +269,76 @@ export function WeeklyDailyExpenses({
     return Math.max(...weekData.days.map((d) => d.discretionaryExpense), 0)
   }, [weekData.days])
 
-  const maxEffectiveDay = useMemo(() => {
-    return (
-      weekData.days.find(
-        (d) => d.discretionaryExpense === maxEffectiveDailyExpense && d.discretionaryExpense > 0
-      ) || null
-    )
-  }, [weekData.days, maxEffectiveDailyExpense])
-
   const hasExclusionsInWeek = weekData.outlierExpensesCount > 0
   const isCurrentWeek = weekData.isCurrentWeek
 
   return (
     <article className="w-full max-w-full overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5">
-      {/* Top Header & Integrated Toolbar */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">
-              Gastos diários
-            </h2>
-            {isTodayInCycle && (
-              isCurrentWeek ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Semana atual
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleResetToCurrentWeek}
-                  className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-950 px-2.5 py-0.5 text-[11px] font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
-                  title="Voltar para a semana atual"
-                >
-                  <RotateCcw size={11} />
-                  <span>Semana atual</span>
-                </button>
-              )
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="min-w-0 pt-2 lg:pt-0 text-base font-semibold text-zinc-100">Gastos diários</h2>
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenOutlierModal) {
+                onOpenOutlierModal()
+              } else {
+                setDraftCapValue(activeOutlierCap.value ? String(activeOutlierCap.value) : "")
+                setIsInternalModalOpen(true)
+              }
+            }}
+            className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition lg:hidden ${
+              activeOutlierCap?.enabled
+                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:text-zinc-200"
+            }`}
+            aria-label="Configurar limite de gasto pontual"
+          >
+            <Settings2 size={14} />
+            {activeOutlierCap?.enabled ? formatCurrency(activeOutlierCap.value) : "Limite"}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center lg:justify-end">
+          <div className="flex h-10 items-center justify-between rounded-xl border border-zinc-700 bg-zinc-950 p-0.5">
+            <button
+              type="button"
+              onClick={handlePrevWeek}
+              disabled={!canGoPrevWeek}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-100 disabled:pointer-events-none disabled:opacity-30"
+              aria-label="Semana anterior"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <div className="flex min-w-0 items-center gap-1.5 px-2 text-sm font-medium text-zinc-200">
+              <span className="truncate">
+                Semana {weekData.week.weekNumber} · {weekData.week.shortLabel}
+              </span>
+              {isTodayInCycle && isCurrentWeek && (
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-label="Semana atual" />
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleNextWeek}
+              disabled={!canGoNextWeek}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-100 disabled:pointer-events-none disabled:opacity-30"
+              aria-label="Próxima semana"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+
+          <div className="flex gap-2">
+            {isTodayInCycle && !isCurrentWeek && (
+              <button
+                type="button"
+                onClick={handleResetToCurrentWeek}
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-xs font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+              >
+                <RotateCcw size={13} />
+                Hoje
+              </button>
             )}
             <button
               type="button"
@@ -329,511 +350,287 @@ export function WeeklyDailyExpenses({
                   setIsInternalModalOpen(true)
                 }
               }}
-              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition ${
+              className={`hidden h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition lg:inline-flex ${
                 activeOutlierCap?.enabled
                   ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
                   : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
               }`}
               title="Configurar corte de gastos pontuais da média diária"
             >
-              <Settings2 size={11} />
+              <Settings2 size={13} />
               {activeOutlierCap?.enabled
                 ? `Limite: ${formatCurrency(activeOutlierCap.value)}`
                 : "Limite pontual"}
             </button>
           </div>
-          <p className="mt-1 text-xs text-zinc-500">
-            Ritmo de consumo por semanas do mês e média acumulada desde o dia {cycleStartLabel}
-          </p>
-        </div>
-
-        {/* Action Controls: Category Filter + Week Navigation */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Category Filter Select */}
-          <div className="relative min-w-[160px] flex-1 sm:w-auto sm:flex-none">
-            <Filter size={12} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <select
-              value={selectedCategoryId}
-              onChange={(event) => setSelectedCategoryId(event.target.value)}
-              className="h-9 w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-950 pl-7 pr-8 text-xs text-zinc-200 outline-none transition hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 sm:w-auto"
-              aria-label="Filtrar por categoria"
-            >
-              <option value="">Todas as categorias</option>
-              {availableCategories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              size={12}
-              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500"
-            />
-          </div>
-
-          {selectedCategoryId && (
-            <button
-              type="button"
-              onClick={() => setSelectedCategoryId("")}
-              className="inline-flex h-9 items-center gap-1 rounded-xl border border-zinc-700 bg-zinc-950 px-2.5 text-xs text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-200"
-              title="Limpar filtro de categoria"
-            >
-              <X size={12} />
-              <span>Limpar</span>
-            </button>
-          )}
-
-          {/* Week Navigation with Arrows */}
-          <div className="inline-flex h-9 items-center rounded-xl border border-zinc-700 bg-zinc-950 p-0.5">
-            <button
-              type="button"
-              onClick={handlePrevWeek}
-              disabled={!canGoPrevWeek}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-100 active:scale-95 disabled:pointer-events-none disabled:opacity-30"
-              aria-label="Semana anterior"
-              title={canGoPrevWeek ? "Semana anterior" : "Primeira semana do mês"}
-            >
-              <ChevronLeft size={16} />
-            </button>
-
-            <div className="flex min-w-0 items-center gap-1.5 px-2.5 text-xs font-medium text-zinc-200">
-              <Calendar size={13} className="shrink-0 text-zinc-400" />
-              <span className="truncate">
-                Semana {weekData.week.weekNumber}: {weekData.week.shortLabel}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleNextWeek}
-              disabled={!canGoNextWeek}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-900 hover:text-zinc-100 active:scale-95 disabled:pointer-events-none disabled:opacity-30"
-              aria-label="Próxima semana"
-              title={canGoNextWeek ? "Próxima semana" : "Última semana do mês"}
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
         </div>
       </div>
 
-      {/* Week Selector Pills (01 a 07, 08 a 14, 15 a 21, etc.) */}
-      <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-zinc-800/80 pt-3">
-        <span className="mr-1 text-[11px] font-medium text-zinc-400">Semanas:</span>
-        {weeks.map((w) => {
-          const isActive = w.weekNumber === activeWeekNumber
-          const containsToday = todayKey >= w.startDateKey && todayKey <= w.endDateKey
-          return (
-            <button
-              key={w.weekNumber}
-              type="button"
-              onClick={() => setActiveWeekNumber(w.weekNumber)}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-                isActive
-                  ? "border border-emerald-500/60 bg-emerald-500/15 text-emerald-300 shadow-sm ring-1 ring-emerald-500/30"
-                  : "border border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
-              }`}
-            >
-              {containsToday && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />}
-              <span>Semana {w.weekNumber}</span>
-              <span className="text-[10px] opacity-70">({w.shortLabel})</span>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Category filter active tag */}
-      {selectedCategoryId && (
-        <div className="mt-2.5 flex items-center gap-1.5 text-xs text-zinc-400">
-          <span>Filtrando por:</span>
-          <span className="inline-flex items-center gap-1 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-xs font-medium text-indigo-300">
-            {CATEGORY_MAP.get(selectedCategoryId) || selectedCategoryId}
-            <button
-              type="button"
-              onClick={() => setSelectedCategoryId("")}
-              className="ml-1 text-indigo-300/70 hover:text-indigo-100"
-              aria-label="Remover filtro"
-            >
-              ×
-            </button>
-          </span>
-        </div>
-      )}
-
-      {/* Outlier / Exclusions notice if any are active this week */}
-      {hasExclusionsInWeek && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-300">
-          <div className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
-            <span>
-              {weekData.outlierExpensesCount === 1
-                ? "1 gasto pontual desconsiderado da média"
-                : `${weekData.outlierExpensesCount} gastos pontuais desconsiderados da média`}{" "}
-              ({formatCurrency(weekData.outlierWeekExpense)} fora do ritmo).
-            </span>
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <dl className="grid grid-cols-2 divide-x divide-zinc-800 rounded-xl border border-zinc-800 bg-zinc-950/60">
+          <div className="flex min-w-0 flex-col justify-center p-3 sm:p-4">
+            <dt className="text-xs text-zinc-400">Média por dia</dt>
+            <dd className="mt-1 text-xl font-semibold tabular-nums text-emerald-300">
+              <NumberTicker value={monthToDateData.averageDailyExpense} format={formatCurrency} />
+            </dd>
+            <dd className="mt-0.5 text-xs text-zinc-500">
+              desde {cycleStartLabel} · {monthToDateData.daysElapsed}{" "}
+              {monthToDateData.daysElapsed === 1 ? "dia" : "dias"}
+            </dd>
           </div>
-          {manuallyExcludedIds.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setManuallyExcludedIds([])}
-              className="text-[11px] font-medium text-emerald-400 underline hover:text-emerald-300"
-            >
-              Restaurar manuais
-            </button>
-          )}
-        </div>
-      )}
 
-      {/* Stats row: Cards for Month-To-Date and Week daily pace */}
-      <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-        {/* 1. Média diária (01 até hoje / data atual) */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
-            <span>Média {cycleStartLabel} até {monthToDateData.isCurrentMonth ? "hoje" : "fim"}</span>
-            <Calendar size={13} className="text-emerald-400" />
+          <div className="flex min-w-0 flex-col justify-center p-3 sm:p-4">
+            <dt className="text-xs text-zinc-400">Total da semana</dt>
+            <dd className="mt-1 text-xl font-semibold tabular-nums text-rose-300">
+              <NumberTicker value={weekData.totalWeekExpense} format={formatCurrency} />
+            </dd>
+            <dd className="mt-0.5 text-xs text-zinc-500">
+              {hasExclusionsInWeek ? (
+                <>
+                  {formatCurrency(weekData.outlierWeekExpense)} pontual fora da média
+                  {manuallyExcludedIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setManuallyExcludedIds([])}
+                      className="ml-1.5 font-medium text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
+                    >
+                      Restaurar
+                    </button>
+                  )}
+                </>
+              ) : (
+                `${weekData.days.reduce((acc, d) => acc + d.count, 0)} lançamentos`
+              )}
+            </dd>
           </div>
-          <div className="mt-1 text-lg font-semibold text-emerald-300">
-            <NumberTicker value={monthToDateData.averageDailyExpense} format={formatCurrency} />
-            <span className="text-[11px] font-normal text-zinc-500">/dia</span>
-          </div>
-          <p className="mt-0.5 text-[10px] text-zinc-500">
-            {monthToDateData.daysElapsed} {monthToDateData.daysElapsed === 1 ? "dia decorrido" : "dias decorridos"} no mês
-            {monthToDateData.outlierExpensesCount > 0 && ` (${monthToDateData.outlierExpensesCount} pontual)`}
-          </p>
-        </div>
+        </dl>
 
-        {/* 2. Média da semana selecionada (01 a 07, 08 a 14, etc.) */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
-            <span>Média semana ({weekData.week.shortLabel})</span>
-            <TrendingDown size={13} className="text-zinc-400" />
-          </div>
-          <div className="mt-1 text-lg font-semibold text-zinc-200">
-            <NumberTicker value={weekData.averageDailyExpense} format={formatCurrency} />
-            <span className="text-[11px] font-normal text-zinc-500">/dia</span>
-          </div>
-          <p className="mt-0.5 text-[10px] text-zinc-500">
-            {weekData.isCurrentWeek
-              ? `${weekData.daysElapsedCount} de ${weekData.week.daysCount} dias decorridos`
-              : `${weekData.week.daysCount} dias da semana`}
-            {weekData.outlierExpensesCount > 0 && " (sem pontuais)"}
-          </p>
-        </div>
-
-        {/* 3. Total da semana */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
-            <span>Total da semana</span>
-            <Wallet size={13} className="text-zinc-500" />
-          </div>
-          <div className="mt-1 text-lg font-semibold text-rose-300">
-            <NumberTicker value={weekData.totalWeekExpense} format={formatCurrency} />
-          </div>
-          <p className="mt-0.5 text-[10px] text-zinc-500">
-            {hasExclusionsInWeek
-              ? `${formatCurrency(weekData.discretionaryWeekExpense)} recorrentes`
-              : `${weekData.days.reduce((acc, d) => acc + d.count, 0)} lançamentos`}
-          </p>
-        </div>
-
-        {/* 4. Maior gasto */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
-            <span>Maior gasto</span>
-            <Flame size={13} className="text-amber-400" />
-          </div>
-          <div className="mt-1 text-lg font-semibold text-zinc-200">
-            {maxEffectiveDailyExpense > 0 ? (
-              <>
-                {formatCurrency(maxEffectiveDailyExpense)}
-                {maxEffectiveDay && (
-                  <span className="ml-1 text-[11px] font-normal text-zinc-400">
-                    ({maxEffectiveDay.dayNameShort})
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="text-sm font-normal text-zinc-500">Nenhum</span>
-            )}
-          </div>
-          <p className="mt-0.5 text-[10px] text-zinc-500">
-            {maxEffectiveDay ? maxEffectiveDay.formattedDay : "Sem despesas"}
-          </p>
-        </div>
-
-        {/* 5. Dias sem gastos */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5 col-span-2 sm:col-span-1">
-          <div className="flex items-center justify-between text-xs text-zinc-400">
-            <span>Dias sem gastos</span>
-            <Sparkles size={13} className="text-emerald-400" />
-          </div>
-          <div className="mt-1 flex items-baseline gap-1 text-lg font-semibold text-emerald-300">
-            <span>{weekData.daysWithoutExpensesCount}</span>
-            <span className="text-xs font-normal text-zinc-500">de {weekData.week.daysCount} dias</span>
-          </div>
-          <p className="mt-0.5 text-[10px] text-zinc-500">Na semana selecionada</p>
-        </div>
-      </div>
-
-      {/* Week Interactive Columns Grid */}
-      <div className="mt-4">
-        <div
-          className={`grid grid-cols-2 gap-2 sm:grid-cols-4 ${
-            weekData.week.daysCount <= 4 ? "md:grid-cols-4" : "md:grid-cols-7"
-          }`}
-        >
-          {weekData.days.map((day) => {
-            const isSelected = day.dateKey === selectedDateKey
-            const dayAmount = day.discretionaryExpense
-            const percentage =
-              maxEffectiveDailyExpense > 0
-                ? Math.min(Math.round((dayAmount / maxEffectiveDailyExpense) * 100), 100)
-                : 0
-
-            return (
-              <button
-                key={day.dateKey}
-                type="button"
-                onClick={() => setSelectedDateKey(day.dateKey)}
-                className={`group relative flex flex-col justify-between rounded-xl border p-2.5 text-left transition ${
-                  isSelected
-                    ? "border-emerald-500/60 bg-zinc-950 shadow-md ring-1 ring-emerald-500/40"
-                    : "border-zinc-800 bg-zinc-950/70 hover:border-zinc-700 hover:bg-zinc-950"
-                }`}
-              >
-                {/* Day Header */}
-                <div className="flex items-center justify-between">
-                  <span
-                    className={`text-xs font-semibold uppercase tracking-wider ${
-                      isSelected ? "text-emerald-300" : "text-zinc-400"
-                    }`}
-                  >
-                    {day.dayNameShort}
-                  </span>
-                  <span className="text-[11px] text-zinc-400">{day.formattedDay}</span>
-                </div>
-
-                {/* Today Badge */}
-                {day.isToday && (
-                  <span className="mt-1 self-start rounded bg-emerald-500/20 px-1 py-0.5 text-[9px] font-medium text-emerald-300">
-                    Hoje
-                  </span>
-                )}
-
-                {/* Amount */}
-                <div className="my-2.5">
-                  <div
-                    className={`text-sm font-semibold ${
-                      dayAmount > 0
-                        ? "text-rose-300"
-                        : day.isFuture
-                        ? "text-zinc-400"
-                        : "text-zinc-400"
-                    }`}
-                  >
-                    {formatCurrency(dayAmount)}
-                  </div>
-                  <div className="text-[10px] text-zinc-400">
-                    {day.count === 0
-                      ? "0 gastos"
-                      : day.count === 1
-                      ? "1 gasto"
-                      : `${day.count} gastos`}
-                    {day.outlierExpense > 0 && (
-                      <span className="ml-1 text-amber-400 font-medium">
-                        (-{formatCurrency(day.outlierExpense)})
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Visual Bar Relative to Period's Max */}
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
-                  <motion.div
-                    className={`h-full rounded-full transition-all ${
-                      dayAmount > 0
-                        ? isSelected
-                          ? "bg-emerald-400"
-                          : "bg-rose-400"
-                        : "bg-transparent"
-                    }`}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${percentage}%` }}
-                    transition={{ duration: 0.35, ease: "easeOut" }}
-                  />
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Selected Day Transaction Breakdown Panel */}
-      <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-3.5 md:p-4">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800/80 pb-2.5">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
-              {selectedDayData.dayNameFull}
-            </span>
+        <div className="min-w-0">
+          <div className="mb-2 flex items-center justify-between">
             <span className="text-xs text-zinc-400">
-              ({selectedDayData.formattedDay})
+              {weekData.days.length > VISIBLE_DAYS
+                ? `Dias ${dayWindowStart + 1}–${dayWindowStart + visibleDays.length} de ${weekData.days.length}`
+                : "Dias"}
             </span>
-            {selectedDayData.isToday && (
-              <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">
-                Hoje
-              </span>
+            {weekData.days.length > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => selectAdjacentDay(-1)}
+                  disabled={selectedDayIndex <= 0}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-100 disabled:pointer-events-none disabled:opacity-30"
+                  aria-label="Dia anterior"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectAdjacentDay(1)}
+                  disabled={selectedDayIndex >= weekData.days.length - 1}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-800 text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-100 disabled:pointer-events-none disabled:opacity-30"
+                  aria-label="Próximo dia"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             )}
           </div>
-          <div className="text-xs text-zinc-400">
-            Total do dia:{" "}
-            <span
-              className={`font-semibold ${
-                selectedDayData.discretionaryExpense > 0 ? "text-rose-300" : "text-zinc-300"
-              }`}
-            >
-              {formatCurrency(selectedDayData.discretionaryExpense)}
-            </span>{" "}
-            ({selectedDayData.count} {selectedDayData.count === 1 ? "registro" : "registros"})
-            {selectedDayData.outlierExpense > 0 && (
-              <span className="ml-1.5 text-zinc-500 text-[11px] font-normal">
-                (+ {formatCurrency(selectedDayData.outlierExpense)} pontual desconsiderado)
-              </span>
-            )}
-          </div>
-        </div>
 
-        {/* Transactions list with per-item exclusion toggle */}
-        <div className="mt-2.5">
-          <AnimatePresence mode="wait">
-            {selectedDayData.transactions.length > 0 ? (
-              <motion.div
-                key={selectedDayData.dateKey}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.2 }}
-                className="space-y-1.5"
-              >
-                {selectedDayData.transactions.map((transaction) => {
-                  const categoryName =
-                    CATEGORY_MAP.get(transaction.categoryId) ||
-                    transaction.categoryId ||
-                    "Sem categoria"
-                  const methodLabel =
-                    PAYMENT_METHOD_LABELS[transaction.paymentMethod] ||
-                    transaction.paymentMethod
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+            {visibleDays.map((day) => {
+              const isSelected = day.dateKey === selectedDateKey
+              const dayAmount = day.discretionaryExpense
+              const percentage =
+                maxEffectiveDailyExpense > 0
+                  ? Math.min(Math.round((dayAmount / maxEffectiveDailyExpense) * 100), 100)
+                  : 0
 
-                  const isExcluded = transaction.isExcludedFromPace
-
-                  return (
-                    <div
-                      key={transaction.id}
-                      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs transition ${
-                        isExcluded
-                          ? "border-zinc-800/40 bg-zinc-950/30 opacity-60 hover:opacity-100"
-                          : "border-zinc-800/60 bg-zinc-950/60 hover:border-zinc-700/80"
+              return (
+                <button
+                  key={day.dateKey}
+                  type="button"
+                  onClick={() => setSelectedDateKey(day.dateKey)}
+                  aria-pressed={isSelected}
+                  className={`flex min-w-0 flex-col gap-1.5 rounded-xl border p-2 text-left transition sm:p-3 ${
+                    isSelected
+                      ? "border-emerald-500/60 bg-zinc-950 ring-1 ring-emerald-500/30"
+                      : "border-zinc-800 bg-zinc-950/70 hover:border-zinc-700 hover:bg-zinc-950"
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between sm:gap-1">
+                    <span
+                      className={`text-sm font-semibold ${
+                        day.isToday ? "text-emerald-300" : isSelected ? "text-zinc-100" : "text-zinc-400"
                       }`}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400">
-                          {transaction.paymentMethod === "credit" ? (
-                            <CreditCardIcon size={14} className="text-amber-400" />
-                          ) : (
-                            <Wallet size={14} className="text-zinc-400" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <p
-                              className={`truncate font-medium ${
-                                isExcluded
-                                  ? "text-zinc-400 line-through"
-                                  : "text-zinc-200"
-                              }`}
-                            >
-                              {transaction.label}
-                            </p>
-                            {transaction.isOutlier && (
-                              <span className="shrink-0 rounded bg-amber-500/20 px-1 py-0.2 text-[9px] font-medium text-amber-300">
-                                Pontual
-                              </span>
-                            )}
-                            {transaction.isManuallyExcluded && (
-                              <span className="shrink-0 rounded bg-zinc-800 px-1 py-0.2 text-[9px] font-medium text-zinc-400">
-                                Desconsiderado
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
-                            <span>{categoryName}</span>
-                            <span>•</span>
-                            <span className="rounded bg-zinc-800/80 px-1 py-0.2 text-[10px] text-zinc-300">
-                              {methodLabel}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2.5 shrink-0 text-right">
-                        <span
-                          className={`font-semibold ${
-                            isExcluded ? "text-zinc-400" : "text-rose-300"
-                          }`}
-                        >
-                          - {formatCurrency(transaction.value)}
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={() => toggleExcludeTransaction(transaction.id)}
-                          className={`flex h-7 w-7 items-center justify-center rounded-lg border text-xs transition ${
-                            isExcluded
-                              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
-                              : "border-zinc-800 bg-zinc-900 text-zinc-500 hover:border-zinc-700 hover:text-zinc-200"
-                          }`}
-                          title={
-                            isExcluded
-                              ? "Incluir novamente no cálculo da média"
-                              : "Desconsiderar gasto do cálculo da média"
-                          }
-                          aria-label={
-                            isExcluded
-                              ? "Incluir no cálculo da média"
-                              : "Desconsiderar do cálculo da média"
-                          }
-                        >
-                          {isExcluded ? <Eye size={13} /> : <EyeOff size={13} />}
-                        </button>
-                      </div>
+                      {day.isToday ? "Hoje" : day.dayNameShort}
+                    </span>
+                    <span className="text-[11px] tabular-nums text-zinc-500">{day.formattedDay}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <div
+                      className={`truncate text-xs font-semibold tabular-nums sm:text-sm ${
+                        dayAmount > 0 ? "text-rose-300" : "text-zinc-500"
+                      }`}
+                    >
+                      {formatCurrency(dayAmount)}
                     </div>
-                  )
-                })}
-              </motion.div>
-            ) : (
-              <motion.div
-                key={`${selectedDayData.dateKey}-empty`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex items-center gap-2.5 py-4 text-xs text-zinc-400"
-              >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
-                  <Sparkles size={15} />
-                </div>
-                <div>
-                  <p className="text-zinc-300 font-medium">Nenhum gasto registrado neste dia</p>
-                  <p className="text-zinc-400 text-[11px]">
-                    {selectedCategoryId
-                      ? "Nenhuma despesa para a categoria filtrada nesta data."
-                      : selectedDayData.isFuture
-                      ? "Data futura dentro do período de 7 dias selecionado."
-                      : "Excelente para a manutenção do orçamento!"}
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                    <div className="truncate text-[11px] text-zinc-500 sm:text-xs">
+                      {day.count === 1 ? "1 gasto" : `${day.count} gastos`}
+                    </div>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+                    <div
+                      className={`h-full origin-left rounded-full transition-transform duration-300 ease-out motion-reduce:transition-none ${
+                        isSelected ? "bg-emerald-400" : "bg-rose-400"
+                      }`}
+                      style={{ transform: `scaleX(${percentage / 100})` }}
+                    />
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         </div>
+      </div>
+
+      {/* Selected day breakdown */}
+      <div className="mt-4 border-t border-zinc-800 pt-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-sm font-medium text-zinc-200">
+            {selectedDayData.dayNameFull}, {selectedDayData.formattedDay}
+            {selectedDayData.isToday && <span className="ml-1.5 text-xs text-emerald-300">hoje</span>}
+          </p>
+          <p
+            className={`shrink-0 text-sm font-semibold tabular-nums ${
+              selectedDayData.discretionaryExpense > 0 ? "text-rose-300" : "text-zinc-400"
+            }`}
+          >
+            {formatCurrency(selectedDayData.discretionaryExpense)}
+          </p>
+        </div>
+        {selectedDayData.outlierExpense > 0 && (
+          <p className="mt-0.5 text-xs text-zinc-500">
+            + {formatCurrency(selectedDayData.outlierExpense)} pontual fora da média
+          </p>
+        )}
+
+        <AnimatePresence mode="wait">
+          {selectedDayData.transactions.length > 0 ? (
+            <motion.ul
+              key={selectedDayData.dateKey}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className={`mt-2 divide-y divide-zinc-800/70 ${
+                isDayListExpanded && selectedDayData.transactions.length > MAX_VISIBLE_DAY_EXPENSES
+                  ? "max-h-[560px] overflow-y-auto overscroll-contain pr-1"
+                  : ""
+              }`}
+            >
+              {(isDayListExpanded
+                ? selectedDayData.transactions
+                : selectedDayData.transactions.slice(0, COLLAPSED_DAY_EXPENSES)
+              ).map((transaction) => {
+                const categoryName =
+                  CATEGORY_MAP.get(transaction.categoryId) ||
+                  transaction.categoryId ||
+                  "Sem categoria"
+                const methodLabel =
+                  PAYMENT_METHOD_LABELS[transaction.paymentMethod] ||
+                  transaction.paymentMethod
+                const isExcluded = transaction.isExcludedFromPace
+
+                return (
+                  <li
+                    key={transaction.id}
+                    className={`flex items-center justify-between gap-3 py-2.5 transition ${
+                      isExcluded ? "opacity-60" : ""
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <p
+                        className={`truncate text-sm font-medium ${
+                          isExcluded ? "text-zinc-400 line-through" : "text-zinc-200"
+                        }`}
+                      >
+                        {transaction.label}
+                      </p>
+                      <p className="truncate text-xs text-zinc-500">
+                        {categoryName} · {methodLabel}
+                        {transaction.isOutlier && <span className="text-amber-300"> · pontual</span>}
+                      </p>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-1">
+                      <span
+                        className={`text-sm font-semibold tabular-nums ${
+                          isExcluded ? "text-zinc-400" : "text-rose-300"
+                        }`}
+                      >
+                        −{formatCurrency(transaction.value)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleExcludeTransaction(transaction.id)}
+                        className={`flex h-10 w-10 items-center justify-center rounded-lg transition sm:h-8 sm:w-8 ${
+                          isExcluded
+                            ? "text-emerald-300 hover:bg-emerald-500/10"
+                            : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+                        }`}
+                        title={
+                          isExcluded
+                            ? "Incluir novamente no cálculo da média"
+                            : "Desconsiderar gasto do cálculo da média"
+                        }
+                        aria-label={
+                          isExcluded
+                            ? "Incluir no cálculo da média"
+                            : "Desconsiderar do cálculo da média"
+                        }
+                      >
+                        {isExcluded ? <Eye size={15} /> : <EyeOff size={15} />}
+                      </button>
+                    </div>
+                  </li>
+                )
+              })}
+            </motion.ul>
+          ) : (
+            <motion.p
+              key={`${selectedDayData.dateKey}-empty`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="py-3 text-sm text-zinc-500"
+            >
+              {selectedDayData.isFuture
+                ? "Dia ainda não chegou."
+                : "Nenhum gasto neste dia."}
+            </motion.p>
+          )}
+        </AnimatePresence>
+
+        {selectedDayData.transactions.length > COLLAPSED_DAY_EXPENSES && (
+          <button
+            type="button"
+            onClick={() => setExpandedDateKey(isDayListExpanded ? null : selectedDateKey)}
+            aria-expanded={isDayListExpanded}
+            className="mt-1 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-sm text-zinc-400 transition hover:bg-zinc-950 hover:text-zinc-200"
+          >
+            {isDayListExpanded
+              ? "Mostrar menos"
+              : `Mostrar mais ${selectedDayData.transactions.length - COLLAPSED_DAY_EXPENSES}`}
+            <ChevronDown
+              size={16}
+              className={`transition-transform duration-200 motion-reduce:transition-none ${
+                isDayListExpanded ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+        )}
       </div>
 
       {/* Internal Outlier Cap Modal when parent does not supply one */}
