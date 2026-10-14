@@ -30,7 +30,7 @@ export type MonthlyPayable = {
   status: MonthlyPayableStatus
 }
 
-const DUE_SOON_THRESHOLD_DAYS = 10
+const DUE_SOON_THRESHOLD_DAYS = 3
 
 export function buildMonthlyPayableKey(
   kind: Exclude<MonthlyPayableKind, "cardInvoice">,

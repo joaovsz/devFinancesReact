@@ -92,11 +92,11 @@ describe("monthly payments operational month", () => {
     expect(aprilPayables).toHaveLength(1)
     expect(aprilPayables[0]?.label).toBe("Aluguel")
     expect(aprilPayables[0]?.dueDate).toBe("2025-05-08")
-    expect(aprilPayables[0]?.status).toBe("dueSoon")
+    expect(aprilPayables[0]?.status).toBe("pending")
     expect(mayPayables).toHaveLength(1)
   })
 
-  it("does not warn for next-month fixed costs that are more than ten days away", () => {
+  it("does not warn for next-month fixed costs that are more than three days away", () => {
     const fixedCost: FixedCost = {
       id: "rent",
       name: "Aluguel",
@@ -124,7 +124,7 @@ describe("monthly payments operational month", () => {
     expect(payables[0]?.status).toBe("pending")
   })
 
-  it("warns for next-month fixed costs when the due date is within ten days", () => {
+  it("warns for next-month fixed costs when the due date is within three days", () => {
     const fixedCost: FixedCost = {
       id: "rent",
       name: "Aluguel",
@@ -144,12 +144,40 @@ describe("monthly payments operational month", () => {
       installmentPlans: [],
       monthKey: "2025-05",
       paidPlannedItems: {},
-      referenceDate: "2025-05-27"
+      referenceDate: "2025-06-02"
     })
 
     expect(payables).toHaveLength(1)
     expect(payables[0]?.dueDate).toBe("2025-06-05")
     expect(payables[0]?.status).toBe("dueSoon")
+  })
+
+  it("does not warn four days before the due date", () => {
+    const fixedCost: FixedCost = {
+      id: "rent",
+      name: "Aluguel",
+      amount: 1500,
+      startMonth: "2025-05",
+      dueOffsetMonths: 1,
+      dueDay: 5,
+      categoryId: "moradia",
+      subcategoryId: "aluguel",
+      paymentMethod: "pix"
+    }
+
+    const payables = buildMonthlyPayables({
+      cards: [],
+      transactions: [],
+      fixedCosts: [fixedCost],
+      installmentPlans: [],
+      monthKey: "2025-05",
+      paidPlannedItems: {},
+      referenceDate: "2025-06-01"
+    })
+
+    expect(payables).toHaveLength(1)
+    expect(payables[0]?.dueDate).toBe("2025-06-05")
+    expect(payables[0]?.status).toBe("pending")
   })
 
   it("keeps non-credit installments in the operational month even when they mature next month", () => {
