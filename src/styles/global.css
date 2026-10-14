@@ -45,6 +45,32 @@
       font-size: 16px !important;
     }
   }
+
+  select {
+    text-overflow: ellipsis;
+  }
+
+  /* iOS Safari gives date/month inputs an intrinsic width and centers the value,
+     which makes them overflow their column. Let them fill the column instead. */
+  @supports (-webkit-touch-callout: none) {
+    input[type="date"],
+    input[type="month"],
+    input[type="time"],
+    input[type="datetime-local"] {
+      -webkit-appearance: none;
+      appearance: none;
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      min-height: 2.75rem;
+      text-align: left;
+    }
+
+    input::-webkit-date-and-time-value {
+      margin: 0;
+      text-align: left;
+    }
+  }
 }
 
 @layer base {
@@ -123,6 +149,48 @@
   .theme-light .text-zinc-400,
   .theme-light .text-zinc-500 {
     color: #4b5563 !important;
+  }
+
+  /* Catch-all for dark neutrals with opacity or variants the exact overrides above miss
+     (bg-zinc-950/60, border-zinc-900, divide-zinc-800...). */
+  .theme-light [class^="bg-zinc-950/"],
+  .theme-light [class*=" bg-zinc-950/"],
+  .theme-light [class^="bg-zinc-900/"],
+  .theme-light [class*=" bg-zinc-900/"] {
+    background-color: rgba(255, 255, 255, 0.85) !important;
+  }
+
+  .theme-light [class^="bg-zinc-800/"],
+  .theme-light [class*=" bg-zinc-800/"],
+  .theme-light [class^="bg-zinc-700/"],
+  .theme-light [class*=" bg-zinc-700/"] {
+    background-color: rgba(226, 232, 240, 0.7) !important;
+  }
+
+  .theme-light .border-zinc-900,
+  .theme-light [class^="border-zinc-700/"],
+  .theme-light [class*=" border-zinc-700/"],
+  .theme-light [class^="border-zinc-800/"],
+  .theme-light [class*=" border-zinc-800/"],
+  .theme-light [class^="border-zinc-900/"],
+  .theme-light [class*=" border-zinc-900/"] {
+    border-color: #d7deea !important;
+  }
+
+  .theme-light [class*="divide-zinc-"] > :not([hidden]) ~ :not([hidden]) {
+    border-color: #d7deea !important;
+  }
+
+  .theme-light .hover\:bg-zinc-800:hover,
+  .theme-light .hover\:bg-zinc-900:hover,
+  .theme-light .hover\:bg-zinc-950:hover,
+  .theme-light [class*="hover:bg-zinc-800/"]:hover,
+  .theme-light [class*="hover:bg-zinc-950/"]:hover {
+    background-color: #eef2f8 !important;
+  }
+
+  .theme-light .bg-zinc-700 {
+    background-color: #cbd5e1 !important;
   }
 
   .theme-light .shadow-zinc-950\/20,
