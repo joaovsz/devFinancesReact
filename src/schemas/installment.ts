@@ -55,7 +55,7 @@ export const installmentFormSchema = z
     value: z
       .string()
       .min(1, "Informe o valor.")
-      .refine((value) => parseCurrencyInput(value) > 0, "Parcela deve ser maior que zero.")
+      .refine((value) => parseCurrencyInput(value) > 0, "Valor total deve ser maior que zero.")
       .transform(parseCurrencyInput),
     total: integerInputSchema.pipe(z.number().min(1).max(999)),
     paid: z
