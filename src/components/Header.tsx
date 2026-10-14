@@ -31,6 +31,19 @@ export const Header = ({
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false)
   const [syncState, setSyncState] = useState<"idle" | "loading" | "updated" | "ok">("idle")
+  const monthInputRef = useRef<HTMLInputElement>(null)
+  const activeMonthLabel = (() => {
+    const label = getMonthLabel(activeMonthKey).replace(" de ", " ")
+    return label.charAt(0).toUpperCase() + label.slice(1)
+  })()
+
+  function openMonthPicker() {
+    try {
+      (monthInputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null)?.showPicker?.()
+    } catch {
+      monthInputRef.current?.focus()
+    }
+  }
   const navigationItems = getDockItems(canAccessCommerce)
   const accountMenuRef = useRef<HTMLDivElement | null>(null)
   const navMenuRef = useRef<HTMLDivElement | null>(null)
@@ -125,14 +138,26 @@ export const Header = ({
             className="flex h-10 items-center rounded-xl border border-zinc-800 bg-zinc-900 px-2.5 sm:px-3 gap-2 transition hover:border-zinc-700 focus-within:border-emerald-500/80 focus-within:ring-2 focus-within:ring-emerald-500/20 shadow-sm flex-1 min-w-0 md:flex-none"
             title="Mês operacional de conciliação e projeção"
           >
-            <CalendarDays size={15} className="text-zinc-400 shrink-0" />
-            <input
-              className="h-full bg-transparent text-xs sm:text-sm font-medium text-zinc-100 outline-none cursor-pointer [color-scheme:dark] min-w-0 flex-1 md:flex-none md:w-[155px]"
-              type="month"
-              value={activeMonthKey}
-              onChange={(event) => setActiveMonthKey(event.target.value)}
-              aria-label="Mês operacional"
-            />
+            <label
+              className="relative flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 md:w-[170px] md:flex-none"
+              onClick={(event) => {
+                event.preventDefault()
+                openMonthPicker()
+              }}
+            >
+              <CalendarDays size={15} className="shrink-0 text-zinc-400" />
+              <span className="truncate text-sm font-medium text-zinc-100">{activeMonthLabel}</span>
+              <input
+                ref={monthInputRef}
+                className="absolute inset-0 h-full min-h-0 w-full cursor-pointer opacity-0 [color-scheme:dark]"
+                type="month"
+                value={activeMonthKey}
+                onChange={(event) => {
+                  if (event.target.value) setActiveMonthKey(event.target.value)
+                }}
+                aria-label="Mês operacional"
+              />
+            </label>
             <div className="h-4 w-px bg-zinc-800 shrink-0" />
             <button
               type="button"
