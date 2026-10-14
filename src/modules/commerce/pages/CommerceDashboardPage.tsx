@@ -642,7 +642,7 @@ export function CommerceDashboardPage() {
       </div>
 
       {activeTab === "dashboard" && (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {[
             ["Faturamento do mês", formatCurrency(dashboardMetrics.grossRevenue)],
             ["Lucro líquido do mês", formatCurrency(dashboardMetrics.netProfit)],
@@ -673,7 +673,7 @@ export function CommerceDashboardPage() {
                   {productRows.length === 0 && (
                     <p className="py-8 text-center text-xs text-zinc-500">Nenhum produto cadastrado.</p>
                   )}
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {productRows.map(({ product, stock, averageCost }) => (
                       <div key={product.id} className="flex gap-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-3 hover:border-zinc-700 transition">
                         {/* Imagem quadrada grande */}
@@ -1340,7 +1340,7 @@ export function CommerceDashboardPage() {
       )}
 
       {activeTab === "reports" && (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
             <div className="border-b border-zinc-800 px-5 py-4">
               <h2 className="text-sm font-semibold text-zinc-100">Relatório por produto</h2>

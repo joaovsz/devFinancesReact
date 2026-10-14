@@ -421,7 +421,8 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
           totalInstallments: plan.totalInstallments,
           remainingCount: getInstallmentRemainingCount(plan, targetMonth),
           startIndex: Math.max(planStartIndex, windowStartIndex) - windowStartIndex,
-          endIndex: Math.min(planEndIndex, windowEndIndex) - windowStartIndex
+          endIndex: Math.min(planEndIndex, windowEndIndex) - windowStartIndex,
+          endMonthKey: `${Math.floor(planEndIndex / 12)}-${String((planEndIndex % 12) + 1).padStart(2, "0")}`
         }
       })
       .filter((row): row is NonNullable<typeof row> => row !== null)
@@ -723,7 +724,7 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
         />
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
           <div className="flex items-center justify-between gap-2">
             <div className="text-xs uppercase tracking-wide text-zinc-400">Sobra do mês (estimada)</div>
@@ -805,7 +806,7 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 md:p-4">
           <div className="text-xs uppercase tracking-wide text-zinc-400">Virada dos parcelamentos</div>
           <div className="mt-2 space-y-3">
@@ -1013,13 +1014,57 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
           </p>
         </div>
         {installmentTimelineRows.length > 0 ? (
-          <ReactEChartsCore
-            echarts={echarts}
-            option={installmentGanttOption}
-            style={{ height: Math.max(120, installmentTimelineRows.length * 34 + 40), width: "100%" }}
-            notMerge
-            lazyUpdate
-          />
+          <>
+            {/* Mobile: a list with a 12-month strip per plan; the Gantt chart is unreadable at this width */}
+            <ul className="divide-y divide-zinc-800 md:hidden">
+              {installmentTimelineRows.map((row) => (
+                <li key={row.id} className="py-3">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="min-w-0 truncate text-sm font-medium text-zinc-100">{row.name}</p>
+                    <p className="shrink-0 text-sm font-semibold tabular-nums text-zinc-100">
+                      {formatCurrency(row.installmentValue)}
+                      <span className="text-xs font-normal text-zinc-500">/mês</span>
+                    </p>
+                  </div>
+                  <div className="mt-0.5 flex justify-between gap-3 text-xs text-zinc-500">
+                    <span>
+                      termina em{" "}
+                      {new Date(`${row.endMonthKey}-01T00:00:00`).toLocaleDateString("pt-BR", {
+                        month: "short",
+                        year: "numeric"
+                      })}
+                    </span>
+                    <span className="tabular-nums">
+                      {row.remainingCount} {row.remainingCount === 1 ? "restante" : "restantes"}
+                    </span>
+                  </div>
+                  <div
+                    className="mt-2 grid gap-0.5"
+                    style={{ gridTemplateColumns: `repeat(${monthKeys.length}, minmax(0, 1fr))` }}
+                    aria-hidden="true"
+                  >
+                    {monthKeys.map((monthKey, index) => (
+                      <span
+                        key={monthKey}
+                        className={`h-1.5 rounded-sm ${
+                          index >= row.startIndex && index <= row.endIndex ? "bg-sky-400" : "bg-zinc-800"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden md:block">
+              <ReactEChartsCore
+                echarts={echarts}
+                option={installmentGanttOption}
+                style={{ height: Math.max(120, installmentTimelineRows.length * 34 + 40), width: "100%" }}
+                notMerge
+                lazyUpdate
+              />
+            </div>
+          </>
         ) : (
           <p className="py-6 text-center text-sm text-zinc-400">
             Nenhum parcelamento ativo nos próximos 12 meses.

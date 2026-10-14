@@ -131,7 +131,7 @@ export const GoalModal = ({
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <label className="flex flex-col gap-1 text-xs uppercase tracking-wide text-zinc-400">
               Nome da meta
               <input

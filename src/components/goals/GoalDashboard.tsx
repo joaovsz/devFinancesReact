@@ -318,7 +318,7 @@ export const GoalDashboard = () => {
 
   return (
     <>
-      <section className="grid gap-4 lg:grid-cols-12">
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -411,7 +411,7 @@ export const GoalDashboard = () => {
             </p>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-[1.3fr_0.8fr_1fr_auto]">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.3fr_0.8fr_1fr_auto]">
             <input
               className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
               placeholder="Nome da conta (ex: Conta Nubank)"

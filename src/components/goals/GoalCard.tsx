@@ -113,7 +113,7 @@ export const GoalCard = ({
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-[116px_1fr]">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[116px_1fr]">
         <div className="relative mx-auto flex items-center justify-center">
           <svg width="116" height="116" viewBox="0 0 116 116" aria-hidden>
             <circle
