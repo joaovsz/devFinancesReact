@@ -146,6 +146,7 @@ export const TransactionForm = ({
     tagsInput,
     competenceMonth
   } = formValues
+  const showCardField = option === 2 && paymentMethod === "credit"
 
   function updateField<K extends Path<TransactionFormValues>>(
     name: K,
@@ -370,7 +371,7 @@ export const TransactionForm = ({
         )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr]">
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="mb-3 text-sm text-zinc-400">Valor</div>
           <div className="mb-3 text-3xl font-semibold text-zinc-100">{formatCents(amountCents)}</div>
@@ -491,7 +492,7 @@ export const TransactionForm = ({
             </button>
           </div>
 
-          <div className={option === 1 ? "grid grid-cols-2 gap-2" : ""}>
+          <div className={option === 1 ? "grid gap-3 sm:grid-cols-2 sm:gap-2" : ""}>
             <label className={labelClassName}>
               Data
               <div
@@ -562,7 +563,7 @@ export const TransactionForm = ({
             />
           </label>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-2">
             <label className={labelClassName}>
               Categoria
               <div className="relative">
@@ -599,49 +600,46 @@ export const TransactionForm = ({
             </label>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <label className={labelClassName}>
-              Forma de pagamento
-              <div className="relative">
-                <select
-                  className={`${selectClassName} disabled:cursor-not-allowed disabled:opacity-50`}
-                  value={paymentMethod}
-                  onChange={(event) => handlePaymentMethod(event.target.value as PaymentMethod)}
-                  disabled={option === 1}
-                >
-                  {paymentMethodOptions.map((option) => (
-                    <option key={`transaction-payment-${option.value}`} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-              </div>
-            </label>
-            <label className={labelClassName}>
-              Cartão
-              <div className="relative">
-                <select
-                  className={`${selectClassName} disabled:cursor-not-allowed disabled:opacity-50`}
-                  value={cardId}
-                  onChange={(event) => updateField("cardId", event.target.value)}
-                  disabled={!(option === 2 && paymentMethod === "credit")}
-                >
-                  {cards.length === 0 && <option value="">Nenhum cartão cadastrado</option>}
-                  {cards.map((card) => (
-                    <option key={card.id} value={card.id}>
-                      {card.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-              </div>
-            </label>
-          </div>
-          {option === 2 && paymentMethod === "credit" && (
-            <p className="rounded-xl border border-emerald-500/60 bg-emerald-500/15 px-3 py-2 text-xs text-emerald-300">
-              Vincule essa saída a um cartão de crédito cadastrado
-            </p>
+          {option === 2 && (
+            <div className={`grid gap-3 ${showCardField ? "sm:grid-cols-2 sm:gap-2" : ""}`}>
+              <label className={labelClassName}>
+                Forma de pagamento
+                <div className="relative">
+                  <select
+                    className={selectClassName}
+                    value={paymentMethod}
+                    onChange={(event) => handlePaymentMethod(event.target.value as PaymentMethod)}
+                  >
+                    {paymentMethodOptions.map((option) => (
+                      <option key={`transaction-payment-${option.value}`} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                </div>
+              </label>
+              {showCardField && (
+                <label className={labelClassName}>
+                  Cartão
+                  <div className="relative">
+                    <select
+                      className={selectClassName}
+                      value={cardId}
+                      onChange={(event) => updateField("cardId", event.target.value)}
+                    >
+                      {cards.length === 0 && <option value="">Nenhum cartão cadastrado</option>}
+                      {cards.map((card) => (
+                        <option key={card.id} value={card.id}>
+                          {card.name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                  </div>
+                </label>
+              )}
+            </div>
           )}
 
           <label className={labelClassName}>
