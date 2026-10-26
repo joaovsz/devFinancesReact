@@ -798,6 +798,62 @@ export function getAverageMonthlyLeftover(
   return total / monthlyLeftovers.length
 }
 
+function parseLocalCycleDate(dateString: string): Date {
+  const [year, month, day] = dateString.split("-").map(Number)
+  return new Date(year, (month || 1) - 1, day || 1, 12, 0, 0)
+}
+
+function addDaysToCycleDateKey(dateString: string, days: number): string {
+  const date = parseLocalCycleDate(dateString)
+  date.setDate(date.getDate() + days)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function diffDaysBetweenCycleDates(startDateKey: string, endDateKey: string): number {
+  const start = parseLocalCycleDate(startDateKey).getTime()
+  const end = parseLocalCycleDate(endDateKey).getTime()
+  return Math.round((end - start) / 86400000)
+}
+
+function getCardCycleStartDateKeyForPace(monthKey: string, card: CreditCard): string | null {
+  const scanStart = `${addMonths(monthKey, -1)}-01`
+  const scanEnd = `${monthKey}-${String(getDaysInMonth(monthKey)).padStart(2, "0")}`
+
+  for (let dateKey = scanStart; dateKey <= scanEnd; dateKey = addDaysToCycleDateKey(dateKey, 1)) {
+    if (getCreditTransactionStatementMonth(dateKey, card) === monthKey) {
+      return dateKey
+    }
+  }
+
+  return null
+}
+
+function getCycleStartDateKeyForPace(monthKey: string, cards: CreditCard[]): string {
+  const cardStarts = cards
+    .map((card) => getCardCycleStartDateKeyForPace(monthKey, card))
+    .filter((dateKey): dateKey is string => Boolean(dateKey))
+
+  if (cardStarts.length === 0) {
+    return `${monthKey}-01`
+  }
+
+  return cardStarts.reduce((earliest, dateKey) => (dateKey < earliest ? dateKey : earliest))
+}
+
+function getExpenseCycleForPace(monthKey: string, cards: CreditCard[] = []) {
+  const startDateKey = getCycleStartDateKeyForPace(monthKey, cards)
+  const nextStartDateKey = getCycleStartDateKeyForPace(addMonths(monthKey, 1), cards)
+
+  return {
+    monthKey,
+    startDateKey,
+    endDateKey: addDaysToCycleDateKey(nextStartDateKey, -1)
+  }
+}
+
 export function getDailySpendPaceProjection(input: {
   transactions: Transaction[]
   monthKey: string
@@ -815,9 +871,23 @@ export function getDailySpendPaceProjection(input: {
   const todayIso =
     input.todayDate ||
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
-  const daysInMonth = getDaysInMonth(input.monthKey)
-  const todayDay = Number(todayIso.slice(8, 10)) || getTodayDayOfMonth()
-  const daysElapsed = Math.min(todayDay, daysInMonth)
+
+  // Only cards with credit transactions define the expense cycle (matching WeeklyDailyExpenses)
+  const usedCardIds = new Set(
+    input.transactions
+      .filter((tx) => tx.paymentMethod === "credit" && tx.cardId)
+      .map((tx) => tx.cardId)
+  )
+  const cycleCards = (input.cards || []).filter((card) => usedCardIds.has(card.id))
+  const cycle = getExpenseCycleForPace(input.monthKey, cycleCards)
+
+  const daysInMonth = diffDaysBetweenCycleDates(cycle.startDateKey, cycle.endDateKey) + 1
+  let daysElapsed = 0
+  if (todayIso >= cycle.startDateKey && todayIso <= cycle.endDateKey) {
+    daysElapsed = diffDaysBetweenCycleDates(cycle.startDateKey, todayIso) + 1
+  } else if (todayIso > cycle.endDateKey) {
+    daysElapsed = daysInMonth
+  }
   const remainingDays = Math.max(0, daysInMonth - daysElapsed)
   const outlierCapValue =
     input.outlierCapValue != null && input.outlierCapValue > 0 ? input.outlierCapValue : null
@@ -825,8 +895,9 @@ export function getDailySpendPaceProjection(input: {
   const pastExpenses = input.transactions.filter(
     (transaction) =>
       transaction.type === 2 &&
-      transaction.date <= todayIso &&
-      dateToMonthKey(transaction.date) === input.monthKey
+      transaction.date >= cycle.startDateKey &&
+      transaction.date <= cycle.endDateKey &&
+      transaction.date <= todayIso
   )
 
   // A one-off expense above the configured cap (e.g. an annual insurance
@@ -858,8 +929,13 @@ export function getDailySpendPaceProjection(input: {
     })
 
     const invoicedRevenueForMonth = getInvoicedPjRevenueForMonth(input.transactions, input.monthKey)
+    const manualIncomesForMonth = getIncomeTransactionsTotalForMonth(
+      input.transactions,
+      input.monthKey
+    )
+    const projectedRevenueBase = Math.max(0, input.projectedRevenue - manualIncomesForMonth)
     const revenueBaseForMonth =
-      invoicedRevenueForMonth > 0 ? invoicedRevenueForMonth : input.projectedRevenue
+      invoicedRevenueForMonth > 0 ? invoicedRevenueForMonth : projectedRevenueBase
     const percentageFixedCostsAdjustment = input.fixedCosts
       .filter(
         (cost) =>
@@ -882,7 +958,8 @@ export function getDailySpendPaceProjection(input: {
         (transaction) =>
           transaction.type === 2 &&
           transaction.date > todayIso &&
-          dateToMonthKey(transaction.date) === input.monthKey
+          transaction.date >= cycle.startDateKey &&
+          transaction.date <= cycle.endDateKey
       )
       .reduce((total, transaction) => total + transaction.value, 0)
     const totalSoFar = pastExpenses.reduce((sum, t) => sum + t.value, 0) + knownFutureAdHocExpenses

@@ -88,6 +88,9 @@ export const Cards = () => {
   const clearCardManualInvoiceAmountForMonth = useTransactionStore(
     (state) => state.clearCardManualInvoiceAmountForMonth
   )
+  const syncPercentageFixedCosts = useTransactionStore(
+    (state) => state.syncPercentageFixedCosts
+  )
   const currentMonth = activeMonthKey
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [institutions, setInstitutions] = useState<BankPreset[]>(bankPresets)
@@ -114,6 +117,7 @@ export const Cards = () => {
       .then((data) => {
         if (!ignore) {
           setHolidays(data)
+          syncPercentageFixedCosts()
         }
       })
       .catch(() => {
@@ -125,7 +129,7 @@ export const Cards = () => {
     return () => {
       ignore = true
     }
-  }, [currentMonth, contractConfig.incomeMode, contractConfig.useHolidayApi])
+  }, [currentMonth, contractConfig.incomeMode, contractConfig.useHolidayApi, syncPercentageFixedCosts])
 
   useEffect(() => {
     let ignore = false

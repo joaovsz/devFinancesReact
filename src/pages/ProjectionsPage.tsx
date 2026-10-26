@@ -907,6 +907,7 @@ export const ProjectionsPage = ({ embedded = false }: ProjectionsPageProps) => {
 
       <WeeklyDailyExpenses
         transactions={transactions}
+        cards={cards}
         targetMonth={targetMonth}
         outlierCap={outlierCap}
         onOpenOutlierModal={() => {

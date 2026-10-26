@@ -37,6 +37,7 @@ import {
   freezeCreditFixedCostStatementMonths,
   freezeCreditInstallmentStatementMonths
 } from "../utils/projections"
+import { getCachedBrazilHolidays } from "../services/calendar"
 
 export type TransactionStore = {
   activeMonthKey: string
@@ -380,10 +381,15 @@ function syncPercentageFixedCosts(
       return cost
     }
 
+    const year = Number(monthKey.slice(0, 4))
+    const holidays = contractConfig.useHolidayApi
+      ? getCachedBrazilHolidays(year).filter((holiday) => holiday.date.startsWith(monthKey))
+      : []
     const revenueBase = getFixedCostRevenueBaseForMonth({
       transactions,
       contractConfig,
-      monthKey
+      monthKey,
+      holidays
     })
     const resolvedAmount = getFixedCostAmountForMonth(cost, revenueBase)
 
@@ -1988,16 +1994,61 @@ export const useTransactionStore = create<TransactionStore>()(
             )
           })
 
+          const activeMonthKey = sanitizeActiveMonthKey(state.activeMonthKey)
+
           return {
             ...state,
+            activeMonthKey,
+            cards,
+            transactions,
+            fixedCosts,
+            installmentPlans,
+            ...calculateTotals({
+              activeMonthKey,
+              cards,
+              transactions,
+              fixedCosts,
+              installmentPlans
+            })
+          }
+        }
+
+        const state = persistedState as TransactionStore
+        const activeMonthKey = sanitizeActiveMonthKey(state.activeMonthKey)
+        const cards = state.cards || []
+        const transactions = state.transactions || []
+        const fixedCosts = state.fixedCosts || []
+        const installmentPlans = state.installmentPlans || []
+
+        return {
+          ...state,
+          activeMonthKey,
+          ...calculateTotals({
+            activeMonthKey,
             cards,
             transactions,
             fixedCosts,
             installmentPlans
-          }
+          })
         }
-
-        return persistedState as TransactionStore
+      },
+      merge: (persistedState, currentState) => {
+        const merged = {
+          ...currentState,
+          ...(persistedState as Partial<TransactionStore>)
+        }
+        const activeMonthKey = sanitizeActiveMonthKey(merged.activeMonthKey)
+        return {
+          ...merged,
+          activeMonthKey,
+          ...calculateTotals({
+            activeMonthKey,
+            cards: merged.cards || [],
+            transactions: merged.transactions || [],
+            fixedCosts: merged.fixedCosts || [],
+            installmentPlans: merged.installmentPlans || []
+          })
+        }
       }
     }
   )

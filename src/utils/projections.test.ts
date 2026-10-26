@@ -806,4 +806,50 @@ describe("getDailySpendPaceProjection", () => {
     expect(result.remainingDays).toBe(0)
     expect(result.projectedBalance).toBe(1700)
   })
+
+  it("uses the credit card expense cycle for daysElapsed and remainingDays until card closing", () => {
+    const azulCard: CreditCard = {
+      id: "azul",
+      name: "Azul Itaú",
+      brandColor: "#002C6C",
+      limitTotal: 8000,
+      closeDay: 4,
+      dueDay: 20,
+      manualInvoiceAmount: 0
+    }
+
+    // Purchase on 03/10 belongs to previous cycle (2026-09), purchase on 10/10 belongs to 2026-10 cycle (05/10..04/11)
+    const txs: Transaction[] = [
+      {
+        ...expense("prev-cycle", "2026-10-03", 500),
+        paymentMethod: "credit",
+        cardId: "azul",
+        statementMonth: "2026-09"
+      },
+      {
+        ...expense("curr-cycle", "2026-10-10", 2200),
+        paymentMethod: "credit",
+        cardId: "azul",
+        statementMonth: "2026-10"
+      }
+    ]
+
+    const result = getDailySpendPaceProjection({
+      transactions: txs,
+      monthKey: "2026-10",
+      projectedRevenue: 5000,
+      cards: [azulCard],
+      fixedCosts: [],
+      installmentPlans: [],
+      todayDate: "2026-10-26"
+    })
+
+    // Cycle is 2026-10-05 to 2026-11-04 (31 days): on 2026-10-26, 22 days elapsed and 9 days remaining
+    expect(result.daysInMonth).toBe(31)
+    expect(result.daysElapsed).toBe(22)
+    expect(result.remainingDays).toBe(9)
+    expect(result.averageDailyExpense).toBe(100)
+    // Current balance = 5000 - 2200 = 2800; remaining 9 days * 100/day = 900 -> 1900
+    expect(result.projectedBalance).toBe(1900)
+  })
 })
