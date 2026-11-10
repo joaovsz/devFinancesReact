@@ -63,6 +63,8 @@ type CategoryDrillItem = {
   id: string
   label: string
   value: number
+  subcategoryId?: string
+  date?: string
 }
 
 export const Cards = () => {
@@ -100,6 +102,7 @@ export const Cards = () => {
   }>({ isOpen: false, card: null })
   const [invoiceCardId, setInvoiceCardId] = useState<string | null>(null)
   const [selectedCategoryDrillId, setSelectedCategoryDrillId] = useState<string | null>(null)
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null)
   const [themeVersion, setThemeVersion] = useState(0)
 
   useEffect(() => {
@@ -266,14 +269,15 @@ export const Cards = () => {
         return
       }
 
-      const key = `${categoryId}::${subcategoryId}`
+      const safeSub = (subcategoryId && subcategoryId.trim()) || "outros"
+      const key = `${categoryId}::${safeSub}`
       const current = byCategoryAndSubcategory.get(key)
       if (current) {
         current.value += value
         return
       }
 
-      byCategoryAndSubcategory.set(key, { categoryId, subcategoryId, value })
+      byCategoryAndSubcategory.set(key, { categoryId, subcategoryId: safeSub, value })
     }
 
     transactions
@@ -321,10 +325,18 @@ export const Cards = () => {
       return "Subcategoria não mapeada"
     }
 
-    return (
-      category.subcategories.find((subcategory) => subcategory.id === subcategoryId)?.name ||
-      "Subcategoria não mapeada"
+    const matched = category.subcategories.find(
+      (subcategory) => subcategory.id === subcategoryId
     )
+    if (matched) {
+      return matched.name
+    }
+
+    if (subcategoryId === "outros" || !subcategoryId) {
+      return "Outros"
+    }
+
+    return "Subcategoria não mapeada"
   }
 
   const categorySummary = useMemo(
@@ -354,6 +366,8 @@ export const Cards = () => {
         .filter((bucket) => bucket.categoryId === selectedCategoryDrillId)
         .map((bucket) => ({
           id: `${bucket.categoryId}-${bucket.subcategoryId}`,
+          categoryId: bucket.categoryId,
+          subcategoryId: bucket.subcategoryId,
           value: bucket.value,
           name: getSubcategoryName(bucket.categoryId, bucket.subcategoryId)
         }))
@@ -381,10 +395,13 @@ export const Cards = () => {
       })
       .sort((left, right) => right.date.localeCompare(left.date))
       .forEach((transaction) => {
+        const safeSub = (transaction.subcategoryId && transaction.subcategoryId.trim()) || "outros"
         items.push({
           id: `transaction-${transaction.id}`,
           label: transaction.label,
-          value: transaction.value
+          value: transaction.value,
+          subcategoryId: safeSub,
+          date: transaction.date
         })
       })
 
@@ -395,10 +412,12 @@ export const Cards = () => {
           isFixedCostActiveForMonth(cost, currentMonth)
       )
       .forEach((cost) => {
+        const safeSub = (cost.subcategoryId && cost.subcategoryId.trim()) || "outros"
         items.push({
           id: `fixed-${cost.id}`,
           label: cost.name,
-          value: cost.amount
+          value: cost.amount,
+          subcategoryId: safeSub
         })
       })
 
@@ -409,7 +428,8 @@ export const Cards = () => {
           items.push({
             id: `installment-${plan.id}`,
             label: plan.name,
-            value: plan.installmentValue
+            value: plan.installmentValue,
+            subcategoryId: "__installments"
           })
         })
     }
@@ -417,25 +437,57 @@ export const Cards = () => {
     return items
   }, [selectedCategoryDrillId, transactions, cards, fixedCosts, installmentPlans, currentMonth])
 
+  const selectedCategoryTotal = useMemo(
+    () => subcategoryDonutData.reduce((sum, item) => sum + item.value, 0),
+    [subcategoryDonutData]
+  )
+
+  const selectedSubcategoryItems = useMemo(() => {
+    if (!selectedCategoryDrillId || !selectedSubcategoryId) {
+      return []
+    }
+    return selectedCategoryItems.filter(
+      (item) => item.subcategoryId === selectedSubcategoryId
+    )
+  }, [selectedCategoryItems, selectedCategoryDrillId, selectedSubcategoryId])
+
+  const selectedSubcategoryTotal = useMemo(
+    () => selectedSubcategoryItems.reduce((sum, item) => sum + item.value, 0),
+    [selectedSubcategoryItems]
+  )
+
   const totalCategoryExpenses = useMemo(
     () => categoryDonutData.reduce((sum, item) => sum + item.value, 0),
     [categoryDonutData]
   )
   const hasDrilldown = Boolean(selectedCategoryDrillId)
+  const hasSubcategoryDrilldown = Boolean(selectedCategoryDrillId && selectedSubcategoryId)
   const activeCategoryDonutData = hasDrilldown ? subcategoryDonutData : categoryDonutData
-  const categoryChartTitle = hasDrilldown
-    ? `Detalhes: ${getCategoryName(selectedCategoryDrillId || "")}`
+  const categoryChartTitle = hasSubcategoryDrilldown
+    ? getSubcategoryName(selectedCategoryDrillId || "", selectedSubcategoryId || "")
+    : hasDrilldown
+    ? `Subcategorias de ${getCategoryName(selectedCategoryDrillId || "")}`
     : "Distribuição por categoria"
 
   useEffect(() => {
     if (!selectedCategoryDrillId) {
+      setSelectedSubcategoryId(null)
       return
     }
 
     if (!(selectedCategoryDrillId in categorySummary)) {
       setSelectedCategoryDrillId(null)
+      setSelectedSubcategoryId(null)
+      return
     }
-  }, [selectedCategoryDrillId, categorySummary])
+
+    if (
+      selectedSubcategoryId &&
+      !subcategoryDonutData.some((item) => item.subcategoryId === selectedSubcategoryId)
+    ) {
+      setSelectedSubcategoryId(null)
+    }
+  }, [selectedCategoryDrillId, selectedSubcategoryId, categorySummary, subcategoryDonutData])
 
   const isLightTheme =
     typeof document !== "undefined" &&
@@ -476,7 +528,8 @@ export const Cards = () => {
               ? item.value
               : Number(item?.value || 0)
           const safePercent = Number.isFinite(item?.percent) ? item.percent : 0
-          return `${item?.name || "Categoria"}<br/>${formatCurrency(rawValue)} (${safePercent}%)`
+          const labelPrefix = hasDrilldown ? "Subcategoria" : "Categoria"
+          return `${item?.name || labelPrefix}<br/>${formatCurrency(rawValue)} (${safePercent}%)`
         }
       },
       legend: {
@@ -509,6 +562,7 @@ export const Cards = () => {
     [
       activeCategoryDonutData,
       categoryChartTitle,
+      hasDrilldown,
       isLightTheme,
       chartSliceBorderColor,
       accent500Color,
@@ -519,20 +573,24 @@ export const Cards = () => {
   )
   const categoryDistributionEvents = useMemo(
     () => ({
-      click: (params: { data?: { id?: string } }) => {
-        if (hasDrilldown) {
+      click: (params: { data?: { id?: string; categoryId?: string; subcategoryId?: string } }) => {
+        if (!selectedCategoryDrillId) {
+          const nextCategoryId = params.data?.id
+          if (!nextCategoryId) {
+            return
+          }
+
+          setSelectedCategoryDrillId(nextCategoryId)
           return
         }
 
-        const nextCategoryId = params.data?.id
-        if (!nextCategoryId) {
-          return
+        const nextSubcategoryId = params.data?.subcategoryId
+        if (nextSubcategoryId) {
+          setSelectedSubcategoryId(nextSubcategoryId)
         }
-
-        setSelectedCategoryDrillId(nextCategoryId)
       }
     }),
-    [hasDrilldown]
+    [selectedCategoryDrillId]
   )
 
   const totalInvoicesForMonth = useMemo(
@@ -763,16 +821,66 @@ export const Cards = () => {
       <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5 lg:col-span-7">
         <div className="mb-2 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-zinc-100">Gastos por categoria</h2>
+            {hasDrilldown && (
+              <div className="mb-1 flex items-center gap-1.5 text-xs text-zinc-400">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategoryDrillId(null)
+                    setSelectedSubcategoryId(null)
+                  }}
+                  className="hover:text-zinc-200 transition underline underline-offset-2"
+                >
+                  Categorias
+                </button>
+                <span>/</span>
+                {hasSubcategoryDrilldown ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSubcategoryId(null)}
+                      className="hover:text-zinc-200 transition underline underline-offset-2"
+                    >
+                      {getCategoryName(selectedCategoryDrillId || "")}
+                    </button>
+                    <span>/</span>
+                    <span className="text-zinc-200 font-medium truncate">
+                      {getSubcategoryName(selectedCategoryDrillId || "", selectedSubcategoryId || "")}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-zinc-200 font-medium truncate">
+                    {getCategoryName(selectedCategoryDrillId || "")}
+                  </span>
+                )}
+              </div>
+            )}
+            <h2 className="text-base font-semibold text-zinc-100">
+              {hasSubcategoryDrilldown
+                ? getSubcategoryName(selectedCategoryDrillId || "", selectedSubcategoryId || "")
+                : hasDrilldown
+                ? `Subcategorias de ${getCategoryName(selectedCategoryDrillId || "")}`
+                : "Gastos por categoria"}
+            </h2>
             <p className="mt-0.5 text-sm text-zinc-400">
-              {formatCurrency(totalCategoryExpenses)} em {getMonthLabel(currentMonth)}
+              {hasSubcategoryDrilldown
+                ? `${formatCurrency(selectedSubcategoryTotal)} (${selectedCategoryTotal > 0 ? Math.round((selectedSubcategoryTotal / selectedCategoryTotal) * 100) : 0}% da categoria)`
+                : hasDrilldown
+                ? `${formatCurrency(selectedCategoryTotal)} (${totalCategoryExpenses > 0 ? Math.round((selectedCategoryTotal / totalCategoryExpenses) * 100) : 0}% do total) em ${getMonthLabel(currentMonth)}`
+                : `${formatCurrency(totalCategoryExpenses)} em ${getMonthLabel(currentMonth)}`}
             </p>
           </div>
           {hasDrilldown && (
             <button
               type="button"
-              onClick={() => setSelectedCategoryDrillId(null)}
-              className="inline-flex h-10 shrink-0 items-center rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-xs font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
+              onClick={() => {
+                if (hasSubcategoryDrilldown) {
+                  setSelectedSubcategoryId(null)
+                } else {
+                  setSelectedCategoryDrillId(null)
+                }
+              }}
+              className="inline-flex h-9 shrink-0 items-center rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-xs font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
             >
               Voltar
             </button>
@@ -780,7 +888,7 @@ export const Cards = () => {
         </div>
 
         {activeCategoryDonutData.length > 0 ? (
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-center">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_280px] xl:items-center">
             <div className="h-[240px] sm:h-[300px] xl:h-[340px]">
               <ReactEChartsCore
                 echarts={echarts}
@@ -792,19 +900,35 @@ export const Cards = () => {
               />
             </div>
             <div className="min-w-0">
-              {hasDrilldown ? (
+              {hasSubcategoryDrilldown ? (
                 <>
-                  <div className="pb-1 text-sm font-medium text-zinc-300">
-                    {activeCategoryDonutData.length > 0 ? categoryChartTitle : "Itens da categoria"}
+                  <div className="flex items-center justify-between pb-1.5">
+                    <span className="text-sm font-medium text-zinc-300">
+                      Lançamentos ({selectedSubcategoryItems.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSubcategoryId(null)}
+                      className="text-xs text-indigo-400 hover:text-indigo-300 transition"
+                    >
+                      ← Subcategorias
+                    </button>
                   </div>
-                  <div className="max-h-[300px] overflow-y-auto">
-                    {selectedCategoryItems.length > 0 ? (
-                      selectedCategoryItems.map((item) => (
+                  <div className="max-h-[300px] overflow-y-auto pr-1">
+                    {selectedSubcategoryItems.length > 0 ? (
+                      selectedSubcategoryItems.map((item) => (
                         <div
                           key={item.id}
                           className="flex items-center justify-between gap-3 border-b border-zinc-800 py-2.5 text-sm last:border-b-0"
                         >
-                          <span className="min-w-0 truncate text-zinc-200">{item.label}</span>
+                          <div className="min-w-0 flex flex-col">
+                            <span className="truncate text-zinc-200">{item.label}</span>
+                            {item.date && (
+                              <span className="text-[11px] text-zinc-500">
+                                {item.date.split("-").reverse().join("/")}
+                              </span>
+                            )}
+                          </div>
                           <span className="shrink-0 font-semibold text-zinc-100">
                             {formatCurrency(item.value)}
                           </span>
@@ -812,41 +936,91 @@ export const Cards = () => {
                       ))
                     ) : (
                       <div className="py-4 text-sm text-zinc-500">
-                        Nenhum lançamento detalhado para esta categoria no mês.
+                        Nenhum lançamento detalhado para esta subcategoria no mês.
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : hasDrilldown ? (
+                <>
+                  <div className="pb-1.5 text-sm font-medium text-zinc-300">
+                    Subcategorias ({subcategoryDonutData.length})
+                  </div>
+                  <div className="max-h-[300px] overflow-y-auto pr-1">
+                    {subcategoryDonutData.length > 0 ? (
+                      <ul>
+                        {subcategoryDonutData.map((item, index) => (
+                          <li key={item.id} className="border-b border-zinc-800 last:border-b-0">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedSubcategoryId(item.subcategoryId)}
+                              className="flex min-h-[44px] w-full items-center justify-between gap-3 py-2 text-left text-sm transition hover:text-zinc-100"
+                            >
+                              <span className="flex min-w-0 items-center gap-2.5 text-zinc-300">
+                                <span
+                                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                  style={{
+                                    backgroundColor:
+                                      categoryChartColors[index % categoryChartColors.length]
+                                  }}
+                                />
+                                <span className="truncate">{item.name}</span>
+                              </span>
+                              <span className="flex shrink-0 items-center gap-1 font-semibold tabular-nums text-zinc-100">
+                                {selectedCategoryTotal > 0 && (
+                                  <span className="mr-1 text-xs font-normal text-zinc-500">
+                                    {Math.round((item.value / selectedCategoryTotal) * 100)}%
+                                  </span>
+                                )}
+                                {formatCurrency(item.value)}
+                                <ChevronRight size={14} className="text-zinc-500" />
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="py-4 text-sm text-zinc-500">
+                        Nenhuma subcategoria com gastos nesta categoria.
                       </div>
                     )}
                   </div>
                 </>
               ) : (
                 <>
-                  <ul>
-                    {activeCategoryDonutData.slice(0, 6).map((item, index) => (
-                      <li key={item.id} className="border-b border-zinc-800 last:border-b-0">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedCategoryDrillId(item.id)}
-                          className="flex min-h-[44px] w-full items-center justify-between gap-3 py-2 text-left text-sm transition hover:text-zinc-100"
-                        >
-                          <span className="flex min-w-0 items-center gap-2.5 text-zinc-300">
-                            <span
-                              className="h-2.5 w-2.5 shrink-0 rounded-full"
-                              style={{ backgroundColor: categoryChartColors[index % categoryChartColors.length] }}
-                            />
-                            <span className="truncate">{item.name}</span>
-                          </span>
-                          <span className="flex shrink-0 items-center gap-1 font-semibold tabular-nums text-zinc-100">
-                            {totalCategoryExpenses > 0 && (
-                              <span className="mr-1 text-xs font-normal text-zinc-500">
-                                {Math.round((item.value / totalCategoryExpenses) * 100)}%
-                              </span>
-                            )}
-                            {formatCurrency(item.value)}
-                            <ChevronRight size={14} className="text-zinc-500" />
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="max-h-[300px] overflow-y-auto pr-1">
+                    <ul>
+                      {activeCategoryDonutData.map((item, index) => (
+                        <li key={item.id} className="border-b border-zinc-800 last:border-b-0">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCategoryDrillId(item.id)}
+                            className="flex min-h-[44px] w-full items-center justify-between gap-3 py-2 text-left text-sm transition hover:text-zinc-100"
+                          >
+                            <span className="flex min-w-0 items-center gap-2.5 text-zinc-300">
+                              <span
+                                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                style={{
+                                  backgroundColor:
+                                    categoryChartColors[index % categoryChartColors.length]
+                                }}
+                              />
+                              <span className="truncate">{item.name}</span>
+                            </span>
+                            <span className="flex shrink-0 items-center gap-1 font-semibold tabular-nums text-zinc-100">
+                              {totalCategoryExpenses > 0 && (
+                                <span className="mr-1 text-xs font-normal text-zinc-500">
+                                  {Math.round((item.value / totalCategoryExpenses) * 100)}%
+                                </span>
+                              )}
+                              {formatCurrency(item.value)}
+                              <ChevronRight size={14} className="text-zinc-500" />
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </>
               )}
             </div>
